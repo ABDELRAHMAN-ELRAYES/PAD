@@ -32,6 +32,11 @@ import {
     UpdateTaskInput,
     TaskResponse,
     TasksListResponse,
+    Workflow,
+    WorkflowResponse,
+    WorkflowStep,
+    UpdateWorkflowStepInput,
+    WorkflowExportResponse
 } from "./types/idea";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -281,10 +286,10 @@ export const featureApi = {
 
     // Get version history
     async getVersions(id: string): Promise<FeatureVersion[]> {
-        const response = await fetchWithAuth<{ data: { versions: FeatureVersion[] } }>(
+        const response = await fetchWithAuth<any>(
             `/features/${id}/versions`
         );
-        return response.data!.versions;
+        return response.data?.versions || (response.data as any) || [];
     },
 
     // Link feature to diagram
@@ -360,10 +365,10 @@ export const taskApi = {
 
     // Get version history
     async getVersions(id: string): Promise<TaskVersion[]> {
-        const response = await fetchWithAuth<{ data: { versions: TaskVersion[] } }>(
+        const response = await fetchWithAuth<any>(
             `/tasks/${id}/versions`
         );
-        return response.data!.versions;
+        return response.data?.versions || (response.data as any) || [];
     },
 
     // Add dependency
@@ -378,5 +383,49 @@ export const taskApi = {
         await fetchWithAuth(`/tasks/${taskId}/dependencies/${dependsOnId}`, {
             method: "DELETE",
         });
+    },
+};
+
+// ============================================
+// Workflow Generation & IDE Integration API (Module 5)
+// ============================================
+export const workflowApi = {
+    // Generate an AI workflow from task breakdown
+    async generate(ideaId: string): Promise<Workflow> {
+        const response = await fetchWithAuth<WorkflowResponse>(
+            `/workflows/generate/${ideaId}`,
+            {
+                method: "POST",
+            }
+        );
+        return response.data!.workflow;
+    },
+
+    // Get workflow by Idea ID
+    async getByIdeaId(ideaId: string): Promise<Workflow> {
+        const response = await fetchWithAuth<WorkflowResponse>(
+            `/workflows/idea/${ideaId}`
+        );
+        return response.data!.workflow;
+    },
+
+    // Update workflow step (status, instructions, etc)
+    async updateStep(stepId: string, data: UpdateWorkflowStepInput): Promise<{ step: WorkflowStep }> {
+        const response = await fetchWithAuth<{ step: WorkflowStep }>(
+            `/workflows/steps/${stepId}`,
+            {
+                method: "PATCH",
+                body: JSON.stringify(data),
+            }
+        );
+        return response.data!;
+    },
+
+    // Export workflow for AI IDE
+    async export(workflowId: string): Promise<string> {
+        const response = await fetchWithAuth<WorkflowExportResponse>(
+            `/workflows/${workflowId}/export`
+        );
+        return response.data!.export;
     },
 };

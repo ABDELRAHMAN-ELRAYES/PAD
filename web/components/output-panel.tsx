@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import type { SDLCData } from "@/app/page"
 import TabNavigation from "./tab-navigation"
 import Overview from "./tabs/overview"
 import Requirements from "./tabs/requirements"
@@ -12,7 +11,7 @@ import ExportButton from "./export-button"
 import SkeletonLoader from "./skeleton-loader"
 
 interface OutputPanelProps {
-  data: SDLCData | null
+  data: any | null
   isLoading: boolean
 }
 
@@ -54,7 +53,7 @@ export default function OutputPanel({ data, isLoading }: OutputPanelProps) {
 
   return (
     <div className="w-full flex flex-col bg-background overflow-hidden h-full">
-      <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
+      <TabNavigation activeTab={activeTab} onTabChange={(tab: string) => setActiveTab(tab as TabType)} tabs={tabs} />
 
       {isLoading ? (
         <div className="flex-1 overflow-auto p-6 sm:p-8">

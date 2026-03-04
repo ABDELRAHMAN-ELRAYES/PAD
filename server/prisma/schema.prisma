@@ -54,6 +54,8 @@ model Idea {
     diagrams  Diagram[]
     // Idea -> Feature (One -> Many)
     features  Feature[]
+    // Idea -> Workflow (One -> One)
+    workflow  Workflow?
 
     @@map("ideas")
 }
@@ -218,6 +220,8 @@ model Task {
     dependents   TaskDependency[] @relation("DependentTask")
     // Task -> TaskDependency (One -> Many) - this task depends on others
     dependencies TaskDependency[] @relation("DependsOnTask")
+    // Task -> WorkflowStep (One -> Many)
+    steps        WorkflowStep[]
 
     @@map("tasks")
 }
@@ -270,4 +274,75 @@ model FeatureDiagramLink {
 
     @@unique([featureId, diagramId])
     @@map("feature_diagram_links")
+}
+
+// ============================================
+// Module 5: Implementation Workflow
+// ============================================
+
+model Workflow {
+    id        String   @id @default(uuid())
+    ideaId    String   @map("idea_id") @unique
+    status    String   @default("draft") // draft | active | completed
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    steps     WorkflowStep[]
+
+    @@map("workflows")
+}
+
+model WorkflowStep {
+    id           String   @id @default(uuid())
+    workflowId   String   @map("workflow_id")
+    taskId       String?  @map("task_id")
+    title        String
+    description  String   @db.Text
+    instructions String   @db.Text // AI IDE instructions
+    status       String   @default("pending") // pending | in_progress | completed | blocked | failed
+    order        Int      @default(0)
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+    task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+    dependents   WorkflowStepDependency[] @relation("DependentStep")
+    dependencies WorkflowStepDependency[] @relation("DependsOnStep")
+    versions     WorkflowStepVersion[]
+
+    @@map("workflow_steps")
+}
+
+model WorkflowStepDependency {
+    id                  String   @id @default(uuid())
+    stepId              String   @map("step_id")
+    dependsOnStepId     String   @map("depends_on_step_id")
+    createdAt           DateTime @default(now()) @map("created_at")
+
+    step      WorkflowStep @relation("DependentStep", fields: [stepId], references: [id], onDelete: Cascade)
+    dependsOn WorkflowStep @relation("DependsOnStep", fields: [dependsOnStepId], references: [id], onDelete: Cascade)
+
+    @@unique([stepId, dependsOnStepId])
+    @@map("workflow_step_dependencies")
+}
+
+model WorkflowStepVersion {
+    id           String   @id @default(uuid())
+    stepId       String   @map("step_id")
+    version      Int
+    title        String
+    description  String   @db.Text
+    instructions String   @db.Text
+    status       String
+    changelog    String?  @db.Text
+    createdAt    DateTime @default(now()) @map("created_at")
+
+    step WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+    @@unique([stepId, version])
+    @@map("workflow_step_versions")
 }

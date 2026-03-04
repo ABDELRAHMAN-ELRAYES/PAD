@@ -6,6 +6,10 @@ import { buildAnalyzeIdeaPrompt, buildReanalyzeWithAnswersPrompt, IQuestionAnswe
 import { buildGeneratePRDPrompt } from "./prompts/generate-prd.prompt";
 import { buildGenerateBRDPrompt } from "./prompts/generate-brd.prompt";
 import { buildDiagramPrompt, DiagramType, IGeneratedDiagram } from "./prompts/generate-diagram.prompt";
+import { buildGenerateWorkflowPrompt } from "./prompts/generate-workflow.prompt";
+import { IGeneratedWorkflowStep } from "../workflow/types/IWorkflow";
+import { IFeature } from "../feature/types/IFeature";
+import { ITask } from "../task/types/ITask";
 
 // Puter.js type (using any for the instance since types aren't fully exposed for init method)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,6 +486,52 @@ class AiService {
         };
 
         return fallbacks[type];
+    }
+    static async generateWorkflow(
+        ideaText: string,
+        features: (IFeature & { tasks: ITask[] })[],
+        taskDependencies: Record<string, string[]>,
+        next: NextFunction
+    ): Promise<IGeneratedWorkflowStep[] | void> {
+        const prompt = buildGenerateWorkflowPrompt(ideaText, features, taskDependencies);
+
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+            try {
+                const responseText = await this.callLLM(prompt);
+
+                // Extract JSON block
+                const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/) ||
+                    responseText.match(/```\n([\s\S]*?)\n```/);
+
+                const jsonStr = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
+
+                const parsed = JSON.parse(jsonStr);
+
+                if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+                    return parsed.steps as IGeneratedWorkflowStep[];
+                }
+
+                if (attempt < this.MAX_RETRIES) {
+                    console.log(`Workflow generation retry ${attempt}: Invalid JSON response`);
+                    continue;
+                }
+            } catch (error) {
+                lastError = error as Error;
+                console.error(`Workflow generation attempt ${attempt} failed:`, error);
+
+                if (attempt < this.MAX_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+            }
+        }
+
+        if (lastError) {
+            console.error("Workflow generation failed after retries:", lastError);
+            return next(new AppError(503, "AI service temporarily unavailable. Please try again."));
+        }
     }
 }
 

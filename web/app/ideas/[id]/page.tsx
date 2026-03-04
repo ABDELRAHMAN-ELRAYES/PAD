@@ -20,6 +20,7 @@ import {
     ListChecks,
     Send,
     GitBranch,
+    Bot
 } from "lucide-react";
 import Link from "next/link";
 
@@ -290,6 +291,28 @@ export default function IdeaDetailPage() {
                                 <Link href={`/ideas/${ideaId}/features`}>
                                     <Button variant="outline">
                                         View Features & Tasks
+                                    </Button>
+                                </Link>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Workflow Section */}
+                    <Card className="mb-6 border-purple-500/20 bg-purple-50/50 dark:bg-purple-950/20">
+                        <CardContent className="py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Bot className="h-8 w-8 text-purple-500" />
+                                    <div>
+                                        <h3 className="font-medium">AI IDE Workflow</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Generate code execution workflow steps for Cursor/Copilot
+                                        </p>
+                                    </div>
+                                </div>
+                                <Link href={`/ideas/${ideaId}/workflow`}>
+                                    <Button variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-100 hover:text-purple-700 dark:border-purple-800 dark:hover:bg-purple-900/50">
+                                        View Workflow
                                     </Button>
                                 </Link>
                             </div>
