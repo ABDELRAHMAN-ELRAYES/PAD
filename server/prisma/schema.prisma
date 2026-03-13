@@ -47,15 +47,16 @@ model Idea {
 
     // Relations
     // Idea -> User (Many -> One)
-    user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
     // Idea -> Document (One -> Many)
-    documents Document[]
+    documents        Document[]
     // Idea -> Diagram (One -> Many)
-    diagrams  Diagram[]
+    diagrams         Diagram[]
     // Idea -> Feature (One -> Many)
-    features  Feature[]
+    features         Feature[]
     // Idea -> Workflow (One -> One)
-    workflow  Workflow?
+    workflow         Workflow?
+    iterationSession IterationSession?
 
     @@map("ideas")
 }
@@ -282,14 +283,14 @@ model FeatureDiagramLink {
 
 model Workflow {
     id        String   @id @default(uuid())
-    ideaId    String   @map("idea_id") @unique
+    ideaId    String   @unique @map("idea_id")
     status    String   @default("draft") // draft | active | completed
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
-    idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-    steps     WorkflowStep[]
+    idea  Idea           @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    steps WorkflowStep[]
 
     @@map("workflows")
 }
@@ -307,8 +308,8 @@ model WorkflowStep {
     updatedAt    DateTime @updatedAt @map("updated_at")
 
     // Relations
-    workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-    task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+    workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+    task     Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
     dependents   WorkflowStepDependency[] @relation("DependentStep")
     dependencies WorkflowStepDependency[] @relation("DependsOnStep")
@@ -318,10 +319,10 @@ model WorkflowStep {
 }
 
 model WorkflowStepDependency {
-    id                  String   @id @default(uuid())
-    stepId              String   @map("step_id")
-    dependsOnStepId     String   @map("depends_on_step_id")
-    createdAt           DateTime @default(now()) @map("created_at")
+    id              String   @id @default(uuid())
+    stepId          String   @map("step_id")
+    dependsOnStepId String   @map("depends_on_step_id")
+    createdAt       DateTime @default(now()) @map("created_at")
 
     step      WorkflowStep @relation("DependentStep", fields: [stepId], references: [id], onDelete: Cascade)
     dependsOn WorkflowStep @relation("DependsOnStep", fields: [dependsOnStepId], references: [id], onDelete: Cascade)
@@ -345,4 +346,74 @@ model WorkflowStepVersion {
 
     @@unique([stepId, version])
     @@map("workflow_step_versions")
+}
+
+// ============================================
+// Module 6: Iterative Feedback & Chat-Based Updates
+// ============================================
+
+model IterationSession {
+    id        String   @id @default(uuid())
+    ideaId    String   @unique @map("idea_id")
+    status    String   @default("active") // active | completed
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    // IterationSession -> Idea (One -> One)
+    idea     Idea               @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    // IterationSession -> IterationMessage (One -> Many)
+    messages IterationMessage[]
+
+    @@map("iteration_sessions")
+}
+
+model IterationMessage {
+    id        String   @id @default(uuid())
+    sessionId String   @map("session_id")
+    role      String // "user" | "assistant"
+    content   String   @db.Text
+    createdAt DateTime @default(now()) @map("created_at")
+
+    // Relations
+    // IterationMessage -> IterationSession (Many -> One)
+    session    IterationSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    // IterationMessage -> IterationSuggestion (One -> One)
+    suggestion IterationSuggestion?
+
+    @@map("iteration_messages")
+}
+
+model IterationSuggestion {
+    id        String   @id @default(uuid())
+    messageId String   @unique @map("message_id")
+    title     String
+    summary   String   @db.Text
+    status    String   @default("pending") // pending | approved | rejected | applied
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    // IterationSuggestion -> IterationMessage (One -> One)
+    message IterationMessage            @relation(fields: [messageId], references: [id], onDelete: Cascade)
+    // IterationSuggestion -> IterationSuggestionAction (One -> Many)
+    actions IterationSuggestionAction[]
+
+    @@map("iteration_suggestions")
+}
+
+model IterationSuggestionAction {
+    id           String   @id @default(uuid())
+    suggestionId String   @map("suggestion_id")
+    module       String // "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW"
+    targetId     String   @map("target_id")
+    actionType   String // "CREATE" | "MODIFY" | "DELETE" | "REGENERATE"
+    newContent   String?  @map("new_content") @db.Text
+    createdAt    DateTime @default(now()) @map("created_at")
+
+    // Relations
+    // IterationSuggestionAction -> IterationSuggestion (Many -> One)
+    suggestion IterationSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+    @@map("iteration_suggestion_actions")
 }

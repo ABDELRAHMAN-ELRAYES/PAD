@@ -7,6 +7,7 @@ This document provides comprehensive rules and guidelines for AI agents building
 ---
 Act as a senior expert react software engineer with 20 years of experience to implement the ui of the module @documents/modules/module_2 and connect it to the api endpoints and make the user flow works normally with strict following the rules at @frontend_implementation_rules.md you have to scan all required endpoints to know carefully precisely the required data which must be sent to the server and the recieved data and attributes recieved from the endpoint call 
  
+
  
 ## Core Principles
 

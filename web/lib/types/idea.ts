@@ -329,3 +329,67 @@ export interface UpdateWorkflowStepInput {
 export interface WorkflowExportResponse {
     export: string;
 }
+
+// ============================================
+// Module 6: Iteration & Chat-Based Updates Types
+// ============================================
+
+export type IterationSessionStatus = "active" | "closed";
+export type SuggestionStatus = "pending" | "approved" | "rejected" | "applied";
+export type SuggestionModule = "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW";
+export type SuggestionActionType = "CREATE" | "MODIFY" | "DELETE" | "REGENERATE";
+
+export interface IterationSuggestionAction {
+    id: string;
+    suggestionId: string;
+    module: SuggestionModule;
+    targetId: string;
+    actionType: SuggestionActionType;
+    newContent?: string;
+    createdAt: string;
+}
+
+export interface IterationSuggestion {
+    id: string;
+    messageId: string;
+    title: string;
+    summary: string;
+    status: SuggestionStatus;
+    actions?: IterationSuggestionAction[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface IterationMessage {
+    id: string;
+    sessionId: string;
+    role: "user" | "assistant";
+    content: string;
+    suggestion?: IterationSuggestion;
+    createdAt: string;
+}
+
+export interface IterationSession {
+    id: string;
+    ideaId: string;
+    status: IterationSessionStatus;
+    messages?: IterationMessage[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface IterationSessionResponse {
+    session: IterationSession;
+}
+
+export interface IterationMessageResponse {
+    message: IterationMessage;
+}
+
+export interface IterationSuggestionResponse {
+    suggestion: IterationSuggestion;
+}
+
+export interface SendMessageInput {
+    content: string;
+}

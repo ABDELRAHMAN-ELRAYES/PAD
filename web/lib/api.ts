@@ -36,7 +36,13 @@ import {
     WorkflowResponse,
     WorkflowStep,
     UpdateWorkflowStepInput,
-    WorkflowExportResponse
+    WorkflowExportResponse,
+    IterationSession,
+    IterationSessionResponse,
+    IterationMessage,
+    IterationMessageResponse,
+    IterationSuggestion,
+    IterationSuggestionResponse,
 } from "./types/idea";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
@@ -427,5 +433,41 @@ export const workflowApi = {
             `/workflows/${workflowId}/export`
         );
         return response.data!.export;
+    },
+};
+
+// ============================================
+// Iterative Feedback & Chat-Based Updates API (Module 6)
+// ============================================
+export const iterationApi = {
+    // Get (or auto-create) an iteration session for an idea
+    async getSession(ideaId: string): Promise<IterationSession> {
+        const response = await fetchWithAuth<IterationSessionResponse>(
+            `/iterations/idea/${ideaId}`
+        );
+        return response.data!.session;
+    },
+
+    // Send a user message to the iteration session
+    async sendMessage(ideaId: string, content: string): Promise<IterationMessage> {
+        const response = await fetchWithAuth<IterationMessageResponse>(
+            `/iterations/idea/${ideaId}/message`,
+            {
+                method: "POST",
+                body: JSON.stringify({ content }),
+            }
+        );
+        return response.data!.message;
+    },
+
+    // Approve a pending suggestion
+    async approveSuggestion(suggestionId: string): Promise<IterationSuggestion> {
+        const response = await fetchWithAuth<IterationSuggestionResponse>(
+            `/iterations/suggestion/${suggestionId}/approve`,
+            {
+                method: "POST",
+            }
+        );
+        return response.data!.suggestion;
     },
 };

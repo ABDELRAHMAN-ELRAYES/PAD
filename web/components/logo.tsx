@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const Logo = () => {
-  const [isHovered, setIsHovered] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
 
   const words = [
     { letter: 'P', text: 'lanning' },

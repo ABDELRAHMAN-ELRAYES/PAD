@@ -2,12 +2,15 @@ import http from "http";
 import app from "./app";
 import config from "./config/config";
 import PrismaClientSingleton from "./data-server-clients/prisma-client";
-
+import SocketService from "./services/socket.service";
 
 const prisma = PrismaClientSingleton.getPrismaClient();
 
 // Create HTTP server
 const server = http.createServer(app);
+
+// Initialize Socket.IO
+SocketService.getInstance().initialize(server);
 
 
 const PORT = config.port;

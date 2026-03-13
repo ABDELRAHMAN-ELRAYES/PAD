@@ -18,6 +18,7 @@ import DiagramRouter from "./modules/diagram/diagram.route";
 import FeatureRouter from "./modules/feature/feature.route";
 import TaskRouter from "./modules/task/task.route";
 import WorkflowRouter from "./modules/workflow/workflow.route";
+import IterationRouter from "./modules/iteration/iteration.route";
 import { bodyParser, cookieParserMiddleware, corsMiddleware, formParser } from "./middlewares/middlewares";
 
 // Seed default admin user
@@ -96,6 +97,7 @@ app.use("/api/v1/diagrams", DiagramRouter);
 app.use("/api/v1/features", FeatureRouter);
 app.use("/api/v1/tasks", TaskRouter);
 app.use("/api/v1/workflows", WorkflowRouter);
+app.use("/api/v1/iterations", IterationRouter);
 
 // 404 handler
 app.use(notFoundHandler);

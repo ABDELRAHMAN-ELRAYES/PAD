@@ -6,7 +6,7 @@ import { IUpdateDocumentWithChangelogData } from "./types/IDocument";
 // Generate documents for an idea
 export const generateDocuments = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const ideaId = request.params.ideaId;
+        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
 
         const documents = await DocumentService.generateDocuments(ideaId, next);
         if (!documents) return;
@@ -22,7 +22,7 @@ export const generateDocuments = catchAsync(
 // Get a single document
 export const getDocument = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
 
         const document = await DocumentService.getDocument(documentId, next);
         if (!document) return;
@@ -37,7 +37,7 @@ export const getDocument = catchAsync(
 // Get document with version history
 export const getDocumentWithVersions = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
 
         const document = await DocumentService.getDocumentWithVersions(documentId, next);
         if (!document) return;
@@ -52,7 +52,7 @@ export const getDocumentWithVersions = catchAsync(
 // Get all documents for an idea
 export const getDocumentsByIdea = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const ideaId = request.params.ideaId;
+        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
 
         const documents = await DocumentService.getDocumentsByIdea(ideaId, next);
         if (!documents) return;
@@ -67,7 +67,7 @@ export const getDocumentsByIdea = catchAsync(
 // Update a document
 export const updateDocument = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
         const data: IUpdateDocumentWithChangelogData = {
             title: request.body.title,
             content: request.body.content,
@@ -89,7 +89,7 @@ export const updateDocument = catchAsync(
 // Get version history
 export const getVersionHistory = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
 
         const versions = await DocumentService.getVersionHistory(documentId, next);
         if (!versions) return;
@@ -104,8 +104,9 @@ export const getVersionHistory = catchAsync(
 // Revert to a specific version
 export const revertToVersion = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
-        const versionNumber = parseInt(request.params.version, 10);
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+
+        const versionNumber = parseInt(Array.isArray(request.params.version) ? request.params.version[0] : request.params.version, 10);
 
         if (isNaN(versionNumber)) {
             return response.status(400).json({
@@ -128,7 +129,7 @@ export const revertToVersion = catchAsync(
 // Regenerate a document
 export const regenerateDocument = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
 
         const document = await DocumentService.regenerateDocument(documentId, next);
         if (!document) return;
@@ -144,7 +145,7 @@ export const regenerateDocument = catchAsync(
 // Export document
 export const exportDocument = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = request.params.id;
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
         const format = request.params.format as "markdown" | "html";
 
         if (!["markdown", "html"].includes(format)) {

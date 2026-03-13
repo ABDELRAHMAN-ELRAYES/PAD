@@ -119,6 +119,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -144,5 +145,39 @@
 
   .pad-tab-button-active {
     @apply text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-accent;
+  }
+
+  /* Workspace layout styles */
+  .workspace-sidebar {
+    @apply transition-all duration-200;
+  }
+
+  .workspace-panel {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .workspace-panel::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .workspace-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .workspace-panel::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 3px;
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 }

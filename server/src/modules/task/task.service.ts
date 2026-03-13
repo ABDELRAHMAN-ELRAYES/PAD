@@ -9,6 +9,7 @@ import {
     ITaskWithDependencies,
     ICreateTaskRepositoryData,
     TaskStatus,
+    Priority,
 } from "./types/ITask";
 import AIService from "../ai/ai.service";
 import { buildGenerateTasksPrompt } from "../ai/prompts/feature-task.prompt";
@@ -26,7 +27,8 @@ export default class TaskService {
         const feature = await featureRepo.getFeatureById(featureId);
 
         if (!feature) {
-            return next(new AppError(404, "Feature not found"));
+            next(new AppError(404, "Feature not found"));
+            return
         }
 
         const prompt = buildGenerateTasksPrompt(feature.title, feature.description);
@@ -42,7 +44,7 @@ export default class TaskService {
                     featureId,
                     title: taskData.title,
                     description: taskData.description,
-                    priority: taskData.priority || "medium",
+                    priority: taskData.priority || "medium" as Priority,
                     estimatedEffort: taskData.estimatedEffort,
                     order: i,
                     status: "planned",
@@ -54,7 +56,8 @@ export default class TaskService {
 
             return createdTasks;
         } catch (error) {
-            return next(new AppError(500, "Failed to suggest tasks using AI"));
+            next(new AppError(500, "Failed to suggest tasks using AI"));
+            return
         }
     }
 
@@ -86,7 +89,9 @@ export default class TaskService {
         next: NextFunction
     ): Promise<ITask | undefined> {
         if (!data.title || data.title.trim().length < 3) {
-            return next(new AppError(400, "Task title must be at least 3 characters"));
+            next(new AppError(400, "Task title must be at least 3 characters"));
+            return
+
         }
 
         const repositoryData: ICreateTaskRepositoryData = {
@@ -105,7 +110,8 @@ export default class TaskService {
     static async getTask(id: string, next: NextFunction): Promise<ITask | undefined> {
         const task = await this.repository.getTaskById(id);
         if (!task) {
-            return next(new AppError(404, "Task not found"));
+            next(new AppError(404, "Task not found"));
+            return
         }
         return task;
     }
@@ -117,7 +123,9 @@ export default class TaskService {
     static async getTaskWithDependencies(id: string, next: NextFunction): Promise<ITaskWithDependencies | undefined> {
         const task = await this.repository.getTaskWithDependencies(id);
         if (!task) {
-            return next(new AppError(404, "Task not found"));
+            next(new AppError(404, "Task not found"));
+            return
+
         }
         return task;
     }
@@ -125,7 +133,8 @@ export default class TaskService {
     static async updateTask(id: string, data: IUpdateTaskData, next: NextFunction): Promise<ITask | undefined> {
         const existingTask = await this.repository.getTaskById(id);
         if (!existingTask) {
-            return next(new AppError(404, "Task not found"));
+            next(new AppError(404, "Task not found"));
+            return
         }
 
         if (data.title || data.description || data.status) {
@@ -144,7 +153,8 @@ export default class TaskService {
     static async updateTaskStatus(id: string, status: TaskStatus, next: NextFunction): Promise<ITask | undefined> {
         const existingTask = await this.repository.getTaskById(id);
         if (!existingTask) {
-            return next(new AppError(404, "Task not found"));
+            next(new AppError(404, "Task not found"));
+            return
         }
 
         await this.repository.createVersion(
@@ -193,7 +203,8 @@ export default class TaskService {
     static async getVersionHistory(id: string, next: NextFunction): Promise<ITaskVersion[] | undefined> {
         const existingTask = await this.repository.getTaskById(id);
         if (!existingTask) {
-            return next(new AppError(404, "Task not found"));
+            next(new AppError(404, "Task not found"));
+            return
         }
         return await this.repository.getVersionHistory(id);
     }
