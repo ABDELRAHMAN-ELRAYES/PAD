@@ -8,6 +8,7 @@ import {
 import AppError from "@/utils/app-error";
 import SocketService from "../../services/socket.service";
 import AiService from "../ai/ai.service";
+import { buildIterationPrompt } from "../ai/prompts/iteration.prompt";
 
 // Fixing imports to use backend services
 import IdeaRepository from "../idea/idea.repository";
@@ -19,10 +20,7 @@ import { workflowRepository } from "../workflow/workflow.repository";
 import { IFeature } from "../feature/types/IFeature";
 
 export default class IterationService {
-    private repository: IterationRepository;
-
     constructor() {
-        this.repository = IterationRepository.getInstance();
     }
 
     static async getOrCreateSession(ideaId: string, _: NextFunction): Promise<IIterationSession | void> {
@@ -89,16 +87,50 @@ export default class IterationService {
                 content: m.content
             }));
 
-            const aiResult = await AiService.processIteration(idea.refinedText || idea.rawText, history, feedback, context, (err: any) => console.error(err));
+            const prompt = buildIterationPrompt(idea.refinedText || idea.rawText, history, feedback, context);
+            let fullResponseText = "";
+            
+            // Stream raw response via socket for real-time UI updates
+            const socket = SocketService.getInstance();
+            for await (const chunk of AiService.callLLMStream(prompt)) {
+                fullResponseText += chunk;
+                socket.emitToRoom(ideaId, "message:stream", { 
+                    sessionId, 
+                    chunk, 
+                    fullText: fullResponseText 
+                });
+            }
+
+            // Once finished, parse the full response
+            // Extract JSON block
+            const jsonMatch = fullResponseText.match(/```json\n([\s\S]*?)\n```/) ||
+                fullResponseText.match(/```\n([\s\S]*?)\n```/) ||
+                (fullResponseText.trim().startsWith("{") ? [null, fullResponseText.trim()] : null);
+
+            const jsonStr = jsonMatch ? jsonMatch[1].trim() : null;
+            let aiResult: any = null;
+
+            if (jsonStr) {
+                try {
+                    aiResult = JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error("Failed to parse streamed AI JSON:", e);
+                }
+            } else {
+                // If not JSON, treat the whole thing as the response
+                aiResult = { response: fullResponseText };
+            }
 
             if (aiResult) {
-                // 1. Add AI response message
+                // 1. Add AI response message to database
                 const aiMessage = await repo.addMessage({
                     sessionId,
                     role: "assistant",
-                    content: aiResult.response
+                    content: aiResult.response || fullResponseText
                 });
-                SocketService.getInstance().emitToRoom(ideaId, "message:new", aiMessage);
+                
+                // Notify that streaming is finished and message is saved
+                socket.emitToRoom(ideaId, "message:new", aiMessage);
 
                 // 2. Create suggestion if present
                 if (aiResult.suggestion) {
@@ -108,7 +140,7 @@ export default class IterationService {
                         summary: aiResult.suggestion.summary,
                         actions: aiResult.suggestion.actions
                     });
-                    SocketService.getInstance().emitToRoom(ideaId, "suggestion:new", suggestion);
+                    socket.emitToRoom(ideaId, "suggestion:new", suggestion);
                 }
             }
         } catch (error) {

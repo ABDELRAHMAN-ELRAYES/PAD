@@ -52,13 +52,24 @@ export const analyzeIdea = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const ideaId = request.params.id as string;
 
-        const idea = await IdeaService.analyzeIdea(ideaId, next);
-        if (!idea) return;
+        // Set headers for streaming
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Transfer-Encoding", "chunked");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
 
-        response.status(200).json({
-            status: "success",
-            data: { idea },
-        });
+        try {
+            await IdeaService.analyzeIdea(ideaId, next, (chunk) => {
+                response.write(JSON.stringify(chunk) + "\n");
+            });
+            response.end();
+        } catch (err) {
+            if (!response.headersSent) {
+                return next(err);
+            }
+            console.error("Idea analysis streaming error:", err);
+            response.end();
+        }
     }
 );
 

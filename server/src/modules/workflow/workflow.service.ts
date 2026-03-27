@@ -11,9 +11,10 @@ import AppError from "../../utils/app-error";
 import { IWorkflow, IWorkflowStep, IUpdateWorkflowStepData, WorkflowStepStatus } from "./types/IWorkflow";
 import { IFeature } from "../feature/types/IFeature";
 import { ITask } from "../task/types/ITask";
+import IdeaRepository from "../idea/idea.repository";
 
 export class WorkflowService {
-    static async generateWorkflow(ideaId: string, next: NextFunction): Promise<IWorkflow | void> {
+    static async generateWorkflow(ideaId: string, next: NextFunction, onChunk?: (data: any) => void): Promise<IWorkflow | void> {
         // 1. Check if workflow already exists
         const existingWorkflow = await workflowRepository.getWorkflowByIdeaId(ideaId);
         if (existingWorkflow) {
@@ -45,88 +46,116 @@ export class WorkflowService {
             }
         }
 
-        // We need the original idea text for context
-        // In a real implementation we'd probably fetch the idea here, 
-        // but since AI Service needs ideaText, let's just pass a generic text or fetch if needed
-        // Since we don't have IdeaRepository imported easily, we can use a dummy or skip
-        // For accurate AI generation, we should fetch it. Instead of importing Idea repo, let's just pass a summary.
-        const ideaText = "Implement the features below.";
-
-        // 3. Ask AI to generate Workflow Steps
-        const generatedSteps = await AiService.generateWorkflow(
-            ideaText,
-            featuresWithTasks,
-            taskDependenciesMap,
-            next
-        );
-
-        if (!generatedSteps) {
-            return; // Error passed to next()
+        // Start background generation
+        if (onChunk) {
+            // Perform generation and stream directly to callback (HTTP response)
+            await this.processWorkflowGeneration(ideaId, featuresWithTasks, taskDependenciesMap, onChunk);
+        } else {
+            // Background generation (still used by some parts, but without sockets for now)
+            this.processWorkflowGeneration(ideaId, featuresWithTasks, taskDependenciesMap);
         }
 
-        // 4. Save to Database
-        // Create the Workflow first
-        const workflow = await workflowRepository.createWorkflow(ideaId);
+        return {} as IWorkflow;
+    }
 
-        // Map AI generated steps to Database create inputs
-        // Note: Prisma string IDs will be generated automatically if we let Prisma handle it,
-        // but since we need to map dependencies between these steps, we should generate UUIDs now.
-        const { v4: uuidv4 } = require("uuid"); // Lazy load or assume standard import
+    private static async processWorkflowGeneration(
+        ideaId: string,
+        featuresWithTasks: (IFeature & { tasks: ITask[] })[],
+        taskDependenciesMap: Record<string, string[]>,
+        onChunk?: (data: any) => void
+    ) {
+        const ideaRepo = IdeaRepository.getInstance();
+        const idea = await ideaRepo.getIdeaById(ideaId);
+        const ideaText = idea?.refinedText || idea?.rawText || "Implement the features below.";
+        
+        let fullResponse = "";
 
-        const stepIdMap = new Map<number, string>(); // order -> generated UUID
-        const stepTaskIdMap = new Map<string, string>(); // taskId -> step UUID
+        try {
+            const stream = AiService.generateWorkflowStream(
+                ideaText,
+                featuresWithTasks,
+                taskDependenciesMap
+            );
 
-        generatedSteps.forEach((s) => {
-            const id = uuidv4();
-            stepIdMap.set(s.order, id);
-            if (s.taskId) {
-                stepTaskIdMap.set(s.taskId, id);
-            }
-        });
-
-        const sortedGeneratedSteps = [...generatedSteps].sort((a, b) => a.order - b.order);
-
-        const stepsData: Prisma.WorkflowStepCreateManyInput[] = sortedGeneratedSteps.map((s, index) => {
-            const stepId = stepIdMap.get(s.order)!;
-            return {
-                id: stepId,
-                workflowId: workflow.id,
-                taskId: s.taskId || null,
-                title: s.title,
-                description: s.description,
-                instructions: s.instructions,
-                order: index + 1, // Ensure sequential 1-based order
-                status: "pending" as WorkflowStepStatus,
-            };
-        });
-
-        await workflowRepository.createWorkflowSteps(workflow.id, stepsData);
-
-        // 5. Build dependencies
-        const depsData: Prisma.WorkflowStepDependencyCreateManyInput[] = [];
-        for (const s of sortedGeneratedSteps) {
-            const currentStepId = stepIdMap.get(s.order)!;
-            if (s.dependsOnTaskIds && Array.isArray(s.dependsOnTaskIds)) {
-                for (const depTaskId of s.dependsOnTaskIds) {
-                    const dependsOnStepId = stepTaskIdMap.get(depTaskId);
-                    if (dependsOnStepId && dependsOnStepId !== currentStepId) {
-                        // Create dependency link
-                        depsData.push({
-                            stepId: currentStepId,
-                            dependsOnStepId: dependsOnStepId,
-                        });
-                    }
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                const chunkData = {
+                    chunk,
+                    fullText: fullResponse,
+                };
+                if (onChunk) {
+                    onChunk(chunkData);
                 }
             }
-        }
 
-        if (depsData.length > 0) {
-            await workflowRepository.createStepDependencies(depsData);
-        }
+            // Parse AI response to extract workflow steps
+            // We manually parse it using the same logic as AiService.generateWorkflow
+            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/) || fullResponse.match(/```\n([\s\S]*?)\n```/);
+            const jsonStr = jsonMatch ? jsonMatch[1].trim() : fullResponse.trim();
+            const parsed = JSON.parse(jsonStr);
+            const steps = parsed && Array.isArray(parsed.steps) ? parsed.steps : [];
 
-        // 6. Return the fully populated workflow
-        const completeWorkflow = await workflowRepository.getWorkflowById(workflow.id);
-        return completeWorkflow as unknown as IWorkflow;
+            if (steps.length > 0) {
+                // Save to Database
+                const workflow = await workflowRepository.createWorkflow(ideaId);
+                const { v4: uuidv4 } = require("uuid");
+                const stepIdMap = new Map<number, string>();
+                const stepTaskIdMap = new Map<string, string>();
+
+                steps.forEach((s: any) => {
+                    const id = uuidv4();
+                    stepIdMap.set(s.order, id);
+                    if (s.taskId) stepTaskIdMap.set(s.taskId, id);
+                });
+
+                const sortedGeneratedSteps = [...steps].sort((a, b) => a.order - b.order);
+                const stepsData: Prisma.WorkflowStepCreateManyInput[] = sortedGeneratedSteps.map((s, index) => {
+                    const stepId = stepIdMap.get(s.order)!;
+                    return {
+                        id: stepId,
+                        workflowId: workflow.id,
+                        taskId: s.taskId || null,
+                        title: s.title,
+                        description: s.description,
+                        instructions: s.instructions,
+                        order: index + 1,
+                        status: "pending" as WorkflowStepStatus,
+                    };
+                });
+
+                await workflowRepository.createWorkflowSteps(workflow.id, stepsData);
+
+                // Dependencies...
+                const depsData: Prisma.WorkflowStepDependencyCreateManyInput[] = [];
+                for (const s of sortedGeneratedSteps) {
+                    const currentStepId = stepIdMap.get(s.order)!;
+                    if (s.dependsOnTaskIds && Array.isArray(s.dependsOnTaskIds)) {
+                        for (const depTaskId of s.dependsOnTaskIds) {
+                            const dependsOnStepId = stepTaskIdMap.get(depTaskId);
+                            if (dependsOnStepId && dependsOnStepId !== currentStepId) {
+                                depsData.push({ stepId: currentStepId, dependsOnStepId: dependsOnStepId });
+                            }
+                        }
+                    }
+                }
+
+                if (depsData.length > 0) {
+                    await workflowRepository.createStepDependencies(depsData);
+                }
+
+                const completeWorkflow = await workflowRepository.getWorkflowById(workflow.id);
+                if (onChunk) {
+                    onChunk({ status: "final", workflow: completeWorkflow });
+                }
+            }
+        } catch (error) {
+            console.error("AI workflow generation error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Workflow generation failed";
+            
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
+        }
     }
 
     static async getWorkflowByIdeaId(ideaId: string, next: NextFunction): Promise<IWorkflow | void> {

@@ -8,29 +8,35 @@ export const generateDiagrams = async (
     res: Response,
     next: NextFunction
 ) => {
-    const { ideaId } = req.params;
+    const targetIdeaId = Array.isArray(req.params.ideaId) ? req.params.ideaId[0] : req.params.ideaId as string;
 
-    const diagrams = await DiagramService.generateDiagrams(ideaId, next);
-    if (!diagrams) return;
+    // Set headers for streaming
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-    res.status(201).json({
-        status: "success",
-        data: {
-            diagrams,
-            count: diagrams.length,
-        },
-    });
+    try {
+        await DiagramService.generateDiagrams(targetIdeaId, next, (chunk) => {
+            res.write(JSON.stringify(chunk) + "\n");
+        });
+        res.end();
+    } catch (err) {
+        if (!res.headersSent) {
+            return next(err);
+        }
+        console.error("Diagram generation streaming error:", err);
+        res.end();
+    }
 };
 
 // Get all diagrams for an idea
 export const getDiagramsByIdea = async (
     req: Request,
-    res: Response,
-    next: NextFunction
+    res: Response
 ) => {
-    const { ideaId } = req.params;
-
-    const diagrams = await DiagramService.getDiagramsByIdea(ideaId);
+    const targetId = Array.isArray(req.params.ideaId) ? req.params.ideaId[0] : req.params.ideaId as string;
+    const diagrams = await DiagramService.getDiagramsByIdea(targetId);
 
     res.status(200).json({
         status: "success",
@@ -47,8 +53,7 @@ export const getDiagram = async (
     res: Response,
     next: NextFunction
 ) => {
-    const { id } = req.params;
-
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const diagram = await DiagramService.getDiagram(id, next);
     if (!diagram) return;
 
@@ -64,8 +69,7 @@ export const getDiagramWithVersions = async (
     res: Response,
     next: NextFunction
 ) => {
-    const { id } = req.params;
-
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const diagram = await DiagramService.getDiagramWithVersions(id, next);
     if (!diagram) return;
 
@@ -81,7 +85,7 @@ export const updateDiagram = async (
     res: Response,
     next: NextFunction
 ) => {
-    const { id } = req.params;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const data: IUpdateDiagramData = req.body;
 
     const diagram = await DiagramService.updateDiagram(id, data, next);
@@ -96,11 +100,9 @@ export const updateDiagram = async (
 // Get version history
 export const getDiagramVersions = async (
     req: Request,
-    res: Response,
-    next: NextFunction
+    res: Response
 ) => {
-    const { id } = req.params;
-
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const versions = await DiagramService.getDiagramVersions(id);
 
     res.status(200).json({
@@ -118,8 +120,7 @@ export const regenerateDiagram = async (
     res: Response,
     next: NextFunction
 ) => {
-    const { id } = req.params;
-
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const diagram = await DiagramService.regenerateDiagram(id, next);
     if (!diagram) return;
 

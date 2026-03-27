@@ -31,6 +31,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useStreaming } from "@/components/streaming-provider";
 
 interface WorkflowPanelProps {
     ideaId: string;
@@ -38,6 +39,7 @@ interface WorkflowPanelProps {
 }
 
 export const WorkflowPanel: FC<WorkflowPanelProps> = ({ ideaId, idea }) => {
+    const { setPhaseStreaming } = useStreaming();
     const [workflow, setWorkflow] = useState<Workflow | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -46,6 +48,8 @@ export const WorkflowPanel: FC<WorkflowPanelProps> = ({ ideaId, idea }) => {
     const [editingStep, setEditingStep] = useState<string | null>(null);
     const [editInstructions, setEditInstructions] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+
+    const [streamingText, setStreamingText] = useState("");
 
     const fetchWorkflow = useCallback(async () => {
         setIsLoading(true);
@@ -68,20 +72,47 @@ export const WorkflowPanel: FC<WorkflowPanelProps> = ({ ideaId, idea }) => {
         fetchWorkflow();
     }, [fetchWorkflow]);
 
+    useEffect(() => {
+        if (isGenerating) {
+            setPhaseStreaming("workflow", true);
+        } else {
+            setPhaseStreaming("workflow", false);
+        }
+    }, [isGenerating, setPhaseStreaming]);
+
     const handleGenerate = async () => {
-        setIsGenerating(true);
-        setError(null);
         try {
-            const data = await workflowApi.generate(ideaId);
-            setWorkflow(data);
+            setIsGenerating(true);
+            setError(null);
+            setStreamingText("");
+            setPhaseStreaming("workflow", true);
+
+            await workflowApi.generateStream(ideaId, (data) => {
+                if (data.chunk) {
+                    setStreamingText(data.fullText || (prevText => prevText + data.chunk));
+                }
+
+                if (data.status === "final") {
+                    setIsGenerating(false);
+                    setStreamingText("");
+                    if (data.workflow) setWorkflow(data.workflow);
+                    setPhaseStreaming("workflow", false);
+                }
+
+                if (data.status === "error") {
+                    setIsGenerating(false);
+                    setError(data.message || "Failed to generate workflow");
+                    setPhaseStreaming("workflow", false);
+                }
+            });
         } catch (err) {
+            setIsGenerating(false);
             setError(
                 err instanceof Error
                     ? err.message
                     : "Failed to generate workflow. Ensure features and tasks exist."
             );
-        } finally {
-            setIsGenerating(false);
+            setPhaseStreaming("workflow", false);
         }
     };
 
@@ -242,9 +273,19 @@ export const WorkflowPanel: FC<WorkflowPanelProps> = ({ ideaId, idea }) => {
                             <p className="text-sm text-muted-foreground">
                                 Generate step-by-step AI IDE instructions from your tasks.
                             </p>
-                            <p className="text-[10px] text-muted-foreground pt-1">
-                                * Requires features and tasks first
-                            </p>
+                            {isGenerating && streamingText && (
+                                <div className="mt-4 p-3 bg-slate-950 text-slate-50 rounded-md text-left w-full overflow-hidden h-32 opacity-80">
+                                    <p className="text-[10px] text-primary/70 mb-1 animate-pulse font-mono">AI is writing steps...</p>
+                                    <pre className="text-[10px] font-mono whitespace-pre-wrap">
+                                        {streamingText}
+                                    </pre>
+                                </div>
+                            )}
+                            {!isGenerating && (
+                                <p className="text-[10px] text-muted-foreground pt-1">
+                                    * Requires features and tasks first
+                                </p>
+                            )}
                         </div>
                         <Button
                             onClick={handleGenerate}

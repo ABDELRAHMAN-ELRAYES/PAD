@@ -70,6 +70,70 @@ async function fetchWithAuth<T>(
     return data;
 }
 
+// Helper to make streaming requests
+async function streamRequest(
+    endpoint: string,
+    onChunk: (data: any) => void,
+    options: RequestInit = {}
+): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...options.headers,
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "An error occurred" }));
+        throw new Error(error.message || "An error occurred");
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error("Response body is null");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                
+                try {
+                    const data = JSON.parse(trimmed);
+                    onChunk(data);
+                } catch (e) {
+                    console.warn("Failed to parse JSON stream chunk:", trimmed, e);
+                }
+            }
+        }
+        
+        // Final buffer flush
+        if (buffer.trim()) {
+            try {
+                const data = JSON.parse(buffer);
+                onChunk(data);
+            } catch (e) {
+                // ignore
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+}
+
 // Idea API functions
 export const ideaApi = {
     // Create a new idea
@@ -93,7 +157,14 @@ export const ideaApi = {
         return response.data!.ideas;
     },
 
-    // Analyze an idea with AI
+    // Analyze an idea with AI (Streaming)
+    async analyzeStream(id: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/ideas/${id}/analyze`, onChunk, {
+            method: "POST",
+        });
+    },
+
+    // Analyze an idea with AI (Legacy/Sync)
     async analyze(id: string): Promise<Idea> {
         const response = await fetchWithAuth<IdeaResponse>(`/ideas/${id}/analyze`, {
             method: "POST",
@@ -121,7 +192,14 @@ export const ideaApi = {
 
 // Document API functions
 export const documentApi = {
-    // Generate PRD & BRD for an idea
+    // Generate PRD & BRD for an idea (Streaming)
+    async generateStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/documents/generate/${ideaId}`, onChunk, {
+            method: "POST",
+        });
+    },
+
+    // Generate PRD & BRD for an idea (Legacy/Sync)
     async generate(ideaId: string): Promise<Document[]> {
         const response = await fetchWithAuth<DocumentsListResponse>(`/documents/generate/${ideaId}`, {
             method: "POST",
@@ -170,6 +248,13 @@ export const documentApi = {
         return response.data!.document;
     },
 
+    // Regenerate a document (Streaming)
+    async regenerateStream(id: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/documents/${id}/regenerate`, onChunk, {
+            method: "POST",
+        });
+    },
+
     // Regenerate a document
     async regenerate(id: string): Promise<Document> {
         const response = await fetchWithAuth<DocumentResponse>(`/documents/${id}/regenerate`, {
@@ -193,7 +278,14 @@ export const documentApi = {
 
 // Diagram API functions
 export const diagramApi = {
-    // Generate diagrams for an idea
+    // Generate diagrams for an idea (Streaming)
+    async generateStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/diagrams/generate/${ideaId}`, onChunk, {
+            method: "POST",
+        });
+    },
+
+    // Generate diagrams for an idea (Legacy/Sync)
     async generate(ideaId: string): Promise<Diagram[]> {
         const response = await fetchWithAuth<DiagramsListResponse>(`/diagrams/generate/${ideaId}`, {
             method: "POST",
@@ -245,7 +337,14 @@ export const diagramApi = {
 
 // Feature API functions
 export const featureApi = {
-    // Extract features from PRD/BRD using AI
+    // Extract features from PRD/BRD using AI (Streaming)
+    async extractStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/features/extract/${ideaId}`, onChunk, {
+            method: "POST",
+        });
+    },
+
+    // Extract features from PRD/BRD using AI (Legacy/Sync)
     async extractFromDocuments(ideaId: string): Promise<Feature[]> {
         const response = await fetchWithAuth<FeaturesListResponse>(`/features/extract/${ideaId}`, {
             method: "POST",
@@ -396,7 +495,14 @@ export const taskApi = {
 // Workflow Generation & IDE Integration API (Module 5)
 // ============================================
 export const workflowApi = {
-    // Generate an AI workflow from task breakdown
+    // Generate an AI workflow from task breakdown (Streaming)
+    async generateStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
+        await streamRequest(`/workflows/generate/${ideaId}`, onChunk, {
+            method: "POST",
+        });
+    },
+
+    // Generate an AI workflow from task breakdown (Legacy/Sync)
     async generate(ideaId: string): Promise<Workflow> {
         const response = await fetchWithAuth<WorkflowResponse>(
             `/workflows/generate/${ideaId}`,

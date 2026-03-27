@@ -18,7 +18,8 @@ export default class FeatureService {
     // Extract features from PRD/BRD using AI
     static async extractFeaturesFromDocuments(
         ideaId: string,
-        next: NextFunction
+        next: NextFunction,
+        onChunk?: (data: any) => void
     ): Promise<IFeature[] | undefined> {
         // Get all documents for the idea
         const documents = await DocumentService.getDocumentsByIdea(ideaId, next);
@@ -32,26 +33,36 @@ export default class FeatureService {
             .map((doc) => `### ${doc.type}: ${doc.title}\n\n${doc.content}`)
             .join("\n\n---\n\n");
 
-        // Use AI to extract features
-        const prompt = `Analyze the following software requirements documents and extract the main features that need to be implemented. For each feature, provide a title and detailed description.
+        if (onChunk) {
+            // Perform extraction and stream directly to callback (HTTP response)
+            await this.processFeatureExtraction(ideaId, combinedContent, onChunk);
+        } else {
+            // Background extraction (still used by some parts, but without sockets for now)
+            this.processFeatureExtraction(ideaId, combinedContent);
+        }
 
-${combinedContent}
+        return [];
+    }
 
-Extract features in JSON format:
-[
-  {
-    "title": "Feature Title",
-    "description": "Detailed description of what this feature should do"
-  }
-]
-
-Focus on extracting distinct, implementable features. Each feature should be a logical grouping of functionality.`;
+    private static async processFeatureExtraction(ideaId: string, combinedContent: string, onChunk?: (data: any) => void) {
+        let fullResponse = "";
 
         try {
-            const aiResponse = await AIService.callLLM(prompt);
+            const stream = AIService.generateFeaturesStream(combinedContent);
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                const chunkData = {
+                    chunk,
+                    fullText: fullResponse,
+                };
+                if (onChunk) {
+                    onChunk(chunkData);
+                }
+            }
 
             // Parse AI response to extract features
-            const featuresData = this.parseAIFeaturesResponse(aiResponse);
+            const featuresData = this.parseAIFeaturesResponse(fullResponse);
 
             // Create features in database
             const createdFeatures: IFeature[] = [];
@@ -68,11 +79,16 @@ Focus on extracting distinct, implementable features. Each feature should be a l
                 createdFeatures.push(feature);
             }
 
-            return createdFeatures;
+            if (onChunk) {
+                onChunk({ status: "final", features: createdFeatures });
+            }
         } catch (error) {
-            console.error("Feature extraction error:", error);
-            next(new AppError(500, "Failed to extract features using AI"));
-            return;
+            console.error("AI feature extraction error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Feature extraction failed";
+            
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
         }
     }
 
@@ -142,7 +158,7 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     // Get all features for an idea
     static async getFeaturesByIdea(
         ideaId: string,
-        next: NextFunction
+        _next: NextFunction
     ): Promise<IFeature[] | undefined> {
         return await this.repository.getFeaturesByIdeaId(ideaId);
     }
@@ -150,12 +166,12 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     // Get feature with tasks
     static async getFeatureWithTasks(
         id: string,
-        next: NextFunction
+        _next: NextFunction
     ): Promise<IFeatureWithTasks | void>{
         const feature = await this.repository.getFeatureWithTasks(id);
 
         if (!feature) {
-            return next(new AppError(404, "Feature not found"));
+            return _next(new AppError(404, "Feature not found"));
         }
 
         return feature;
@@ -226,12 +242,12 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     static async linkToDiagram(
         featureId: string,
         diagramId: string,
-        next: NextFunction
+        _next: NextFunction
     ): Promise<void> {
         // Verify feature exists
         const feature = await this.repository.getFeatureById(featureId);
         if (!feature) {
-            return next(new AppError(404, "Feature not found"));
+            return _next(new AppError(404, "Feature not found"));
         }
 
         await this.repository.linkDiagram(featureId, diagramId);
@@ -241,7 +257,7 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     static async unlinkFromDiagram(
         featureId: string,
         diagramId: string,
-        next: NextFunction
+        _next: NextFunction
     ): Promise<void> {
         await this.repository.unlinkDiagram(featureId, diagramId);
     }

@@ -8,6 +8,7 @@ import {
     IIdea,
     IIdeaResponse,
 } from "./types/IIdea";
+import SocketService from "../../services/socket.service";
 
 class IdeaService {
     private static ideaRepository: IdeaRepository = IdeaRepository.getInstance();
@@ -60,29 +61,66 @@ class IdeaService {
     // Analyze idea with AI
     static async analyzeIdea(
         ideaId: string,
-        next: NextFunction
+        next: NextFunction,
+        onChunk?: (data: any) => void
     ): Promise<IIdea | void> {
         const idea = await this.ideaRepository.getIdeaById(ideaId);
         if (!idea) {
             return next(new AppError(404, "Idea not found"));
         }
 
-        // Call AI service to analyze the idea
-        const analysisResult = await AiService.analyzeIdea(
-            idea.refinedText || idea.rawText,
-            next
-        );
-
-        if (!analysisResult) {
-            return; // Error already handled by AI service
+        if (onChunk) {
+            // Perform analysis and stream directly to callback (HTTP response)
+            await this.processIdeaAnalysis(ideaId, idea.refinedText || idea.rawText, onChunk);
+        } else {
+            // Legacy/Background processing for sockets
+            this.processIdeaAnalysis(ideaId, idea.refinedText || idea.rawText);
         }
 
-        // Update the idea with analysis result
-        const updatedIdea = await this.ideaRepository.updateIdea(ideaId, {
-            analysisResult,
-        });
+        return idea as IIdea;
+    }
 
-        return updatedIdea as IIdea;
+    // Process analysis with streaming (callback and/or sockets)
+    private static async processIdeaAnalysis(ideaId: string, text: string, onChunk?: (data: any) => void) {
+        const socketService = SocketService.getInstance();
+        let fullResponse = "";
+
+        try {
+            const stream = AiService.analyzeIdeaStream(text);
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                const chunkData = {
+                    chunk,
+                    fullText: fullResponse,
+                };
+                // Stream to HTTP response if callback provided
+                if (onChunk) {
+                    onChunk(chunkData);
+                }
+            }
+
+            // After streaming is complete, parse and save
+            const result = (AiService as any).parseAnalysisResult(fullResponse);
+
+            if (result) {
+                const updatedIdea = await this.ideaRepository.updateIdea(ideaId, {
+                    analysisResult: result,
+                });
+                
+                if (onChunk) {
+                    onChunk({ status: "final", idea: updatedIdea });
+                }
+            }
+        } catch (error) {
+            console.error("AI analysis error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Analysis failed";
+            
+            socketService.emitToRoom(ideaId, "overview:error", { message: errorMessage });
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
+        }
     }
 
     // Refine an idea with new text and/or answers to clarifying questions

@@ -17,7 +17,7 @@ export default class SocketService {
     public initialize(server: HttpServer): void {
         this.io = new Server(server, {
             cors: {
-                origin: "*", // Adjust this in production
+                origin: "*",
                 methods: ["GET", "POST"],
                 credentials: true,
             },
@@ -26,7 +26,7 @@ export default class SocketService {
         this.io.on("connection", (socket: Socket) => {
             console.log(`Socket connected: ${socket.id}`);
 
-            socket.on("join", (roomId: string) => {
+            socket.on("join-room", (roomId: string) => {
                 socket.join(roomId);
                 console.log(`Socket ${socket.id} joined room ${roomId}`);
             });

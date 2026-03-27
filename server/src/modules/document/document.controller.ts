@@ -8,14 +8,24 @@ export const generateDocuments = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
 
-        const documents = await DocumentService.generateDocuments(ideaId, next);
-        if (!documents) return;
+        // Set headers for streaming
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Transfer-Encoding", "chunked");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
 
-        response.status(201).json({
-            status: "success",
-            message: "Documents generated successfully",
-            data: { documents },
-        });
+        try {
+            await DocumentService.generateDocuments(ideaId, next, (chunk) => {
+                response.write(JSON.stringify(chunk) + "\n");
+            });
+            response.end();
+        } catch (err) {
+            if (!response.headersSent) {
+                return next(err);
+            }
+            console.error("Document generation streaming error:", err);
+            response.end();
+        }
     }
 );
 
@@ -109,10 +119,11 @@ export const revertToVersion = catchAsync(
         const versionNumber = parseInt(Array.isArray(request.params.version) ? request.params.version[0] : request.params.version, 10);
 
         if (isNaN(versionNumber)) {
-            return response.status(400).json({
+            response.status(400).json({
                 status: "fail",
                 message: "Invalid version number",
             });
+            return;
         }
 
         const document = await DocumentService.revertToVersion(documentId, versionNumber, next);
@@ -126,19 +137,29 @@ export const revertToVersion = catchAsync(
     }
 );
 
-// Regenerate a document
+// Regenerate a document (Streaming)
 export const regenerateDocument = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
 
-        const document = await DocumentService.regenerateDocument(documentId, next);
-        if (!document) return;
+        // Set headers for streaming
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Transfer-Encoding", "chunked");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
 
-        response.status(200).json({
-            status: "success",
-            message: "Document regenerated successfully",
-            data: { document },
-        });
+        try {
+            await DocumentService.regenerateDocument(documentId, next, (chunk) => {
+                response.write(JSON.stringify(chunk) + "\n");
+            });
+            response.end();
+        } catch (err) {
+            if (!response.headersSent) {
+                return next(err);
+            }
+            console.error("Document regeneration streaming error:", err);
+            response.end();
+        }
     }
 );
 
@@ -149,10 +170,11 @@ export const exportDocument = catchAsync(
         const format = request.params.format as "markdown" | "html";
 
         if (!["markdown", "html"].includes(format)) {
-            return response.status(400).json({
+            response.status(400).json({
                 status: "fail",
                 message: "Unsupported format. Use 'markdown' or 'html'",
             });
+            return;
         }
 
         const result = await DocumentService.exportDocument(documentId, format, next);

@@ -4,16 +4,24 @@ import { WorkflowService } from "./workflow.service";
 export const generateWorkflow = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const ideaId = req.params.ideaId as string;
-        const workflow = await WorkflowService.generateWorkflow(ideaId, next);
 
-        if (workflow) {
-            return res.status(201).json({
-                status: "success",
-                data: { workflow },
-            });
-        }
+        // Set headers for streaming
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Transfer-Encoding", "chunked");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+
+        await WorkflowService.generateWorkflow(ideaId, next, (chunk) => {
+            res.write(JSON.stringify(chunk) + "\n");
+        });
+        res.end();
     } catch (error) {
-        next(error);
+        if (!res.headersSent) {
+            next(error);
+        } else {
+            console.error("Workflow generation streaming error:", error);
+            res.end();
+        }
     }
 };
 

@@ -1,4 +1,4 @@
-import { IGeneratedWorkflowStep } from "../workflow/types/IWorkflow";
+
 import { ITask } from "../../task/types/ITask";
 import { IFeature } from "../../feature/types/IFeature";
 

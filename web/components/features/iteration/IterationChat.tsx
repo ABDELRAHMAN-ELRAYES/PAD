@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { iterationApi } from "@/lib/api";
 import { IterationSession, IterationMessage } from "@/lib/types/idea";
 import { ChatMessage } from "./ChatMessage";
+import { socket } from "@/lib/socket";
 
 interface IterationChatProps {
     ideaId: string;
@@ -18,11 +19,10 @@ export const IterationChat: FC<IterationChatProps> = ({ ideaId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isPolling, setIsPolling] = useState(false);
+    const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,7 +37,6 @@ export const IterationChat: FC<IterationChatProps> = ({ ideaId }) => {
             setSession(data);
             setMessages(data.messages || []);
         } catch (err) {
-            // 404 means no session yet — that's fine for initial load
             if (err instanceof Error && err.message.includes("not found")) {
                 setSession(null);
                 setMessages([]);
@@ -49,45 +48,46 @@ export const IterationChat: FC<IterationChatProps> = ({ ideaId }) => {
         }
     }, [ideaId]);
 
+    // Socket integration
+    useEffect(() => {
+        socket.connect();
+        socket.emit("join", ideaId);
+
+        socket.on("message:new", (message: IterationMessage) => {
+            setMessages((prev) => {
+                // Remove duplicates if any (e.g. from local update after send)
+                if (prev.some(m => m.id === message.id)) return prev;
+                return [...prev, message];
+            });
+            if (message.role === "assistant") {
+                setStreamingMessage(null); // Clear streaming state when final message arrives
+            }
+        });
+
+        socket.on("message:stream", (data: { chunk: string, fullText: string }) => {
+            setStreamingMessage(data.fullText);
+        });
+
+        socket.on("suggestion:new", () => {
+             // Refresh to get full suggestion data
+             fetchSession(true);
+        });
+
+        return () => {
+            socket.off("message:new");
+            socket.off("message:stream");
+            socket.off("suggestion:new");
+            socket.disconnect();
+        };
+    }, [ideaId, fetchSession]);
+
     useEffect(() => {
         fetchSession();
     }, [fetchSession]);
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, scrollToBottom]);
-
-    // Start polling for new messages after sending
-    const startPolling = useCallback(() => {
-        if (pollingRef.current) return;
-        setIsPolling(true);
-        pollingRef.current = setInterval(async () => {
-            await fetchSession(true);
-        }, 3000);
-    }, [fetchSession]);
-
-    const stopPolling = useCallback(() => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-        setIsPolling(false);
-    }, []);
-
-    // Stop polling when an assistant message arrives after user message
-    useEffect(() => {
-        if (messages.length > 0 && isPolling) {
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg.role === "assistant") {
-                stopPolling();
-            }
-        }
-    }, [messages, isPolling, stopPolling]);
-
-    // Clean up polling on unmount
-    useEffect(() => {
-        return () => stopPolling();
-    }, [stopPolling]);
+    }, [messages, streamingMessage, scrollToBottom]);
 
     const handleSend = async () => {
         const content = inputValue.trim();
@@ -98,13 +98,12 @@ export const IterationChat: FC<IterationChatProps> = ({ ideaId }) => {
         setInputValue("");
 
         try {
-            const newMessage = await iterationApi.sendMessage(ideaId, content);
-            setMessages((prev) => [...prev, newMessage]);
-            // Start polling for AI response
-            startPolling();
+            await iterationApi.sendMessage(ideaId, content);
+            // We don't need to manually add to messages here because 
+            // the server will emit message:new for the user message too
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to send message");
-            setInputValue(content); // Restore input on error
+            setInputValue(content);
         } finally {
             setSending(false);
             inputRef.current?.focus();
@@ -189,20 +188,18 @@ export const IterationChat: FC<IterationChatProps> = ({ ideaId }) => {
                     ))
                 )}
 
-                {/* Typing indicator while polling */}
-                {isPolling && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
+                {/* Streaming assistant message */}
+                {streamingMessage && (
+                    <div className="flex items-start gap-3 assistant-message streaming">
                         <div className="shrink-0 w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
-                            <RefreshCw className="h-3.5 w-3.5 animate-spin text-violet-500" />
+                            <RefreshCw className="h-4 w-4 animate-spin text-violet-500" />
                         </div>
-                        <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2.5">
-                            <div className="flex gap-1">
-                                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <div className="flex flex-col gap-1 max-w-[80%]">
+                            <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
+                                {streamingMessage}
                             </div>
+                            <span className="text-[10px] text-muted-foreground ml-2 italic">PAD is typing...</span>
                         </div>
-                        <span className="text-xs">PAD is thinking...</span>
                     </div>
                 )}
 

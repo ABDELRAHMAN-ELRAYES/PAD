@@ -19,7 +19,8 @@ class DocumentService {
     // Generate PRD and BRD documents for a confirmed idea
     static async generateDocuments(
         ideaId: string,
-        next: NextFunction
+        next: NextFunction,
+        onChunk?: (data: any) => void
     ): Promise<IDocument[] | void> {
         // Get the idea
         const idea = await this.ideaRepo.getIdeaById(ideaId);
@@ -41,39 +42,89 @@ class DocumentService {
         const ideaText = idea.refinedText || idea.rawText;
         const analysisResult = idea.analysisResult;
 
-        // Generate PRD
-        const prdContent = await AiService.generatePRD(ideaText, analysisResult, next);
-        if (!prdContent) {
-            return; // Error already handled
+        if (onChunk) {
+            // Perform generation and stream directly to callback (HTTP response)
+            await this.processDocumentGeneration(ideaId, ideaText, analysisResult, onChunk);
+        } else {
+            // Background generation for sockets
+            this.processDocumentGeneration(ideaId, ideaText, analysisResult);
         }
 
-        // Generate BRD
-        const brdContent = await AiService.generateBRD(ideaText, analysisResult, next);
-        if (!brdContent) {
-            return; // Error already handled
+        return [];
+    }
+
+    private static async processDocumentGeneration(
+        ideaId: string,
+        ideaText: string,
+        analysisResult: any,
+        onChunk?: (data: any) => void
+    ) {
+        try {
+            // 1. Generate PRD
+            let prdFullResponse = "";
+            const prdStream = AiService.generatePRDStream(ideaText, analysisResult);
+            for await (const chunk of prdStream) {
+                prdFullResponse += chunk;
+                const chunkData = {
+                    type: "PRD",
+                    chunk,
+                    fullText: prdFullResponse,
+                };
+                if (onChunk) {
+                    onChunk(chunkData);
+                }
+            }
+            const prdResult = AiService.parseDocumentResult(prdFullResponse);
+
+            // 2. Generate BRD
+            let brdFullResponse = "";
+            const brdStream = AiService.generateBRDStream(ideaText, analysisResult);
+            for await (const chunk of brdStream) {
+                brdFullResponse += chunk;
+                const chunkData = {
+                    type: "BRD",
+                    chunk,
+                    fullText: brdFullResponse,
+                };
+                if (onChunk) {
+                    onChunk(chunkData);
+                }
+            }
+            const brdResult = AiService.parseDocumentResult(brdFullResponse);
+
+            if (prdResult && brdResult) {
+                // Create PRD document
+                const prdDoc = await this.documentRepo.createDocument({
+                    ideaId,
+                    type: "PRD",
+                    title: prdResult.title,
+                    content: prdResult.content,
+                });
+
+                // Create BRD document
+                const brdDoc = await this.documentRepo.createDocument({
+                    ideaId,
+                    type: "BRD",
+                    title: brdResult.title,
+                    content: brdResult.content,
+                });
+
+                // Create initial versions
+                await this.documentRepo.createVersion(prdDoc.id, 1, prdResult.content, "Initial generation");
+                await this.documentRepo.createVersion(brdDoc.id, 1, brdResult.content, "Initial generation");
+
+                if (onChunk) {
+                    onChunk({ status: "final", documents: [prdDoc, brdDoc] });
+                }
+            }
+        } catch (error) {
+            console.error("AI document generation error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Document generation failed";
+            
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
         }
-
-        // Create PRD document
-        const prdDoc = await this.documentRepo.createDocument({
-            ideaId,
-            type: "PRD",
-            title: prdContent.title,
-            content: prdContent.content,
-        });
-
-        // Create BRD document
-        const brdDoc = await this.documentRepo.createDocument({
-            ideaId,
-            type: "BRD",
-            title: brdContent.title,
-            content: brdContent.content,
-        });
-
-        // Create initial versions for both
-        await this.documentRepo.createVersion(prdDoc.id, 1, prdContent.content, "Initial generation");
-        await this.documentRepo.createVersion(brdDoc.id, 1, brdContent.content, "Initial generation");
-
-        return [prdDoc, brdDoc];
     }
 
     // Get a single document
@@ -192,11 +243,12 @@ class DocumentService {
         return updatedDoc;
     }
 
-    // Regenerate a specific document type
+    // Regenerate a specific document type (Streaming)
     static async regenerateDocument(
         documentId: string,
-        next: NextFunction
-    ): Promise<IDocument | void> {
+        next: NextFunction,
+        onChunk?: (chunk: any) => void
+    ): Promise<void> {
         const document = await this.documentRepo.getDocumentWithVersions(documentId);
         if (!document) {
             return next(new AppError(404, "Document not found"));
@@ -210,36 +262,54 @@ class DocumentService {
 
         const ideaText = idea.refinedText || idea.rawText;
         const analysisResult = idea.analysisResult;
+        const type = document.type as DocumentType;
 
-        // Regenerate based on document type
-        let newContent;
-        if (document.type === "PRD") {
-            newContent = await AiService.generatePRD(ideaText, analysisResult, next);
-        } else {
-            newContent = await AiService.generateBRD(ideaText, analysisResult, next);
+        try {
+            let fullResponse = "";
+            const stream = type === "PRD" 
+                ? AiService.generatePRDStream(ideaText, analysisResult)
+                : AiService.generateBRDStream(ideaText, analysisResult);
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                if (onChunk) {
+                    onChunk({
+                        documentId,
+                        type,
+                        chunk,
+                        fullText: fullResponse,
+                    });
+                }
+            }
+
+            const result = AiService.parseDocumentResult(fullResponse);
+            if (result) {
+                const latestVersion = await this.documentRepo.getLatestVersionNumber(documentId);
+                await this.documentRepo.createVersion(
+                    documentId,
+                    latestVersion + 1,
+                    result.content,
+                    "Regenerated by AI"
+                );
+
+                const updatedDoc = await this.documentRepo.updateDocument(documentId, {
+                    title: result.title,
+                    content: result.content,
+                });
+
+                if (onChunk) {
+                    onChunk({ status: "final", document: updatedDoc });
+                }
+            }
+        } catch (error) {
+            console.error("Document regeneration error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Failed to regenerate document";
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
         }
-
-        if (!newContent) {
-            return; // Error already handled
-        }
-
-        // Create new version
-        const latestVersion = await this.documentRepo.getLatestVersionNumber(documentId);
-        await this.documentRepo.createVersion(
-            documentId,
-            latestVersion + 1,
-            newContent.content,
-            "Regenerated by AI"
-        );
-
-        // Update document
-        const updatedDoc = await this.documentRepo.updateDocument(documentId, {
-            title: newContent.title,
-            content: newContent.content,
-        });
-
-        return updatedDoc;
     }
+
 
     // Export document as specific format (returns content for client-side processing)
     static async exportDocument(

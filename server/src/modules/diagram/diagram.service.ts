@@ -8,6 +8,7 @@ import {
     IUpdateDiagramData,
     DiagramType,
 } from "./types/IDiagram";
+import SocketService from "../../services/socket.service";
 
 class DiagramService {
     private static diagramRepository: DiagramRepository = DiagramRepository.getInstance();
@@ -16,7 +17,8 @@ class DiagramService {
     // Generate all diagrams for an idea
     static async generateDiagrams(
         ideaId: string,
-        next: NextFunction
+        next: NextFunction,
+        onChunk?: (data: any) => void
     ): Promise<IDiagram[] | void> {
         // Get the idea
         const idea = await this.ideaRepository.getIdeaById(ideaId);
@@ -29,30 +31,66 @@ class DiagramService {
             return next(new AppError(400, "Cannot generate diagrams for unconfirmed idea"));
         }
 
-        // Get PRD/BRD content for context
         const ideaText = idea.refinedText || idea.rawText;
 
-        // Generate each diagram type
-        const diagramTypes: DiagramType[] = ["ERD", "SEQUENCE", "SCHEMA"];
-        const diagrams: IDiagram[] = [];
-
-        for (const type of diagramTypes) {
-            const generated = await AiService.generateDiagram(type, ideaText, next);
-            if (!generated) {
-                continue; // Skip if generation failed
-            }
-
-            const diagram = await this.diagramRepository.createDiagram({
-                ideaId,
-                type,
-                title: generated.title,
-                mermaidCode: generated.mermaidCode,
-            });
-
-            diagrams.push(diagram as IDiagram);
+        if (onChunk) {
+            // Perform generation and stream directly to callback (HTTP response)
+            await this.processDiagramGeneration(ideaId, ideaText, onChunk);
+        } else {
+            // Background generation (still used by some parts, but without sockets for now)
+            this.processDiagramGeneration(ideaId, ideaText);
         }
 
-        return diagrams;
+        return [];
+    }
+
+    private static async processDiagramGeneration(ideaId: string, ideaText: string, onChunk?: (data: any) => void) {
+        const diagramTypes: DiagramType[] = ["ERD", "SEQUENCE", "SCHEMA"];
+        const createdDiagrams: IDiagram[] = [];
+
+        try {
+            for (const type of diagramTypes) {
+                let fullResponse = "";
+                const stream = AiService.generateDiagramStream(type, ideaText);
+
+                for await (const chunk of stream) {
+                    fullResponse += chunk;
+                    const chunkData = {
+                        type,
+                        chunk,
+                        fullText: fullResponse,
+                    };
+                    if (onChunk) {
+                        onChunk(chunkData);
+                    }
+                }
+
+                const result = AiService.parseDiagramResult(fullResponse);
+                if (result) {
+                    const diagram = await this.diagramRepository.createDiagram({
+                        ideaId,
+                        type,
+                        title: result.title,
+                        mermaidCode: result.mermaidCode,
+                    });
+                    createdDiagrams.push(diagram as IDiagram);
+                    if (onChunk) {
+                        onChunk({ status: "final_one", diagram });
+                    }
+                }
+            }
+
+            if (onChunk) {
+                onChunk({ status: "final_all", diagrams: createdDiagrams });
+            }
+        } catch (error) {
+            console.error("AI diagram generation error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Diagram generation failed";
+            
+            if (onChunk) {
+                onChunk({ status: "error", message: errorMessage });
+            }
+        }
     }
 
     // Get diagram by ID
@@ -143,25 +181,53 @@ class DiagramService {
             "Before regeneration"
         );
 
-        // Regenerate
         const ideaText = idea.refinedText || idea.rawText;
-        const generated = await AiService.generateDiagram(
-            existing.type as DiagramType,
-            ideaText,
-            next
-        );
 
-        if (!generated) {
-            return; // Error handled by AI service
+        // Start background regeneration
+        this.processDiagramRegenerationInBackground(diagramId, ideaText, existing.type as DiagramType);
+
+        return existing as IDiagram;
+    }
+
+    private static async processDiagramRegenerationInBackground(
+        diagramId: string,
+        ideaText: string,
+        type: DiagramType
+    ) {
+        const socketService = SocketService.getInstance();
+        const existing = await this.diagramRepository.getDiagramById(diagramId);
+        if (!existing) return;
+        const ideaId = existing.ideaId;
+
+        try {
+            let fullResponse = "";
+            const stream = AiService.generateDiagramStream(type, ideaText);
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                socketService.emitToRoom(ideaId, "diagram:stream", {
+                    diagramId,
+                    type,
+                    chunk,
+                    fullText: fullResponse,
+                });
+            }
+
+            const result = AiService.parseDiagramResult(fullResponse);
+            if (result) {
+                const updated = await this.diagramRepository.updateDiagram(diagramId, {
+                    title: result.title,
+                    mermaidCode: result.mermaidCode,
+                });
+                socketService.emitToRoom(ideaId, "diagram:updated", updated);
+            }
+        } catch (error) {
+            console.error("Background diagram regeneration error:", error);
+            socketService.emitToRoom(ideaId, "diagram:error", {
+                diagramId,
+                message: "Failed to regenerate diagram",
+            });
         }
-
-        // Update with new content
-        const updated = await this.diagramRepository.updateDiagram(diagramId, {
-            title: generated.title,
-            mermaidCode: generated.mermaidCode,
-        });
-
-        return updated as IDiagram;
     }
 }
 

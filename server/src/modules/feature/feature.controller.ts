@@ -8,14 +8,24 @@ export const extractFeatures = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
 
-        const features = await FeatureService.extractFeaturesFromDocuments(ideaId, next);
-        if (!features) return;
+        // Set headers for streaming
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Transfer-Encoding", "chunked");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
 
-        response.status(201).json({
-            status: "success",
-            message: "Features extracted successfully",
-            data: { features, count: features.length },
-        });
+        try {
+            await FeatureService.extractFeaturesFromDocuments(ideaId, next, (chunk) => {
+                response.write(JSON.stringify(chunk) + "\n");
+            });
+            response.end();
+        } catch (err) {
+            if (!response.headersSent) {
+                return next(err);
+            }
+            console.error("Feature extraction streaming error:", err);
+            response.end();
+        }
     }
 );
 

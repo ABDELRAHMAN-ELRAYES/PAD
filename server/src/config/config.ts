@@ -64,6 +64,10 @@ interface Config {
     puter: {
         authToken: string;
     };
+    ollama: {
+        url: string;
+        model: string;
+    };
 }
 
 const config: Config = {
@@ -127,6 +131,10 @@ const config: Config = {
     claude: process.env.CLAUDE_API || "",
     puter: {
         authToken: process.env.PUTER_AUTH_TOKEN || "",
+    },
+    ollama: {
+        url: process.env.OLLAMA_URL || "http://localhost:11434",
+        model: process.env.OLLAMA_MODEL || "qwen3.5:4b",
     },
 
 
