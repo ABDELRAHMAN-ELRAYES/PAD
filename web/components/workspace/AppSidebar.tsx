@@ -17,6 +17,7 @@ import {
   Loader2,
   PanelLeftOpen,
   PanelRightOpen,
+  History,
 } from "lucide-react";
 import {
   Tooltip,
@@ -69,6 +70,13 @@ const SECTION_ITEMS: SectionItem[] = [
     icon: <Bot className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-purple-500",
+  },
+  {
+    id: "history",
+    label: "Change History",
+    icon: <History className="h-4 w-4" />,
+    color: "text-muted-foreground",
+    activeColor: "text-amber-500",
   },
 ];
 

@@ -62,7 +62,7 @@ export interface ICreateIterationSuggestionActionData {
 }
 
 export interface IUpdateIterationSuggestionStatusData {
-    status: "pending" | "approved" | "rejected" | "applied";
+    status: "pending" | "approved" | "rejected" | "applied" | "partial" | "failed";
 }
 
 export interface IIterationRepository {

@@ -1,40 +1,52 @@
 "use client";
 
 import { FC, useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, MessageSquare, RefreshCw, ArrowUp, Sparkles } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowUp, RefreshCw, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ideaApi, iterationApi } from "@/lib/api";
-import { IterationSession, IterationMessage } from "@/lib/types/idea";
+import { ideaApi, planApi } from "@/lib/api";
 import { ChatMessage } from "@/components/features/iteration/ChatMessage";
+import { ChatMarkdown } from "@/components/features/iteration/ChatMarkdown";
+import { PlanCard } from "@/components/features/iteration/PlanCard";
+import { useIterationChat } from "@/hooks/use-iteration-chat";
+import { AiStatusIndicator, AiPhase } from "@/components/features/iteration/AiStatusIndicator";
 import Logo from "@/components/logo";
 
 interface UnifiedChatProps {
     /** null = new idea mode; string = iteration mode for existing idea */
     ideaId: string | null;
     onIdeaCreated?: (ideaId: string) => void;
+    onArtifactUpdated?: () => void;
 }
 
 const MIN_CHAR_COUNT = 20;
-const MAX_CHAR_COUNT = 10000;
 
-export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => {
+export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArtifactUpdated }) => {
     // Shared state
     const [inputValue, setInputValue] = useState("");
-    const [error, setError] = useState<string | null>(null);
+    const [localError, setLocalError] = useState<string | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // New idea mode state
     const [isCreating, setIsCreating] = useState(false);
 
-    // Iteration mode state
-    const [session, setSession] = useState<IterationSession | null>(null);
-    const [messages, setMessages] = useState<IterationMessage[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-    const [isPolling, setIsPolling] = useState(false);
+    // Iteration mode — socket-based hook with optimistic UI
+    const {
+        messages,
+        streamingText,
+        isLoading,
+        isSending,
+        aiPhase,
+        activePlan,
+        error: chatError,
+        sendMessage,
+        confirmPlan,
+        dismissPlan,
+        clearError,
+    } = useIterationChat(ideaId, onArtifactUpdated);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const error = localError || chatError;
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -49,69 +61,20 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
         }
     }, [inputValue]);
 
-    // Load iteration session when ideaId changes
-    useEffect(() => {
-        if (ideaId) {
-            loadSession();
-        } else {
-            setMessages([]);
-            setSession(null);
-        }
-    }, [ideaId]);
+    const [isAtBottom, setIsAtBottom] = useState(true);
 
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages, scrollToBottom]);
-
-    const loadSession = async () => {
-        if (!ideaId) return;
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data = await iterationApi.getSession(ideaId);
-            setSession(data);
-            setMessages(data.messages || []);
-        } catch (err) {
-            if (err instanceof Error && err.message.includes("not found")) {
-                setSession(null);
-                setMessages([]);
-            }
-        } finally {
-            setIsLoading(false);
-        }
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        // 50px tolerance
+        const isBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 50;
+        setIsAtBottom(isBottom);
     };
 
-    // Polling for AI responses
-    const startPolling = useCallback(() => {
-        if (pollingRef.current || !ideaId) return;
-        setIsPolling(true);
-        pollingRef.current = setInterval(async () => {
-            try {
-                const data = await iterationApi.getSession(ideaId);
-                setSession(data);
-                setMessages(data.messages || []);
-            } catch { /* ignore */ }
-        }, 3000);
-    }, [ideaId]);
-
-    const stopPolling = useCallback(() => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-        setIsPolling(false);
-    }, []);
-
     useEffect(() => {
-        if (messages.length > 0 && isPolling) {
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg.role === "assistant") stopPolling();
+        if (isAtBottom) {
+            scrollToBottom();
         }
-    }, [messages, isPolling, stopPolling]);
-
-    useEffect(() => {
-        return () => stopPolling();
-    }, [stopPolling]);
+    }, [messages, streamingText, aiPhase, scrollToBottom, isAtBottom]);
 
     // Handle sending
     const handleSend = async () => {
@@ -121,17 +84,17 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
         if (!ideaId) {
             // NEW IDEA MODE
             if (content.length < MIN_CHAR_COUNT) {
-                setError(`Idea must be at least ${MIN_CHAR_COUNT} characters`);
+                setLocalError(`Idea must be at least ${MIN_CHAR_COUNT} characters`);
                 return;
             }
             setIsCreating(true);
-            setError(null);
+            setLocalError(null);
             setInputValue("");
             try {
                 const idea = await ideaApi.create({ rawText: content });
                 onIdeaCreated?.(idea.id);
             } catch (err) {
-                setError(
+                setLocalError(
                     err instanceof Error ? err.message : "Failed to create idea"
                 );
                 setInputValue(content);
@@ -139,23 +102,18 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                 setIsCreating(false);
             }
         } else {
-            // ITERATION MODE
-            setIsSending(true);
-            setError(null);
+            // ITERATION MODE — optimistic send via hook
+            setLocalError(null);
             setInputValue("");
             try {
-                const newMessage = await iterationApi.sendMessage(ideaId, content);
-                setMessages((prev) => [...prev, newMessage]);
-                startPolling();
-            } catch (err) {
-                setError(
-                    err instanceof Error ? err.message : "Failed to send message"
-                );
+                await sendMessage(content);
+                scrollToBottom();
+                setIsAtBottom(true);
+            } catch {
+                // Error handled in hook; restore input
                 setInputValue(content);
-            } finally {
-                setIsSending(false);
-                inputRef.current?.focus();
             }
+            inputRef.current?.focus();
         }
     };
 
@@ -175,10 +133,9 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
         }
     };
 
-    const handleSuggestionApproved = () => {
-        if (ideaId) {
-            loadSession();
-        }
+    const dismissError = () => {
+        setLocalError(null);
+        clearError();
     };
 
     const isNewMode = !ideaId;
@@ -197,7 +154,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                     placeholder={
                         isNewMode
                             ? "Describe your software idea..."
-                            : "Ask PAD to update anything..."
+                            : "Ask PAD anything about your project..."
                     }
                     disabled={isSubmitting}
                     rows={1}
@@ -248,8 +205,22 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
 
     return (
         <div className="flex flex-col h-full bg-background relative">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
+                <div 
+                    className={`w-2 h-2 rounded-full ${
+                        error ? "bg-destructive animate-pulse" :
+                        (aiPhase !== "idle" || isCreating) ? "bg-violet-500 animate-pulse" :
+                        "bg-green-500 animate-pulse"
+                    }`}
+                />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    PAD Assistant
+                </span>
+            </div>
+
             {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 workspace-panel">
+            <div className="flex-1 overflow-y-auto px-4 py-4 workspace-panel" onScroll={handleScroll}>
                 {isNewMode ? (
                     /* NEW IDEA — Empty state (Centered Input) */
                     <div className="flex flex-col items-center justify-center h-full text-center gap-6 px-4">
@@ -294,7 +265,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                             </p>
                         </div>
                     </div>
-                ) : messages.length === 0 ? (
+                ) : messages.length === 0 && !streamingText && aiPhase === "idle" ? (
                     /* ITERATION — No messages yet */
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
@@ -305,15 +276,16 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                                 Chat with PAD
                             </h3>
                             <p className="text-xs text-muted-foreground max-w-xs">
-                                Ask to update documents, modify diagrams, adjust
-                                features, or refine your idea.
+                                Ask questions about your project, request changes to
+                                documents, diagrams, features, or workflows.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-1.5 justify-center mt-1">
                             {[
-                                "Add a settings table to the ERD",
+                                "Explain the architecture",
+                                "Why did you choose this tech stack?",
                                 "Add authentication feature",
-                                "Simplify the registration flow",
+                                "Update the ERD",
                             ].map((hint) => (
                                 <button
                                     key={hint}
@@ -327,39 +299,48 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                     </div>
                 ) : (
                     /* ITERATION — Messages */
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {messages.map((msg) => (
                             <ChatMessage
                                 key={msg.id}
                                 message={msg}
                                 ideaId={ideaId!}
-                                onSuggestionApproved={handleSuggestionApproved}
+                                onSuggestionApproved={onArtifactUpdated}
                             />
                         ))}
 
-                        {/* Typing indicator */}
-                        {isPolling && (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                                <div className="shrink-0 w-7 h-7 rounded-full bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
-                                    <RefreshCw className="h-3 w-3 animate-spin text-violet-500" />
+                        {/* Modification Plan Card */}
+                        {activePlan && (
+                            <div className="mt-4 w-full">
+                                <PlanCard
+                                    plan={activePlan}
+                                    ideaId={ideaId!}
+                                    onConfirm={confirmPlan}
+                                    onRollback={async (planId) => {
+                                        await planApi.rollback(ideaId!, planId);
+                                        onArtifactUpdated?.();
+                                    }}
+                                    onDismiss={dismissPlan}
+                                />
+                            </div>
+                        )}
+
+                        {/* Unified Assistant Pending Slot */}
+                        {(aiPhase !== "idle" && aiPhase !== "error" || streamingText) && (
+                            <div className="flex flex-row items-start w-full gap-3 mt-4">
+                                <div className="shrink-0 pt-0.5">
+                                    <AiStatusIndicator 
+                                        phase={aiPhase !== "idle" ? aiPhase : (streamingText ? "generating" : "idle")} 
+                                        label={aiPhase === "thinking" ? "PAD is thinking..." : aiPhase === "editing" ? "Updating project…" : undefined}
+                                    />
                                 </div>
-                                <div className="bg-muted rounded-2xl rounded-tl-sm px-3 py-2">
-                                    <div className="flex gap-1">
-                                        <span
-                                            className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce"
-                                            style={{ animationDelay: "0ms" }}
-                                        />
-                                        <span
-                                            className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce"
-                                            style={{ animationDelay: "150ms" }}
-                                        />
-                                        <span
-                                            className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce"
-                                            style={{ animationDelay: "300ms" }}
-                                        />
+                                
+                                {streamingText && (
+                                    <div className="flex-1 text-sm text-chat-assistant-fg min-w-0">
+                                        <ChatMarkdown content={streamingText} />
+                                        <span className="inline-block w-1.5 h-4 ml-1 bg-muted-foreground animate-pulse align-middle" />
                                     </div>
-                                </div>
-                                <span className="text-[10px]">PAD is thinking...</span>
+                                )}
                             </div>
                         )}
 
@@ -373,7 +354,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated }) => 
                 <div className="mx-4 mb-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs absolute bottom-16 left-0 right-0 z-10 shadow-sm">
                     {error}
                     <button
-                        onClick={() => setError(null)}
+                        onClick={dismissError}
                         className="ml-2 underline text-[10px]"
                     >
                         Dismiss

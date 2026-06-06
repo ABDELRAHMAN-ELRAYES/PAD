@@ -44,7 +44,7 @@ export default class TaskService {
                     featureId,
                     title: taskData.title,
                     description: taskData.description,
-                    priority: taskData.priority || "medium" as Priority,
+                    priority: (taskData.priority || "medium") as Priority,
                     estimatedEffort: taskData.estimatedEffort,
                     order: i,
                     status: "planned",

@@ -46,6 +46,49 @@ const DIAGRAM_LABELS: Record<DiagramType, string> = {
   FLOWCHART: "Flowchart",
 };
 
+function parsePartialMermaid(text: string): string {
+  const match = text.match(/"mermaidCode"\s*:\s*"([\s\S]*?)$/);
+  if (!match) {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("graph") || 
+        trimmed.startsWith("sequenceDiagram") || 
+        trimmed.startsWith("erDiagram") ||
+        trimmed.startsWith("flowchart")) {
+      return trimmed;
+    }
+    return "";
+  }
+
+  let codeStr = match[1];
+  let cleanCode = "";
+  let escaped = false;
+  for (let i = 0; i < codeStr.length; i++) {
+    const char = codeStr[i];
+    if (escaped) {
+      if (char === 'n') {
+        cleanCode += '\n';
+      } else if (char === 'r') {
+        cleanCode += '\r';
+      } else if (char === 't') {
+        cleanCode += '\t';
+      } else {
+        cleanCode += char;
+      }
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      break;
+    }
+    cleanCode += char;
+  }
+  return cleanCode;
+}
+
 interface DiagramsPanelProps {
   ideaId: string;
 }
@@ -128,12 +171,14 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
         if (data.status === "error") {
           setIsGenerating(false);
           setError(data.message || "Failed to generate diagrams");
+          setStreamingCode({});
           setPhaseStreaming("diagrams", false);
         }
       });
     } catch (err) {
       setIsGenerating(false);
       setError(err instanceof Error ? err.message : "Failed to generate diagrams");
+      setStreamingCode({});
       setPhaseStreaming("diagrams", false);
     }
   };
@@ -250,7 +295,8 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
 
             if (!diagram && !streaming) return null;
 
-            const code = streaming || (diagram ? editedCode[diagram.id] : "");
+            const rawCode = streaming || (diagram ? editedCode[diagram.id] : "");
+            const code = streaming ? parsePartialMermaid(rawCode) : rawCode;
             const saving = diagram ? isSaving[diagram.id] : false;
             const hasChanges = diagram
               ? editedCode[diagram.id] !== diagram.mermaidCode

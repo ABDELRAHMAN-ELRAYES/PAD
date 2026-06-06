@@ -294,7 +294,6 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                     <Card className="shadow-sm border-none md:border">
                         <CardContent className="p-0">
                             <RichTextEditor
-                                initialValue={content}
                                 value={content}
                                 onChange={(val) => {
                                     setContent(val);
@@ -325,63 +324,66 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                     </SheetHeader>
                     
                     <div className="mt-6 space-y-4">
-                        {docData.versions?.map((version) => (
-                            <Card key={version.id} className="relative group overflow-hidden">
-                                <CardContent className="p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <Badge variant="secondary">v{version.versionNumber}</Badge>
-                                            <span className="text-xs text-muted-foreground">
-                                                {new Date(version.createdAt).toLocaleString()}
-                                            </span>
+                        {(() => {
+                            const currentVersion = docData.versions?.[0]?.version || 0;
+                            return docData.versions?.map((version) => (
+                                <Card key={version.id} className="relative group overflow-hidden">
+                                    <CardContent className="p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary">v{version.version}</Badge>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {new Date(version.createdAt).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            {version.version === currentVersion && (
+                                                <Badge variant="default" className="bg-green-500 text-[10px]">
+                                                    Current
+                                                </Badge>
+                                            )}
                                         </div>
-                                        {version.versionNumber === docData.versionNumber && (
-                                            <Badge variant="default" className="bg-green-500 text-[10px]">
-                                                Current
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <p className="text-sm font-medium mb-1 line-clamp-1">
-                                        {version.changelog || "No changelog provided"}
-                                    </p>
-                                    <div className="flex justify-between items-center mt-3">
-                                        <div className="text-[10px] text-muted-foreground">
-                                            {version.content.length} characters
-                                        </div>
-                                        {version.versionNumber !== docData.versionNumber && (
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-                                                        <RotateCcw className="h-3 w-3" />
-                                                        Revert
-                                                    </Button>
-                                                </DialogTrigger>
-                                                <DialogContent>
-                                                    <DialogHeader>
-                                                        <DialogTitle>Revert to Version {version.versionNumber}</DialogTitle>
-                                                        <DialogDescription>
-                                                            This will create a new version of the document with the content from version {version.versionNumber}. Any unsaved changes in the current version will be lost.
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-                                                    <DialogFooter>
-                                                        <Button variant="ghost" onClick={() => {}}>Cancel</Button>
-                                                        <Button 
-                                                            onClick={() => handleRevert(version.versionNumber)}
-                                                            disabled={reverting !== null}
-                                                        >
-                                                            {reverting === version.versionNumber && (
-                                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                            )}
-                                                            Revert Now
+                                        <p className="text-sm font-medium mb-1 line-clamp-1">
+                                            {version.changelog || "No changelog provided"}
+                                        </p>
+                                        <div className="flex justify-between items-center mt-3">
+                                            <div className="text-[10px] text-muted-foreground">
+                                                {version.content.length} characters
+                                            </div>
+                                            {version.version !== currentVersion && (
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                                                            <RotateCcw className="h-3 w-3" />
+                                                            Revert
                                                         </Button>
-                                                    </DialogFooter>
-                                                </DialogContent>
-                                            </Dialog>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                                    </DialogTrigger>
+                                                    <DialogContent>
+                                                        <DialogHeader>
+                                                            <DialogTitle>Revert to Version {version.version}</DialogTitle>
+                                                            <DialogDescription>
+                                                                This will create a new version of the document with the content from version {version.version}. Any unsaved changes in the current version will be lost.
+                                                            </DialogDescription>
+                                                        </DialogHeader>
+                                                        <DialogFooter>
+                                                            <Button variant="ghost" onClick={() => {}}>Cancel</Button>
+                                                            <Button 
+                                                                onClick={() => handleRevert(version.version)}
+                                                                disabled={reverting !== null}
+                                                            >
+                                                                {reverting === version.version && (
+                                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                )}
+                                                                Revert Now
+                                                            </Button>
+                                                        </DialogFooter>
+                                                    </DialogContent>
+                                                </Dialog>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ));
+                        })()}
                     </div>
                 </SheetContent>
             </Sheet>

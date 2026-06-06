@@ -65,18 +65,39 @@ class DiagramService {
                     }
                 }
 
-                const result = AiService.parseDiagramResult(fullResponse);
-                if (result) {
-                    const diagram = await this.diagramRepository.createDiagram({
-                        ideaId,
-                        type,
-                        title: result.title,
-                        mermaidCode: result.mermaidCode,
-                    });
-                    createdDiagrams.push(diagram as IDiagram);
-                    if (onChunk) {
-                        onChunk({ status: "final_one", diagram });
-                    }
+                let result = AiService.parseDiagramResult(fullResponse);
+                if (!result) {
+                    console.warn(`Failed to parse diagram of type ${type}, using fallback.`);
+                    const fallbacks: Record<DiagramType, { title: string; mermaidCode: string }> = {
+                        ERD: {
+                            title: "Entity Relationship Diagram (Fallback)",
+                            mermaidCode: `erDiagram\n    USER {\n        string id PK\n        string name\n        string email\n    }\n    USER ||--o{ POST : writes`,
+                        },
+                        SEQUENCE: {
+                            title: "Sequence Diagram (Fallback)",
+                            mermaidCode: `sequenceDiagram\n    participant User\n    participant Frontend\n    participant Backend\n    participant Database\n    User->>Frontend: Action\n    Frontend->>Backend: Request\n    Backend->>Database: Query\n    Database-->>Backend: Data\n    Backend-->>Frontend: Response\n    Frontend-->>User: Render`,
+                        },
+                        SCHEMA: {
+                            title: "System Architecture (Fallback)",
+                            mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`,
+                        },
+                        FLOWCHART: {
+                            title: "Process Flowchart (Fallback)",
+                            mermaidCode: `flowchart TD\n    A[Start] --> B[Process]\n    B --> C{Decision}\n    C -->|Yes| D[Action]\n    C -->|No| E[Other Action]\n    D --> F[End]\n    E --> F`,
+                        },
+                    };
+                    result = fallbacks[type];
+                }
+
+                const diagram = await this.diagramRepository.createDiagram({
+                    ideaId,
+                    type,
+                    title: result.title,
+                    mermaidCode: result.mermaidCode,
+                });
+                createdDiagrams.push(diagram as IDiagram);
+                if (onChunk) {
+                    onChunk({ status: "final_one", diagram });
                 }
             }
 
@@ -213,14 +234,35 @@ class DiagramService {
                 });
             }
 
-            const result = AiService.parseDiagramResult(fullResponse);
-            if (result) {
-                const updated = await this.diagramRepository.updateDiagram(diagramId, {
-                    title: result.title,
-                    mermaidCode: result.mermaidCode,
-                });
-                socketService.emitToRoom(ideaId, "diagram:updated", updated);
+            let result = AiService.parseDiagramResult(fullResponse);
+            if (!result) {
+                console.warn(`Failed to parse regenerated diagram of type ${type}, using fallback.`);
+                const fallbacks: Record<DiagramType, { title: string; mermaidCode: string }> = {
+                    ERD: {
+                        title: "Entity Relationship Diagram (Fallback)",
+                        mermaidCode: `erDiagram\n    USER {\n        string id PK\n        string name\n        string email\n    }\n    USER ||--o{ POST : writes`,
+                    },
+                    SEQUENCE: {
+                        title: "Sequence Diagram (Fallback)",
+                        mermaidCode: `sequenceDiagram\n    participant User\n    participant Frontend\n    participant Backend\n    participant Database\n    User->>Frontend: Action\n    Frontend->>Backend: Request\n    Backend->>Database: Query\n    Database-->>Backend: Data\n    Backend-->>Frontend: Response\n    Frontend-->>User: Render`,
+                    },
+                    SCHEMA: {
+                        title: "System Architecture (Fallback)",
+                        mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`,
+                    },
+                    FLOWCHART: {
+                        title: "Process Flowchart (Fallback)",
+                        mermaidCode: `flowchart TD\n    A[Start] --> B[Process]\n    B --> C{Decision}\n    C -->|Yes| D[Action]\n    C -->|No| E[Other Action]\n    D --> F[End]\n    E --> F`,
+                    },
+                };
+                result = fallbacks[type];
             }
+
+            const updated = await this.diagramRepository.updateDiagram(diagramId, {
+                title: result.title,
+                mermaidCode: result.mermaidCode,
+            });
+            socketService.emitToRoom(ideaId, "diagram:updated", updated);
         } catch (error) {
             console.error("Background diagram regeneration error:", error);
             socketService.emitToRoom(ideaId, "diagram:error", {

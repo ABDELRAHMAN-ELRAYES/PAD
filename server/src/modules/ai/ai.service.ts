@@ -22,10 +22,146 @@ import OllamaClient from "./ollama-client";
 class AiService {
   private static MAX_RETRIES = 2;
 
-  static async callLLM(prompt: string): Promise<string> {
+  private static extractJSON(text: string): string {
+    const startCurly = text.indexOf('{');
+    const startSquare = text.indexOf('[');
+    
+    let startIndex = -1;
+    if (startCurly !== -1 && startSquare !== -1) {
+      startIndex = Math.min(startCurly, startSquare);
+    } else if (startCurly !== -1) {
+      startIndex = startCurly;
+    } else if (startSquare !== -1) {
+      startIndex = startSquare;
+    }
+    
+    if (startIndex === -1) {
+      return text.trim();
+    }
+
+    const endCurly = text.lastIndexOf('}');
+    const endSquare = text.lastIndexOf(']');
+    const endIndex = Math.max(endCurly, endSquare);
+
+    if (endIndex === -1 || endIndex < startIndex) {
+      return text.substring(startIndex).trim();
+    }
+
+    return text.substring(startIndex, endIndex + 1).trim();
+  }
+
+  private static repairJSON(str: string): string {
+    let result = '';
+    let inString = false;
+    let escaped = false;
+    const stack: string[] = [];
+
+    const getNextNonWhitespace = (index: number): string => {
+      for (let i = index; i < str.length; i++) {
+        const char = str[i];
+        if (/\s/.test(char)) continue;
+        return char;
+      }
+      return '';
+    };
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+
+      if (escaped) {
+        if (char === '\n') {
+          result += 'n';
+        } else if (char === '\r') {
+          result += 'r';
+        } else {
+          result += char;
+        }
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        result += char;
+        continue;
+      }
+
+      if (char === '"' || char === '`') {
+        if (inString) {
+          const nextChar = getNextNonWhitespace(i + 1);
+          const isValidClosing =
+            nextChar === ':' ||
+            nextChar === ',' ||
+            nextChar === '}' ||
+            nextChar === ']' ||
+            nextChar === '';
+          
+          if (isValidClosing) {
+            inString = false;
+            result += '"';
+          } else {
+            if (char === '"') {
+              result += '\\"';
+            } else {
+              result += '`';
+            }
+          }
+        } else {
+          inString = true;
+          result += '"';
+        }
+        continue;
+      }
+
+      if (inString) {
+        if (char === '\n') {
+          result += '\\n';
+        } else if (char === '\r') {
+          result += '\\r';
+        } else if (char === '\t') {
+          result += '\\t';
+        } else {
+          result += char;
+        }
+      } else {
+        if (char === '{') {
+          stack.push('}');
+        } else if (char === '[') {
+          stack.push(']');
+        } else if (char === '}') {
+          if (stack[stack.length - 1] === '}') {
+            stack.pop();
+          }
+        } else if (char === ']') {
+          if (stack[stack.length - 1] === ']') {
+            stack.pop();
+          }
+        }
+        result += char;
+      }
+    }
+
+    if (inString) {
+      result += '"';
+    }
+
+    while (stack.length > 0) {
+      result += stack.pop();
+    }
+
+    return result;
+  }
+
+  public static robustJSONParse<T>(text: string): T {
+    const extracted = this.extractJSON(text);
+    const repaired = this.repairJSON(extracted);
+    return JSON.parse(repaired) as T;
+  }
+
+  static async callLLM(prompt: string, formatJson: boolean | Record<string, any> = false, systemPrompt?: string): Promise<string> {
     const ollama = OllamaClient.getInstance();
 
-    const response = await ollama.chat(prompt);
+    const response = await ollama.chat(prompt, systemPrompt, formatJson);
 
     // Debug: log the response (truncated if too long)
     console.log("Ollama AI response received");
@@ -43,16 +179,7 @@ class AiService {
     responseText: string,
   ): IIdeaAnalysisResult | null {
     try {
-      // Try to extract JSON from the response
-      let jsonStr = responseText.trim();
-
-      // Handle cases where the response is wrapped in markdown code blocks
-      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[1].trim();
-      }
-
-      const parsed = JSON.parse(jsonStr);
+      const parsed = this.robustJSONParse<any>(responseText);
 
       // Validate the structure
       if (
@@ -81,15 +208,7 @@ class AiService {
     responseText: string,
   ): IGeneratedDocumentContent | null {
     try {
-      let jsonStr = responseText.trim();
-
-      // Handle cases where the response is wrapped in markdown code blocks
-      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[1].trim();
-      }
-
-      const parsed = JSON.parse(jsonStr);
+      const parsed = this.robustJSONParse<any>(responseText);
 
       // Validate the structure
       if (!parsed.title || !parsed.content) {
@@ -123,7 +242,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
         const result = this.parseAnalysisResult(responseText);
 
         if (result) {
@@ -186,7 +305,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
         const result = this.parseAnalysisResult(responseText);
 
         if (result) {
@@ -252,7 +371,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
         const result = this.parseDocumentResult(responseText);
 
         if (result) {
@@ -319,7 +438,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
         const result = this.parseDocumentResult(responseText);
 
         if (result) {
@@ -370,15 +489,7 @@ class AiService {
     responseText: string,
   ): IGeneratedDiagram | null {
     try {
-      let jsonStr = responseText.trim();
-
-      // Handle markdown code blocks
-      const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[1].trim();
-      }
-
-      const parsed = JSON.parse(jsonStr);
+      const parsed = this.robustJSONParse<any>(responseText);
 
       if (!parsed.title || !parsed.mermaidCode) {
         return null;
@@ -415,7 +526,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
         const result = this.parseDiagramResult(responseText);
 
         if (result) {
@@ -544,16 +655,9 @@ Focus on extracting distinct, implementable features. Each feature should be a l
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt);
+        const responseText = await this.callLLM(prompt, true);
 
-        // Extract JSON block
-        const jsonMatch =
-          responseText.match(/```json\n([\s\S]*?)\n```/) ||
-          responseText.match(/```\n([\s\S]*?)\n```/);
-
-        const jsonStr = jsonMatch ? jsonMatch[1].trim() : responseText.trim();
-
-        const parsed = JSON.parse(jsonStr);
+        const parsed = this.robustJSONParse<any>(responseText);
 
         if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
           return parsed.steps as IGeneratedWorkflowStep[];

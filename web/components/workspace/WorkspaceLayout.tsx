@@ -14,6 +14,7 @@ import { DocumentsPanel } from "./panels/DocumentsPanel";
 import { DiagramsPanel } from "./panels/DiagramsPanel";
 import { FeaturesPanel } from "./panels/FeaturesPanel";
 import { WorkflowPanel } from "./panels/WorkflowPanel";
+import { HistoryPanel } from "./panels/HistoryPanel";
 import { Idea } from "@/lib/types/idea";
 import { ideaApi } from "@/lib/api";
 import { Loader2 } from "lucide-react";
@@ -81,6 +82,16 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
     setIdea(updated);
   };
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleArtifactUpdated = useCallback(() => {
+    console.log("[WorkspaceLayout] Refreshing panels due to artifact update...");
+    setRefreshKey((prev) => prev + 1);
+    if (activeIdeaId) {
+      loadIdea(activeIdeaId);
+    }
+  }, [activeIdeaId, loadIdea]);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed((prev) => !prev);
   };
@@ -100,19 +111,22 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
       case "overview":
         return (
           <OverviewPanel
+            key={refreshKey}
             idea={idea}
             ideaId={activeIdeaId}
             onIdeaUpdate={handleIdeaUpdate}
           />
         );
       case "documents":
-        return <DocumentsPanel ideaId={activeIdeaId} idea={idea} />;
+        return <DocumentsPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
       case "diagrams":
-        return <DiagramsPanel ideaId={activeIdeaId} />;
+        return <DiagramsPanel key={refreshKey} ideaId={activeIdeaId} />;
       case "features":
-        return <FeaturesPanel ideaId={activeIdeaId} />;
+        return <FeaturesPanel key={refreshKey} ideaId={activeIdeaId} />;
       case "workflow":
-        return <WorkflowPanel ideaId={activeIdeaId} idea={idea} />;
+        return <WorkflowPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
+      case "history":
+        return <HistoryPanel key={refreshKey} ideaId={activeIdeaId} onArtifactUpdated={handleArtifactUpdated} />;
       default:
         return null;
     }
@@ -137,12 +151,6 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
         {!activeIdeaId ? (
           // Full screen chat for new ideas
           <div className="flex-1 flex flex-col h-full bg-background">
-            <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                PAD Assistant
-              </span>
-            </div>
             <div className="flex-1 overflow-hidden">
               <UnifiedChat ideaId={null} onIdeaCreated={handleIdeaCreated} />
             </div>
@@ -157,16 +165,11 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
               maxSize={55}
               className="flex flex-col"
             >
-              <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  PAD Assistant
-                </span>
-              </div>
               <div className="flex-1 overflow-hidden">
                 <UnifiedChat
                   ideaId={activeIdeaId}
                   onIdeaCreated={handleIdeaCreated}
+                  onArtifactUpdated={handleArtifactUpdated}
                 />
               </div>
             </ResizablePanel>

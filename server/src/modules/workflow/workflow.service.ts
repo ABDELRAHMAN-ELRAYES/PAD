@@ -89,21 +89,18 @@ export class WorkflowService {
             }
 
             // Parse AI response to extract workflow steps
-            // We manually parse it using the same logic as AiService.generateWorkflow
-            const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/) || fullResponse.match(/```\n([\s\S]*?)\n```/);
-            const jsonStr = jsonMatch ? jsonMatch[1].trim() : fullResponse.trim();
-            const parsed = JSON.parse(jsonStr);
+            const parsed = AiService.robustJSONParse<any>(fullResponse);
             const steps = parsed && Array.isArray(parsed.steps) ? parsed.steps : [];
 
             if (steps.length > 0) {
                 // Save to Database
                 const workflow = await workflowRepository.createWorkflow(ideaId);
-                const { v4: uuidv4 } = require("uuid");
+                const { randomUUID } = require("crypto");
                 const stepIdMap = new Map<number, string>();
                 const stepTaskIdMap = new Map<string, string>();
 
                 steps.forEach((s: any) => {
-                    const id = uuidv4();
+                    const id = randomUUID();
                     stepIdMap.set(s.order, id);
                     if (s.taskId) stepTaskIdMap.set(s.taskId, id);
                 });

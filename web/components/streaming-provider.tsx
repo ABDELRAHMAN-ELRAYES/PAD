@@ -7,7 +7,8 @@ export type WorkspaceSection =
   | "documents"
   | "diagrams"
   | "features"
-  | "workflow";
+  | "workflow"
+  | "history";
 
 type StreamingStatus = Record<string, boolean>;
 

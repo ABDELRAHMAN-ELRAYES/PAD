@@ -1,9 +1,9 @@
 "use client";
 
 import { FC } from "react";
-import { User, Bot } from "lucide-react";
 import { IterationMessage } from "@/lib/types/idea";
 import { SuggestionCard } from "./SuggestionCard";
+import { ChatMarkdown } from "./ChatMarkdown";
 
 interface ChatMessageProps {
     message: IterationMessage;
@@ -18,45 +18,34 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, ideaId, onSuggestio
         minute: "2-digit",
     });
 
-    return (
-        <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-            {/* Avatar */}
-            <div
-                className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    isUser
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-300"
-                }`}
-            >
-                {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-            </div>
-
-            {/* Message Bubble */}
-            <div className={`flex flex-col max-w-[80%] ${isUser ? "items-end" : "items-start"}`}>
-                <div
-                    className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                        isUser
-                            ? "bg-primary text-primary-foreground rounded-tr-sm"
-                            : "bg-muted text-foreground rounded-tl-sm"
-                    }`}
-                >
+    if (isUser) {
+        return (
+            <div className="flex flex-col items-end w-full space-y-1">
+                <div className="self-end max-w-[85%] rounded-2xl bg-chat-user-bg px-3.5 py-2 text-sm text-chat-user-fg">
                     <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>
-
-                {/* Timestamp */}
-                <span className="text-[10px] text-muted-foreground mt-1 px-1">{time}</span>
-
-                {/* Suggestion Card (assistant only) */}
-                {!isUser && message.suggestion && (
-                    <div className="mt-2 w-full">
-                        <SuggestionCard
-                            suggestion={message.suggestion}
-                            ideaId={ideaId}
-                            onApproved={onSuggestionApproved}
-                        />
-                    </div>
-                )}
+                <span className="text-[10px] text-muted-foreground px-1 opacity-0 hover:opacity-100 transition-opacity cursor-default">
+                    {time}
+                </span>
             </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col items-start w-full space-y-2">
+            <div className="w-full text-sm text-chat-assistant-fg py-1">
+                <ChatMarkdown content={message.content} />
+            </div>
+
+            {message.suggestion && (
+                <div className="mt-2 w-full">
+                    <SuggestionCard
+                        suggestion={message.suggestion}
+                        ideaId={ideaId}
+                        onApproved={onSuggestionApproved}
+                    />
+                </div>
+            )}
         </div>
     );
 };

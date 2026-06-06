@@ -41,6 +41,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   onImageUpload?: (file: File) => Promise<string>;
+  disabled?: boolean;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -51,6 +52,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   placeholder = 'Write your content here...',
   className = '',
   onImageUpload,
+  disabled = false,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1338,7 +1340,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <div className="editor-root-container">
           <div
             ref={editorRef}
-            contentEditable={true}
+            contentEditable={!disabled}
             className="wysiwyg-editor"
             data-placeholder={placeholder}
             onInput={handleEditorChange}

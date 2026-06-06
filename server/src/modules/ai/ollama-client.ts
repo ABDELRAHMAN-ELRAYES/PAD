@@ -33,7 +33,7 @@ export class OllamaClient {
         return OllamaClient.instance;
     }
 
-    async chat(prompt: string, systemPrompt?: string): Promise<string> {
+    async chat(prompt: string, systemPrompt?: string, formatJson?: boolean | Record<string, any>): Promise<string> {
         const url = `${this.baseUrl}/api/chat`;
         
         const messages = [];
@@ -42,14 +42,18 @@ export class OllamaClient {
         }
         messages.push({ role: "user", content: prompt });
 
-        const body = {
+        const body: any = {
             model: this.model,
             messages: messages,
             stream: false,
             options: {
-                temperature: 0.7,
+                temperature: formatJson ? 0.1 : 0.7,
             }
         };
+
+        if (formatJson) {
+            body.format = typeof formatJson === "object" ? formatJson : "json";
+        }
 
         try {
             const response = await fetch(url, {

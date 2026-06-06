@@ -42,6 +42,49 @@ const DIAGRAM_LABELS: Record<DiagramType, string> = {
     FLOWCHART: "Flowchart",
 };
 
+function parsePartialMermaid(text: string): string {
+    const match = text.match(/"mermaidCode"\s*:\s*"([\s\S]*?)$/);
+    if (!match) {
+        const trimmed = text.trim();
+        if (trimmed.startsWith("graph") || 
+            trimmed.startsWith("sequenceDiagram") || 
+            trimmed.startsWith("erDiagram") ||
+            trimmed.startsWith("flowchart")) {
+            return trimmed;
+        }
+        return "";
+    }
+
+    let codeStr = match[1];
+    let cleanCode = "";
+    let escaped = false;
+    for (let i = 0; i < codeStr.length; i++) {
+        const char = codeStr[i];
+        if (escaped) {
+            if (char === 'n') {
+                cleanCode += '\n';
+            } else if (char === 'r') {
+                cleanCode += '\r';
+            } else if (char === 't') {
+                cleanCode += '\t';
+            } else {
+                cleanCode += char;
+            }
+            escaped = false;
+            continue;
+        }
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (char === '"') {
+            break;
+        }
+        cleanCode += char;
+    }
+    return cleanCode;
+}
+
 export default function DiagramsPage() {
     const params = useParams();
     const ideaId = params.id as string;
@@ -54,6 +97,7 @@ export default function DiagramsPage() {
     const [error, setError] = useState<string | null>(null);
     const [editedCode, setEditedCode] = useState<Record<string, string>>({});
     const [activeTab, setActiveTab] = useState<string>("ERD");
+    const [streamingCode, setStreamingCode] = useState<Record<string, string>>({});
 
     const fetchData = useCallback(async () => {
         try {
@@ -89,24 +133,43 @@ export default function DiagramsPage() {
     const handleGenerate = async () => {
         setIsGenerating(true);
         setError(null);
+        setStreamingCode({});
         try {
-            const generated = await diagramApi.generate(ideaId);
-            setDiagrams(generated);
+            await diagramApi.generateStream(ideaId, (data) => {
+                if (data.chunk && data.type) {
+                    setStreamingCode((prev) => ({
+                        ...prev,
+                        [data.type]: data.fullText || (prev[data.type] || "") + data.chunk,
+                    }));
+                    setActiveTab(data.type);
+                }
 
-            // Initialize edited code
-            const codeMap: Record<string, string> = {};
-            generated.forEach((d) => {
-                codeMap[d.id] = d.mermaidCode;
+                if (data.status === "final") {
+                    setIsGenerating(false);
+                    setStreamingCode({});
+                    if (data.diagrams) {
+                        setDiagrams(data.diagrams);
+                        const codeMap: Record<string, string> = {};
+                        data.diagrams.forEach((d: any) => {
+                            codeMap[d.id] = d.mermaidCode;
+                        });
+                        setEditedCode(codeMap);
+                        if (data.diagrams.length > 0) {
+                            setActiveTab(data.diagrams[0].type);
+                        }
+                    }
+                }
+
+                if (data.status === "error") {
+                    setIsGenerating(false);
+                    setError(data.message || "Failed to generate diagrams");
+                    setStreamingCode({});
+                }
             });
-            setEditedCode(codeMap);
-
-            if (generated.length > 0) {
-                setActiveTab(generated[0].type);
-            }
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to generate diagrams");
-        } finally {
             setIsGenerating(false);
+            setError(err instanceof Error ? err.message : "Failed to generate diagrams");
+            setStreamingCode({});
         }
     };
 
@@ -238,11 +301,12 @@ export default function DiagramsPage() {
                     <TabsList className="mb-4">
                         {(["ERD", "SEQUENCE", "SCHEMA"] as DiagramType[]).map((type) => {
                             const diagram = getDiagramByType(type);
+                            const streaming = streamingCode[type];
                             return (
                                 <TabsTrigger
                                     key={type}
                                     value={type}
-                                    disabled={!diagram}
+                                    disabled={!diagram && !streaming}
                                     className="flex items-center gap-2"
                                 >
                                     {DIAGRAM_ICONS[type]}
@@ -254,43 +318,49 @@ export default function DiagramsPage() {
 
                     {(["ERD", "SEQUENCE", "SCHEMA"] as DiagramType[]).map((type) => {
                         const diagram = getDiagramByType(type);
-                        if (!diagram) return null;
+                        const streaming = streamingCode[type];
 
-                        const hasChanges = editedCode[diagram.id] !== diagram.mermaidCode;
-                        const saving = isSaving[diagram.id];
+                        if (!diagram && !streaming) return null;
+
+                        const rawCode = streaming || (diagram ? editedCode[diagram.id] : "");
+                        const code = streaming ? parsePartialMermaid(rawCode) : rawCode;
+                        const saving = diagram ? isSaving[diagram.id] : false;
+                        const hasChanges = diagram ? editedCode[diagram.id] !== diagram.mermaidCode : false;
 
                         return (
                             <TabsContent key={type} value={type}>
-                                <Card>
+                                <Card className={streaming ? "border-primary/20 bg-primary/5" : ""}>
                                     <CardHeader className="pb-3">
                                         <div className="flex items-center justify-between">
                                             <CardTitle className="text-lg flex items-center gap-2">
                                                 {DIAGRAM_ICONS[type]}
-                                                {diagram.title}
+                                                {diagram ? diagram.title : `${DIAGRAM_LABELS[type]} (Generating...)`}
                                             </CardTitle>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleRegenerate(diagram)}
-                                                    disabled={saving}
-                                                >
-                                                    <RefreshCw className={`h-4 w-4 mr-1 ${saving ? "animate-spin" : ""}`} />
-                                                    Regenerate
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleSave(diagram)}
-                                                    disabled={saving || !hasChanges}
-                                                >
-                                                    {saving ? (
-                                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                                    ) : (
-                                                        <Save className="h-4 w-4 mr-1" />
-                                                    )}
-                                                    Save
-                                                </Button>
-                                            </div>
+                                            {diagram && !streaming && (
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleRegenerate(diagram)}
+                                                        disabled={saving || isGenerating}
+                                                    >
+                                                        <RefreshCw className={`h-4 w-4 mr-1 ${saving ? "animate-spin" : ""}`} />
+                                                        Regenerate
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleSave(diagram)}
+                                                        disabled={saving || !hasChanges || isGenerating}
+                                                    >
+                                                        {saving ? (
+                                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                                        ) : (
+                                                            <Save className="h-4 w-4 mr-1" />
+                                                        )}
+                                                        Save
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
                                     </CardHeader>
                                     <Separator />
@@ -298,11 +368,16 @@ export default function DiagramsPage() {
                                         <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
                                             {/* Editor */}
                                             <div className="p-4">
-                                                <h4 className="text-sm font-medium mb-2">Mermaid Code</h4>
+                                                <h4 className="text-sm font-medium mb-2">Mermaid Code {streaming && "(Streaming...)"}</h4>
                                                 <textarea
                                                     className="w-full h-[500px] font-mono text-sm p-3 border rounded-md bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                                                    value={editedCode[diagram.id] || ""}
-                                                    onChange={(e) => handleCodeChange(diagram.id, e.target.value)}
+                                                    value={code}
+                                                    onChange={(e) => {
+                                                        if (diagram) {
+                                                            handleCodeChange(diagram.id, e.target.value);
+                                                        }
+                                                    }}
+                                                    disabled={!!streaming}
                                                     spellCheck={false}
                                                 />
                                             </div>
@@ -311,7 +386,7 @@ export default function DiagramsPage() {
                                             <div className="p-4">
                                                 <h4 className="text-sm font-medium mb-2">Live Preview</h4>
                                                 <div className="border rounded-md bg-white dark:bg-gray-950 p-4 min-h-[500px] overflow-auto">
-                                                    <MermaidPreview code={editedCode[diagram.id] || ""} />
+                                                    <MermaidPreview code={code} />
                                                 </div>
                                             </div>
                                         </div>

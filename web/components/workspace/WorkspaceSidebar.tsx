@@ -20,7 +20,8 @@ export type WorkspaceSection =
     | "documents"
     | "diagrams"
     | "features"
-    | "workflow";
+    | "workflow"
+    | "history";
 
 interface SidebarItem {
     id: WorkspaceSection;

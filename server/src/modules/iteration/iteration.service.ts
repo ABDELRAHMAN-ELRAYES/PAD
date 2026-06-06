@@ -8,16 +8,17 @@ import {
 import AppError from "@/utils/app-error";
 import SocketService from "../../services/socket.service";
 import AiService from "../ai/ai.service";
-import { buildIterationPrompt } from "../ai/prompts/iteration.prompt";
 
-// Fixing imports to use backend services
-import IdeaRepository from "../idea/idea.repository";
-import DocumentRepository from "../document/document.repository";
-import DiagramRepository from "../diagram/diagram.repository";
-import FeatureRepository from "../feature/feature.repository";
-import TaskRepository from "../task/task.repository";
-import { workflowRepository } from "../workflow/workflow.repository";
-import { IFeature } from "../feature/types/IFeature";
+// Phase 2: Intent classification, context building, dual prompts
+import { classifyIntent, IterationIntent } from "./iteration-intent.classifier";
+import IterationContextBuilder from "./iteration-context.builder";
+import { buildDiscussionPrompt } from "../ai/prompts/iteration-discussion.prompt";
+
+// Change Planner Service
+import ChangePlannerService from "./change-planner.service";
+
+// Artifact Update Engine — extracted apply logic with validation + proper REGENERATE
+import ArtifactUpdateEngine, { ActionInput } from "./artifact-update-engine";
 
 export default class IterationService {
     constructor() {
@@ -29,7 +30,8 @@ export default class IterationService {
 
         if (!session) {
             session = await repo.createSession({ ideaId });
-            SocketService.getInstance().emitToAll("session:created", session);
+            // Emit to room only (not all clients) to avoid cross-tenant leaks
+            SocketService.getInstance().emitToRoom(ideaId, "session:created", session);
         }
 
         return session;
@@ -49,7 +51,7 @@ export default class IterationService {
         SocketService.getInstance().emitToRoom(ideaId, "message:new", message);
 
         if (role === "user") {
-            // Trigger AI processing in background
+            // Trigger AI processing in background (not awaited — REST responds immediately)
             this.processFeedbackInBackground(ideaId, session.id, content);
         }
 
@@ -57,95 +59,117 @@ export default class IterationService {
     }
 
     private static async processFeedbackInBackground(ideaId: string, sessionId: string, feedback: string) {
+        const socket = SocketService.getInstance();
+        socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "thinking" });
         try {
             const repo = IterationRepository.getInstance();
-            const ideaRepo = IdeaRepository.getInstance();
-            const idea = await ideaRepo.getIdeaById(ideaId);
-            if (!idea) return;
 
-            // Get context (documents, diagrams, etc.)
-            const docRepo = DocumentRepository.getInstance();
-            const diagramRepo = DiagramRepository.getInstance();
-            const featureRepo = FeatureRepository.getInstance();
-            const taskRepo = TaskRepository.getInstance();
+            // 1. Classify intent
+            const intent: IterationIntent = await classifyIntent(feedback);
+            console.log(`[Iteration] Intent: ${intent} | message: "${feedback.substring(0, 80)}"`);
 
-            const features = await featureRepo.getFeaturesByIdeaId(ideaId);
-            const featuresWithTasks = await Promise.all(features.map(async (f: IFeature) => ({
-                ...f,
-                tasks: await taskRepo.getTasksByFeatureId(f.id)
-            })));
+            // 2. Build context — pass user message for artifact reference resolution
+            const context = intent === "discussion"
+                ? await IterationContextBuilder.buildSummaryContext(ideaId, feedback)
+                : await IterationContextBuilder.buildTargetedContext(ideaId, feedback);
+            const contextStr = IterationContextBuilder.serialize(context);
+            console.log(`[Iteration] Context built: ${contextStr.length} chars`);
 
-            const context = {
-                documents: await docRepo.getDocumentsByIdeaId(ideaId),
-                diagrams: await diagramRepo.getDiagramsByIdeaId(ideaId),
-                features: featuresWithTasks,
-                workflow: await workflowRepository.getWorkflowByIdeaId(ideaId)
-            };
-
+            // 3. Get conversation history
             const history = (await repo.getMessagesBySessionId(sessionId)).map(m => ({
                 role: m.role,
                 content: m.content
             }));
 
-            const prompt = buildIterationPrompt(idea.refinedText || idea.rawText, history, feedback, context);
-            let fullResponseText = "";
-            
-            // Stream raw response via socket for real-time UI updates
-            const socket = SocketService.getInstance();
-            for await (const chunk of AiService.callLLMStream(prompt)) {
-                fullResponseText += chunk;
-                socket.emitToRoom(ideaId, "message:stream", { 
-                    sessionId, 
-                    chunk, 
-                    fullText: fullResponseText 
-                });
-            }
+            if (intent === "modification") {
+                socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "planning" });
+                const plan = await ChangePlannerService.generatePlan(ideaId, sessionId, feedback);
 
-            // Once finished, parse the full response
-            // Extract JSON block
-            const jsonMatch = fullResponseText.match(/```json\n([\s\S]*?)\n```/) ||
-                fullResponseText.match(/```\n([\s\S]*?)\n```/) ||
-                (fullResponseText.trim().startsWith("{") ? [null, fullResponseText.trim()] : null);
-
-            const jsonStr = jsonMatch ? jsonMatch[1].trim() : null;
-            let aiResult: any = null;
-
-            if (jsonStr) {
-                try {
-                    aiResult = JSON.parse(jsonStr);
-                } catch (e) {
-                    console.error("Failed to parse streamed AI JSON:", e);
-                }
-            } else {
-                // If not JSON, treat the whole thing as the response
-                aiResult = { response: fullResponseText };
-            }
-
-            if (aiResult) {
-                // 1. Add AI response message to database
+                const explanationText = plan.explanation || `I've prepared a modification plan to update your project artifacts. Please review the details below.`;
                 const aiMessage = await repo.addMessage({
                     sessionId,
                     role: "assistant",
-                    content: aiResult.response || fullResponseText
+                    content: explanationText.trim()
                 });
-                
-                // Notify that streaming is finished and message is saved
-                socket.emitToRoom(ideaId, "message:new", aiMessage);
 
-                // 2. Create suggestion if present
-                if (aiResult.suggestion) {
-                    const suggestion = await repo.createSuggestion({
-                        messageId: aiMessage.id,
-                        title: aiResult.suggestion.title,
-                        summary: aiResult.suggestion.summary,
-                        actions: aiResult.suggestion.actions
-                    });
-                    socket.emitToRoom(ideaId, "suggestion:new", suggestion);
-                }
+                socket.emitToRoom(ideaId, "message:new", aiMessage);
+                socket.emitToRoom(ideaId, "plan:created", { plan });
+                socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "idle" });
+                return;
             }
+
+            // 4. Build prompt based on intent (discussion only)
+            const prompt = buildDiscussionPrompt(contextStr, history, feedback);
+
+            // 5. Stream LLM response
+            let fullResponseText = "";
+            let chunkCount = 0;
+            let isGenerating = false;
+            
+            for await (const chunk of AiService.callLLMStream(prompt)) {
+                if (!isGenerating) {
+                    socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "generating" });
+                    isGenerating = true;
+                }
+                
+                fullResponseText += chunk;
+                chunkCount++;
+
+                // Stream only human-readable text to client (strip JSON blocks during streaming)
+                const displayText = this.extractDisplayText(fullResponseText);
+                socket.emitToRoom(ideaId, "message:stream", {
+                    sessionId,
+                    chunk,
+                    fullText: displayText,
+                    type: "chunk"
+                });
+            }
+            console.log(`[Iteration] Stream done: ${chunkCount} chunks, ${fullResponseText.length} chars total`);
+            
+            socket.emitToRoom(ideaId, "message:stream", {
+                sessionId,
+                fullText: this.extractDisplayText(fullResponseText),
+                type: "done"
+            });
+
+            // 6. Process completed response
+            await this.handleDiscussionResponse(repo, socket, ideaId, sessionId, fullResponseText);
         } catch (error) {
-            console.error("Error processing feedback in background:", error);
+            console.error("[Iteration] Error processing feedback:", error);
+            socket.emitToRoom(ideaId, "message:error", {
+                sessionId,
+                error: error instanceof Error ? error.message : "AI processing failed"
+            });
+            socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "error" });
         }
+    }
+
+    /**
+     * Extract display-safe text by stripping JSON code blocks.
+     * During streaming, user should see conversational text only.
+     */
+    private static extractDisplayText(text: string): string {
+        // Remove ```json ... ``` blocks
+        return text.replace(/```json[\s\S]*?(```|$)/g, "").trim();
+    }
+
+    /**
+     * Handle discussion response — save as plain text message, no suggestion.
+     */
+    private static async handleDiscussionResponse(
+        repo: IterationRepository,
+        socket: SocketService,
+        ideaId: string,
+        sessionId: string,
+        fullResponseText: string
+    ) {
+        const aiMessage = await repo.addMessage({
+            sessionId,
+            role: "assistant",
+            content: fullResponseText.trim()
+        });
+        socket.emitToRoom(ideaId, "message:new", aiMessage);
+        socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "idle" });
     }
 
     static async createSuggestion(messageId: string, title: string, summary: string, actions: any[], _: NextFunction): Promise<IIterationSuggestion | void> {
@@ -158,7 +182,7 @@ export default class IterationService {
         });
 
         // Find ideaId for the room
-        const session = await repo.getSessionByMessageId(messageId); // I need to add this to repo
+        const session = await repo.getSessionByMessageId(messageId);
         if (session) {
             SocketService.getInstance().emitToRoom(session.ideaId, "suggestion:new", suggestion);
         }
@@ -166,13 +190,29 @@ export default class IterationService {
         return suggestion;
     }
 
-    static async getSession(ideaId: string, next: NextFunction): Promise<IIterationSession | void> {
+    static async rejectSuggestion(suggestionId: string, next: NextFunction): Promise<IIterationSuggestion | void> {
         const repo = IterationRepository.getInstance();
-        const session = await repo.getSessionByIdeaId(ideaId);
-        if (!session) {
-            return next(new AppError(404, "Iteration session not found"));
+        const suggestion = await repo.getSuggestionById(suggestionId);
+        if (!suggestion) {
+            return next(new AppError(404, "Suggestion not found"));
         }
-        return session;
+
+        if (suggestion.status !== "pending") {
+            return next(new AppError(400, `Suggestion is already ${suggestion.status}`));
+        }
+
+        const rejected = await repo.updateSuggestionStatus(suggestionId, "rejected");
+
+        // Notify room about rejection
+        const message = await repo.getMessageById(suggestion.messageId);
+        if (message) {
+            const session = await repo.getSessionBySessionId(message.sessionId);
+            if (session) {
+                SocketService.getInstance().emitToRoom(session.ideaId, "suggestion:status", { id: suggestionId, status: "rejected" });
+            }
+        }
+
+        return rejected;
     }
 
     static async approveSuggestion(suggestionId: string, next: NextFunction): Promise<IIterationSuggestion | void> {
@@ -186,58 +226,83 @@ export default class IterationService {
             return next(new AppError(400, `Suggestion is already ${suggestion.status}`));
         }
 
-        // Apply actions
-        for (const action of suggestion.actions || []) {
-            try {
-                await this.applyAction(action);
-            } catch (error) {
-                console.error(`Failed to apply action:`, error);
-                return next(new AppError(500, `Failed to apply suggestion action for ${action.module}`));
-            }
-        }
-
-        await repo.updateSuggestionStatus(suggestionId, "approved");
-
-        // Find ideaId for the room
-        const message = await repo.getMessageById(suggestion.messageId); // I need to add this to repo
+        // Get ideaId from session
+        const message = await repo.getMessageById(suggestion.messageId);
+        let ideaId = "";
+        let sessionId = "";
         if (message) {
-            const session = await repo.getSessionBySessionId(message.sessionId); // I need to add this to repo
-            if (session) {
-                SocketService.getInstance().emitToRoom(session.ideaId, "suggestion:status", { id: suggestionId, status: "approved" });
-            }
-        }
-
-        // Mark as applied after successful application
-        const finalSuggestion = await repo.updateSuggestionStatus(suggestionId, "applied");
-        if (message) {
+            sessionId = message.sessionId;
             const session = await repo.getSessionBySessionId(message.sessionId);
             if (session) {
-                SocketService.getInstance().emitToRoom(session.ideaId, "suggestion:status", { id: suggestionId, status: "applied" });
+                ideaId = session.ideaId;
             }
         }
+
+        if (!ideaId) {
+            return next(new AppError(400, "Could not resolve project ID for suggestion"));
+        }
+
+        SocketService.getInstance().emitToRoom(ideaId, "ai:state", { sessionId, phase: "editing" });
+
+        // Delegate to ArtifactUpdateEngine — validates targets, routes REGENERATE properly
+        const actions: ActionInput[] = (suggestion.actions || []).map(a => ({
+            module: a.module,
+            targetId: a.targetId,
+            actionType: a.actionType,
+            newContent: a.newContent,
+        }));
+
+        const applyResult = await ArtifactUpdateEngine.executeAll(actions, ideaId);
+
+        // Status: applied | partial | failed
+        const finalSuggestion = await repo.updateSuggestionStatus(suggestionId, applyResult.status);
+        SocketService.getInstance().emitToRoom(ideaId, "suggestion:status", {
+            id: suggestionId,
+            status: applyResult.status,
+        });
+
+        // Notify client panels to refresh (only if something succeeded)
+        if (applyResult.modulesAffected.length > 0) {
+            SocketService.getInstance().emitToRoom(ideaId, "artifact:updated", {
+                ideaId,
+                suggestionId,
+                modulesAffected: applyResult.modulesAffected,
+            });
+        }
+
+        // Post-apply summary message in chat
+        const sessionObj = await repo.getSessionByIdeaId(ideaId);
+        if (sessionObj) {
+            const summaryParts: string[] = [];
+
+            if (applyResult.status === "applied") {
+                summaryParts.push(`✅ **Changes applied:** "${suggestion.title}"`);
+            } else if (applyResult.status === "partial") {
+                summaryParts.push(`⚠️ **Partially applied:** "${suggestion.title}"`);
+            } else {
+                summaryParts.push(`❌ **Failed to apply:** "${suggestion.title}"`);
+            }
+
+            if (applyResult.modulesAffected.length > 0) {
+                summaryParts.push(`Updated: ${applyResult.modulesAffected.join(", ")}`);
+            }
+            if (applyResult.failedActions.length > 0) {
+                summaryParts.push(`Failed: ${applyResult.failedActions.join("; ")}`);
+            }
+
+            const summaryMsg = await repo.addMessage({
+                sessionId: sessionObj.id,
+                role: "assistant",
+                content: summaryParts.join("\n"),
+            });
+            SocketService.getInstance().emitToRoom(ideaId, "message:new", summaryMsg);
+        }
+
+        SocketService.getInstance().emitToRoom(ideaId, "ai:state", { sessionId, phase: "idle" });
 
         return finalSuggestion;
     }
 
-    private static async applyAction(action: any) {
-        // This is where we update other modules
-        // Depending on action.module and action.actionType
-        switch (action.module) {
-            case "DOCUMENT":
-                // Logic to update documents (need DocumentService or Repository)
-                break;
-            case "DIAGRAM":
-                // Logic to update diagrams
-                break;
-            case "FEATURE":
-                // Logic to update features
-                break;
-            case "TASK":
-                // Logic to update tasks
-                break;
-            case "WORKFLOW":
-                // Logic to update workflow
-                break;
-        }
-    }
+    // NOTE: applyAction has been extracted to ArtifactUpdateEngine.
+    // See: artifact-update-engine.ts
 }
