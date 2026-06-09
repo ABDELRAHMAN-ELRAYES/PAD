@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ideaApi } from "../api/ideas.api";
+import { useConfirmIdea, useRefineIdea } from "../api/ideasQueries";
 import { Idea, IQuestionAnswer } from "../types/models/idea";
 import { useStreaming } from "@/components/providers/StreamingProvider";
 
@@ -27,8 +28,6 @@ export function useOverviewPanel(
 ): UseOverviewPanelReturn {
     const { setPhaseStreaming } = useStreaming();
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isConfirming, setIsConfirming] = useState(false);
-    const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [answers, setAnswers] = useState<Record<number, string>>({});
     const [hasSubmittedAnswers, setHasSubmittedAnswers] = useState(false);
@@ -39,6 +38,9 @@ export function useOverviewPanel(
         questions: true,
     });
     const [streamingText, setStreamingText] = useState("");
+
+    const confirmMutation = useConfirmIdea();
+    const refineMutation = useRefineIdea();
 
     useEffect(() => {
         if (isAnalyzing) {
@@ -83,16 +85,15 @@ export function useOverviewPanel(
     };
 
     const handleConfirm = async () => {
-        setIsConfirming(true);
         setError(null);
-        try {
-            const updated = await ideaApi.confirm(ideaId);
-            onIdeaUpdate(updated);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to confirm idea");
-        } finally {
-            setIsConfirming(false);
-        }
+        confirmMutation.mutate(ideaId, {
+            onSuccess: (updated) => {
+                onIdeaUpdate(updated);
+            },
+            onError: (err: any) => {
+                setError(err?.message || "Failed to confirm idea");
+            },
+        });
     };
 
     const handleSubmitAnswers = async () => {
@@ -110,18 +111,20 @@ export function useOverviewPanel(
             return;
         }
 
-        setIsSubmittingAnswers(true);
         setError(null);
-        try {
-            const updated = await ideaApi.refine(ideaId, { answers: answersArray });
-            onIdeaUpdate(updated);
-            setAnswers({});
-            setHasSubmittedAnswers(true);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to submit answers");
-        } finally {
-            setIsSubmittingAnswers(false);
-        }
+        refineMutation.mutate({
+            id: ideaId,
+            input: { answers: answersArray }
+        }, {
+            onSuccess: (updated) => {
+                onIdeaUpdate(updated);
+                setAnswers({});
+                setHasSubmittedAnswers(true);
+            },
+            onError: (err: any) => {
+                setError(err?.message || "Failed to submit answers");
+            }
+        });
     };
 
     const handleAnswerChange = (index: number, value: string) => {
@@ -130,8 +133,8 @@ export function useOverviewPanel(
 
     return {
         isAnalyzing,
-        isConfirming,
-        isSubmittingAnswers,
+        isConfirming: confirmMutation.isPending,
+        isSubmittingAnswers: refineMutation.isPending,
         error,
         answers,
         hasSubmittedAnswers,

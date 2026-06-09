@@ -1,4 +1,4 @@
-import { fetchWithAuth, streamRequest } from "@/api/client";
+import { apiClient, readNdJsonStream } from "@/api/client";
 import {
     Feature,
     FeatureVersion,
@@ -13,81 +13,65 @@ import {
     TaskResponse,
     TasksListResponse,
 } from "@/features/features/types/models/features";
+import { ApiResponse } from "@/features/ideas/types/models/idea";
 
 // Feature API functions
 export const featureApi = {
     // Extract features from PRD/BRD using AI (Streaming)
     async extractStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
-        await streamRequest(`/features/extract/${ideaId}`, onChunk, {
-            method: "POST",
-        });
+        const response = await apiClient.post<Response>(`/features/extract/${ideaId}`, undefined, {}, true);
+        await readNdJsonStream(response, onChunk);
     },
 
     // Extract features from PRD/BRD using AI (Legacy/Sync)
     async extractFromDocuments(ideaId: string): Promise<Feature[]> {
-        const response = await fetchWithAuth<FeaturesListResponse>(`/features/extract/${ideaId}`, {
-            method: "POST",
-        });
+        const response = await apiClient.post<ApiResponse<FeaturesListResponse>>(`/features/extract/${ideaId}`);
         return response.data!.features;
     },
 
     // Create a new feature
     async create(data: CreateFeatureInput): Promise<Feature> {
-        const response = await fetchWithAuth<FeatureResponse>(`/features`, {
-            method: "POST",
-            body: JSON.stringify(data),
-        });
+        const response = await apiClient.post<ApiResponse<FeatureResponse>>(`/features`, data);
         return response.data!.feature;
     },
 
     // Get a single feature
     async get(id: string): Promise<Feature> {
-        const response = await fetchWithAuth<FeatureResponse>(`/features/${id}`);
+        const response = await apiClient.get<ApiResponse<FeatureResponse>>(`/features/${id}`);
         return response.data!.feature;
     },
 
     // Get all features for an idea
     async getByIdea(ideaId: string): Promise<Feature[]> {
-        const response = await fetchWithAuth<FeaturesListResponse>(`/features/idea/${ideaId}`);
+        const response = await apiClient.get<ApiResponse<FeaturesListResponse>>(`/features/idea/${ideaId}`);
         return response.data!.features;
     },
 
     // Update a feature
     async update(id: string, data: UpdateFeatureInput): Promise<Feature> {
-        const response = await fetchWithAuth<FeatureResponse>(`/features/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(data),
-        });
+        const response = await apiClient.put<ApiResponse<FeatureResponse>>(`/features/${id}`, data);
         return response.data!.feature;
     },
 
     // Delete a feature
     async delete(id: string): Promise<void> {
-        await fetchWithAuth(`/features/${id}`, {
-            method: "DELETE",
-        });
+        await apiClient.delete(`/features/${id}`);
     },
 
     // Get version history
     async getVersions(id: string): Promise<FeatureVersion[]> {
-        const response = await fetchWithAuth<any>(
-            `/features/${id}/versions`
-        );
+        const response = await apiClient.get<ApiResponse<any>>(`/features/${id}/versions`);
         return response.data?.versions || (response.data as any) || [];
     },
 
     // Link feature to diagram
     async linkDiagram(featureId: string, diagramId: string): Promise<void> {
-        await fetchWithAuth(`/features/${featureId}/diagrams/${diagramId}`, {
-            method: "POST",
-        });
+        await apiClient.post(`/features/${featureId}/diagrams/${diagramId}`);
     },
 
     // Unlink feature from diagram
     async unlinkDiagram(featureId: string, diagramId: string): Promise<void> {
-        await fetchWithAuth(`/features/${featureId}/diagrams/${diagramId}`, {
-            method: "DELETE",
-        });
+        await apiClient.delete(`/features/${featureId}/diagrams/${diagramId}`);
     },
 };
 
@@ -95,77 +79,58 @@ export const featureApi = {
 export const taskApi = {
     // Suggest tasks for a feature using AI
     async suggestForFeature(featureId: string): Promise<Task[]> {
-        const response = await fetchWithAuth<TasksListResponse>(`/tasks/suggest/${featureId}`, {
-            method: "POST",
-        });
+        const response = await apiClient.post<ApiResponse<TasksListResponse>>(`/tasks/suggest/${featureId}`);
         return response.data!.tasks;
     },
 
     // Create a new task
     async create(data: CreateTaskInput): Promise<Task> {
-        const response = await fetchWithAuth<TaskResponse>(`/tasks`, {
-            method: "POST",
-            body: JSON.stringify(data),
-        });
+        const response = await apiClient.post<ApiResponse<TaskResponse>>(`/tasks`, data);
         return response.data!.task;
     },
 
     // Get a single task
     async get(id: string): Promise<Task> {
-        const response = await fetchWithAuth<TaskResponse>(`/tasks/${id}`);
+        const response = await apiClient.get<ApiResponse<TaskResponse>>(`/tasks/${id}`);
         return response.data!.task;
     },
 
     // Get all tasks for a feature
     async getByFeature(featureId: string): Promise<Task[]> {
-        const response = await fetchWithAuth<TasksListResponse>(`/tasks/feature/${featureId}`);
+        const response = await apiClient.get<ApiResponse<TasksListResponse>>(`/tasks/feature/${featureId}`);
         return response.data!.tasks;
     },
 
     // Update a task
     async update(id: string, data: UpdateTaskInput): Promise<Task> {
-        const response = await fetchWithAuth<TaskResponse>(`/tasks/${id}`, {
-            method: "PUT",
-            body: JSON.stringify(data),
-        });
+        const response = await apiClient.put<ApiResponse<TaskResponse>>(`/tasks/${id}`, data);
         return response.data!.task;
     },
 
     // Update task status
     async updateStatus(id: string, status: string): Promise<Task> {
-        const response = await fetchWithAuth<TaskResponse>(`/tasks/${id}/status`, {
-            method: "PATCH",
-            body: JSON.stringify({ status }),
-        });
+        const response = await apiClient.patch<ApiResponse<TaskResponse>>(`/tasks/${id}/status`, { status });
         return response.data!.task;
     },
 
     // Delete a task
     async delete(id: string): Promise<void> {
-        await fetchWithAuth(`/tasks/${id}`, {
-            method: "DELETE",
-        });
+        await apiClient.delete(`/tasks/${id}`);
     },
 
     // Get version history
     async getVersions(id: string): Promise<TaskVersion[]> {
-        const response = await fetchWithAuth<any>(
-            `/tasks/${id}/versions`
-        );
+        const response = await apiClient.get<ApiResponse<any>>(`/tasks/${id}/versions`);
         return response.data?.versions || (response.data as any) || [];
     },
 
     // Add dependency
     async addDependency(taskId: string, dependsOnId: string): Promise<void> {
-        await fetchWithAuth(`/tasks/${taskId}/dependencies/${dependsOnId}`, {
-            method: "POST",
-        });
+        await apiClient.post(`/tasks/${taskId}/dependencies/${dependsOnId}`);
     },
 
     // Remove dependency
     async removeDependency(taskId: string, dependsOnId: string): Promise<void> {
-        await fetchWithAuth(`/tasks/${taskId}/dependencies/${dependsOnId}`, {
-            method: "DELETE",
-        });
+        await apiClient.delete(`/tasks/${taskId}/dependencies/${dependsOnId}`);
     },
 };

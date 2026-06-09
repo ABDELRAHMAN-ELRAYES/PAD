@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { iterationApi, planApi } from "@/features/chat/api/chat.api";
+import { useIterationSession, useSendIterationMessage, useConfirmPlan } from "@/features/chat/api/chatQueries";
 import { IterationSession, IterationMessage, IterationSuggestion, ModificationPlan } from "../types/models/chat";
 import { socket } from "@/lib/socket";
 import { AiPhase } from "../types/components/AiStatusIndicator.types";
@@ -29,15 +29,18 @@ const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS = 40;
 
 export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () => void): UseIterationChatReturn {
-    const [session, setSession] = useState<IterationSession | null>(null);
+    const { data: sessionData, isLoading, refetch: refetchSession } = useIterationSession(ideaId ?? undefined);
+
     const [messages, setMessages] = useState<IterationMessage[]>([]);
     const [streamingText, setStreamingText] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [aiPhase, setAiPhase] = useState<AiPhase>("idle");
     const isThinking = aiPhase !== "idle" && aiPhase !== "error" && !streamingText;
     const [activePlan, setActivePlan] = useState<ModificationPlan | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    const sendMessageMutation = useSendIterationMessage();
+    const confirmPlanMutation = useConfirmPlan();
 
     const connectedIdeaRef = useRef<string | null>(null);
     const onArtifactUpdatedRef = useRef(onArtifactUpdated);
@@ -59,25 +62,12 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         pollCountRef.current = 0;
     }, []);
 
-    // Load session from REST API
-    const loadSession = useCallback(async (id: string) => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data = await iterationApi.getSession(id);
-            setSession(data);
-            setMessages(data.messages || []);
-        } catch (err) {
-            if (err instanceof Error && err.message.includes("not found")) {
-                setSession(null);
-                setMessages([]);
-            } else {
-                setError(err instanceof Error ? err.message : "Failed to load session");
-            }
-        } finally {
-            setIsLoading(false);
+    // Sync sessionData with local messages state when it is loaded/refetched
+    useEffect(() => {
+        if (sessionData) {
+            setMessages(sessionData.messages || []);
         }
-    }, []);
+    }, [sessionData]);
 
     // Start polling REST as fallback — keeps checking until assistant responds
     const startPolling = useCallback((id: string, userMsgCount: number) => {
@@ -102,29 +92,29 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             }
 
             try {
-                const data = await iterationApi.getSession(id);
-                const msgs = data.messages || [];
-                // Count how many assistant messages exist after last user message count
-                const assistantMsgs = msgs.filter((m: IterationMessage) => m.role === "assistant");
-                const userMsgs = msgs.filter((m: IterationMessage) => m.role === "user");
+                const result = await refetchSession();
+                const data = result.data;
+                if (data) {
+                    const msgs = data.messages || [];
+                    const assistantMsgs = msgs.filter((m: IterationMessage) => m.role === "assistant");
+                    const userMsgs = msgs.filter((m: IterationMessage) => m.role === "user");
 
-                // If we have more assistant msgs than user msgs sent before, AI responded
-                if (assistantMsgs.length >= userMsgs.length && msgs.length > userMsgCount) {
-                    setMessages(msgs);
-                    setStreamingText(null);
-                    setAiPhase("idle");
-                    stopPolling();
+                    if (assistantMsgs.length >= userMsgs.length && msgs.length > userMsgCount) {
+                        setMessages(msgs);
+                        setStreamingText(null);
+                        setAiPhase("idle");
+                        stopPolling();
+                    }
                 }
             } catch {
                 // Silently continue polling
             }
         }, POLL_INTERVAL_MS);
-    }, [stopPolling]);
+    }, [stopPolling, refetchSession]);
 
     // Socket lifecycle
     useEffect(() => {
         if (!ideaId) {
-            setSession(null);
             setMessages([]);
             setStreamingText(null);
             setAiPhase("idle");
@@ -132,7 +122,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             return;
         }
 
-        loadSession(ideaId);
         connectedIdeaRef.current = ideaId;
 
         const joinRoom = () => {
@@ -142,7 +131,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             }
         };
 
-        // Register connect handler FIRST — handles initial connect + reconnects
         socket.on("connect", joinRoom);
 
         if (socket.connected) {
@@ -150,8 +138,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         } else {
             socket.connect();
         }
-
-        // --- Event handlers ---
 
         const handleMessageNew = (message: IterationMessage) => {
             console.log(`[Chat] message:new role=${message.role} id=${message.id}`);
@@ -179,11 +165,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             socketStreamActiveRef.current = true;
             stopPolling();
             setAiPhase("generating");
-            
-            if (data.type === "done") {
-                // Done event does not clear streaming text, message:new does that
-                // Just in case, could handle it here
-            }
             
             if (data.fullText) {
                 setStreamingText(data.fullText);
@@ -237,7 +218,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             onArtifactUpdatedRef.current?.();
         };
 
-        // Plan lifecycle events
         const handlePlanCreated = (data: { plan: ModificationPlan }) => {
             setActivePlan(data.plan);
             setAiPhase("idle");
@@ -281,7 +261,7 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             socket.off("plan:failed", handlePlanFailed);
             connectedIdeaRef.current = null;
         };
-    }, [ideaId, loadSession, stopPolling]);
+    }, [ideaId, stopPolling]);
 
     // Send message
     const sendMessage = useCallback(async (content: string) => {
@@ -292,7 +272,7 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         // Optimistic append
         const optimisticMsg: IterationMessage = {
             id: OPTIMISTIC_PREFIX + Date.now(),
-            sessionId: session?.id || "",
+            sessionId: sessionData?.id || "",
             role: "user",
             content: trimmed,
             createdAt: new Date().toISOString(),
@@ -305,17 +285,14 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         socketStreamActiveRef.current = false;
 
         try {
-            const savedMessage = await iterationApi.sendMessage(ideaId, trimmed);
+            const savedMessage = await sendMessageMutation.mutateAsync({ ideaId, content: trimmed });
 
-            // Reconcile optimistic message
             setMessages(prev => {
                 const withoutOpt = prev.filter(m => m.id !== optimisticMsg.id);
                 if (withoutOpt.some(m => m.id === savedMessage.id)) return withoutOpt;
                 return [...withoutOpt, savedMessage];
             });
 
-            // Start polling fallback — polls every 3s until AI responds
-            // Count current messages (including the just-sent user message)
             setMessages(prev => {
                 const currentCount = prev.length;
                 startPolling(ideaId, currentCount);
@@ -329,7 +306,7 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         } finally {
             setIsSending(false);
         }
-    }, [ideaId, session?.id, startPolling]);
+    }, [ideaId, sessionData?.id, startPolling, sendMessageMutation]);
 
     // Confirm plan action
     const handleConfirmPlan = useCallback(async (planId: string) => {
@@ -337,20 +314,20 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         setAiPhase("applying");
         setError(null);
         try {
-            const updatedPlan = await planApi.confirm(ideaId, planId);
+            const updatedPlan = await confirmPlanMutation.mutateAsync({ ideaId, planId });
             setActivePlan(updatedPlan);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to confirm plan");
             setAiPhase("error");
         }
-    }, [ideaId]);
+    }, [ideaId, confirmPlanMutation]);
 
     const dismissPlan = useCallback(() => {
         setActivePlan(null);
     }, []);
 
     return {
-        session,
+        session: sessionData || null,
         messages,
         streamingText,
         isLoading,

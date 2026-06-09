@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { ideaApi } from "../api/ideas.api";
+import { useState, useCallback } from "react";
+import { useIdea } from "../api/ideasQueries";
 import { Idea } from "../types/models/idea";
 import { WorkspaceSection } from "@/types/workspace";
 
@@ -22,31 +22,15 @@ export interface UseWorkspaceLayoutReturn {
 
 export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWorkspaceLayoutReturn {
     const [activeIdeaId, setActiveIdeaId] = useState<string | null>(initialIdeaId);
-    const [idea, setIdea] = useState<Idea | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
     const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
-    const loadIdea = useCallback(async (ideaId: string) => {
-        setIsLoading(true);
-        try {
-            const data = await ideaApi.getById(ideaId);
-            setIdea(data);
-        } catch {
-            setIdea(null);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+    const { data: ideaData, isLoading, refetch } = useIdea(activeIdeaId ?? undefined);
 
-    useEffect(() => {
-        if (activeIdeaId) {
-            loadIdea(activeIdeaId);
-        } else {
-            setIdea(null);
-        }
-    }, [activeIdeaId, loadIdea]);
+    const loadIdea = useCallback(async (ideaId: string) => {
+        setActiveIdeaId(ideaId);
+    }, []);
 
     const handleIdeaSelect = (ideaId: string) => {
         setActiveIdeaId(ideaId);
@@ -56,7 +40,6 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
 
     const handleNewIdea = () => {
         setActiveIdeaId(null);
-        setIdea(null);
         setActiveSection("overview");
         window.history.pushState({}, "", `/ideas/new`);
     };
@@ -67,17 +50,15 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
         window.history.pushState({}, "", `/ideas/${newIdeaId}`);
     };
 
-    const handleIdeaUpdate = (updated: Idea) => {
-        setIdea(updated);
+    const handleIdeaUpdate = (_updated: Idea) => {
+        refetch();
     };
 
     const handleArtifactUpdated = useCallback(() => {
         console.log("[WorkspaceLayout] Refreshing panels due to artifact update...");
         setRefreshKey((prev) => prev + 1);
-        if (activeIdeaId) {
-            loadIdea(activeIdeaId);
-        }
-    }, [activeIdeaId, loadIdea]);
+        refetch();
+    }, [refetch]);
 
     const toggleSidebar = () => {
         setIsSidebarCollapsed((prev) => !prev);
@@ -85,7 +66,7 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
 
     return {
         activeIdeaId,
-        idea,
+        idea: ideaData || null,
         isLoading,
         activeSection,
         isSidebarCollapsed,

@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { Idea, ideaApi } from "@/features/ideas";
-import { documentApi } from "../api/documents.api";
+import { useIdea } from "@/features/ideas/api/ideasQueries";
+import { useDocumentsByIdea, useGenerateDocuments } from "../api/documentsQueries";
 import { Document } from "../types/models/documents";
-import { toast } from "sonner";
+import { Idea } from "@/features/ideas";
 
 export interface UseDocumentsPageReturn {
     idea: Idea | null;
@@ -14,53 +13,28 @@ export interface UseDocumentsPageReturn {
 }
 
 export function useDocumentsPage(ideaId: string): UseDocumentsPageReturn {
-    const [idea, setIdea] = useState<Idea | null>(null);
-    const [documents, setDocuments] = useState<Document[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [generating, setGenerating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { data: idea, isLoading: isIdeaLoading } = useIdea(ideaId);
+    const { data: documentsData, isLoading: isDocumentsLoading, refetch: refetchDocs } = useDocumentsByIdea(ideaId);
 
-    const fetchData = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [ideaData, docsData] = await Promise.all([
-                ideaApi.getById(ideaId),
-                documentApi.getByIdeaId(ideaId),
-            ]);
-            setIdea(ideaData as any);
-            setDocuments(docsData);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load data");
-        } finally {
-            setLoading(false);
-        }
-    }, [ideaId]);
+    const generateMutation = useGenerateDocuments();
 
-    useEffect(() => {
-        if (ideaId) {
-            fetchData();
-        }
-    }, [ideaId, fetchData]);
+    const documents = documentsData || [];
+    const loading = isIdeaLoading || isDocumentsLoading;
 
     const handleGenerateDocuments = async () => {
-        try {
-            setGenerating(true);
-            const generatedDocs = await documentApi.generate(ideaId);
-            setDocuments(generatedDocs);
-            toast.success("Documents generated successfully!");
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Failed to generate documents");
-        } finally {
-            setGenerating(false);
-        }
+        generateMutation.mutate(ideaId, {
+            onSuccess: () => {
+                refetchDocs();
+            }
+        });
     };
 
     return {
-        idea,
+        idea: idea || null,
         documents,
         loading,
-        generating,
-        error,
+        generating: generateMutation.isPending,
+        error: (generateMutation.error as Error)?.message || null,
         handleGenerateDocuments,
     };
 }

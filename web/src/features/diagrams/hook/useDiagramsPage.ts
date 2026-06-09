@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { ideaApi } from "@/features/ideas";
+import { useState, useEffect } from "react";
+import { useIdea } from "@/features/ideas/api/ideasQueries";
 import { diagramApi } from "../api/diagrams.api";
-import { Diagram, DiagramType } from "../types/models/diagrams";
+import { useDiagramsByIdea, useUpdateDiagram, useRegenerateDiagram } from "../api/diagramsQueries";
+import { Diagram } from "../types/models/diagrams";
 import { Idea } from "@/features/ideas";
 
 export interface UseDiagramsPageReturn {
@@ -23,9 +24,9 @@ export interface UseDiagramsPageReturn {
 }
 
 export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
-    const [idea, setIdea] = useState<Idea | null>(null);
-    const [diagrams, setDiagrams] = useState<Diagram[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: idea, isLoading: isIdeaLoading } = useIdea(ideaId);
+    const { data: diagramsData, isLoading: isDiagramsLoading, refetch: refetchDiagrams } = useDiagramsByIdea(ideaId);
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
     const [error, setError] = useState<string | null>(null);
@@ -33,38 +34,27 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
     const [activeTab, setActiveTab] = useState<string>("ERD");
     const [streamingCode, setStreamingCode] = useState<Record<string, string>>({});
 
-    const fetchData = useCallback(async () => {
-        try {
-            const [ideaData, diagramsData] = await Promise.all([
-                ideaApi.getById(ideaId),
-                diagramApi.getByIdeaId(ideaId),
-            ]);
-            setIdea(ideaData as any);
-            setDiagrams(diagramsData);
+    const updateMutation = useUpdateDiagram();
+    const regenerateMutation = useRegenerateDiagram();
 
-            // Initialize edited code for each diagram
+    const diagrams = diagramsData || [];
+    const isLoading = isIdeaLoading || isDiagramsLoading;
+
+    // Initialize edited code for each diagram
+    useEffect(() => {
+        if (diagramsData) {
             const codeMap: Record<string, string> = {};
             diagramsData.forEach((d) => {
                 codeMap[d.id] = d.mermaidCode;
             });
-            setEditedCode(codeMap);
+            setEditedCode((prev) => ({ ...codeMap, ...prev }));
 
             // Set active tab to first available diagram type
-            if (diagramsData.length > 0) {
+            if (diagramsData.length > 0 && !activeTab) {
                 setActiveTab(diagramsData[0].type);
             }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to load data");
-        } finally {
-            setIsLoading(false);
         }
-    }, [ideaId]);
-
-    useEffect(() => {
-        if (ideaId) {
-            fetchData();
-        }
-    }, [ideaId, fetchData]);
+    }, [diagramsData]);
 
     const handleGenerate = async () => {
         setIsGenerating(true);
@@ -83,17 +73,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
                 if (data.status === "final") {
                     setIsGenerating(false);
                     setStreamingCode({});
-                    if (data.diagrams) {
-                        setDiagrams(data.diagrams);
-                        const codeMap: Record<string, string> = {};
-                        data.diagrams.forEach((d: any) => {
-                            codeMap[d.id] = d.mermaidCode;
-                        });
-                        setEditedCode(codeMap);
-                        if (data.diagrams.length > 0) {
-                            setActiveTab(data.diagrams[0].type);
-                        }
-                    }
+                    refetchDiagrams();
                 }
 
                 if (data.status === "error") {
@@ -115,35 +95,42 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
 
         setIsSaving((prev) => ({ ...prev, [diagram.id]: true }));
         setError(null);
-        try {
-            const updated = await diagramApi.update(diagram.id, {
+
+        updateMutation.mutate({
+            id: diagram.id,
+            data: {
                 mermaidCode: newCode,
                 changelog: "Manual edit",
-            });
-            setDiagrams((prev) =>
-                prev.map((d) => (d.id === updated.id ? updated : d))
-            );
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save diagram");
-        } finally {
-            setIsSaving((prev) => ({ ...prev, [diagram.id]: false }));
-        }
+            }
+        }, {
+            onSuccess: () => {
+                refetchDiagrams();
+            },
+            onError: (err: any) => {
+                setError(err?.message || "Failed to save diagram");
+            },
+            onSettled: () => {
+                setIsSaving((prev) => ({ ...prev, [diagram.id]: false }));
+            }
+        });
     };
 
     const handleRegenerate = async (diagram: Diagram) => {
         setIsSaving((prev) => ({ ...prev, [diagram.id]: true }));
         setError(null);
-        try {
-            const updated = await diagramApi.regenerate(diagram.id);
-            setDiagrams((prev) =>
-                prev.map((d) => (d.id === updated.id ? updated : d))
-            );
-            setEditedCode((prev) => ({ ...prev, [diagram.id]: updated.mermaidCode }));
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to regenerate diagram");
-        } finally {
-            setIsSaving((prev) => ({ ...prev, [diagram.id]: false }));
-        }
+
+        regenerateMutation.mutate(diagram.id, {
+            onSuccess: (updated) => {
+                refetchDiagrams();
+                setEditedCode((prev) => ({ ...prev, [diagram.id]: updated.mermaidCode }));
+            },
+            onError: (err: any) => {
+                setError(err?.message || "Failed to regenerate diagram");
+            },
+            onSettled: () => {
+                setIsSaving((prev) => ({ ...prev, [diagram.id]: false }));
+            }
+        });
     };
 
     const handleCodeChange = (diagramId: string, code: string) => {
@@ -151,7 +138,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
     };
 
     return {
-        idea,
+        idea: idea || null,
         diagrams,
         isLoading,
         isGenerating,
