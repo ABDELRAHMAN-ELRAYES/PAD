@@ -7,8 +7,6 @@
 ![React](https://img.shields.io/badge/React-19+-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql)
-![Google Gemini](https://img.shields.io/badge/Google_Gemini-AI-4285F4?style=flat-square&logo=google-gemini&logoColor=white)
-![License](https://img.shields.io/badge/License-Elrayes-blue?style=flat-square)
 
 **[Documentation](#documentation--api-reference) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Modules](#project-structure--modules) · [Contributing](#contributing)**
 
