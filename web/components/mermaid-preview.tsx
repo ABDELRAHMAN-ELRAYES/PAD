@@ -13,6 +13,7 @@ mermaid.initialize({
     theme: "default",
     securityLevel: "loose",
     fontFamily: "inherit",
+    suppressErrorRendering: true,
 });
 
 export default function MermaidPreview({ code }: MermaidPreviewProps) {
@@ -28,10 +29,9 @@ export default function MermaidPreview({ code }: MermaidPreviewProps) {
                 return;
             }
 
-            try {
-                // Generate unique ID for this render
-                const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+            try {
                 // Parse and render the diagram
                 const { svg } = await mermaid.render(id, code);
                 setSvgContent(svg);
@@ -40,6 +40,12 @@ export default function MermaidPreview({ code }: MermaidPreviewProps) {
                 console.error("Mermaid render error:", err);
                 setError(err instanceof Error ? err.message : "Failed to render diagram");
                 setSvgContent("");
+                
+                // Clean up any temporary elements created by Mermaid that might have been left in the DOM
+                const tempEl = document.getElementById(id);
+                if (tempEl) tempEl.remove();
+                const tempBindEl = document.getElementById(`d${id}`);
+                if (tempBindEl) tempBindEl.remove();
             }
         };
 

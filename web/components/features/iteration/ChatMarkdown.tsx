@@ -16,6 +16,7 @@ function initMermaid(theme: string) {
         startOnLoad: false,
         theme: theme as any,
         securityLevel: "loose",
+        suppressErrorRendering: true,
     });
     mermaidInitialized = true;
     currentMermaidTheme = theme;
@@ -43,6 +44,11 @@ const MermaidBlock: FC<{ code: string }> = memo(({ code }) => {
                 if (containerRef.current) {
                     containerRef.current.innerHTML = `<pre class="text-xs text-red-400 p-2">Mermaid error: ${err.message || err}</pre>`;
                 }
+                // Clean up any temporary elements created by Mermaid that might have been left in the DOM
+                const tempEl = document.getElementById(id);
+                if (tempEl) tempEl.remove();
+                const tempBindEl = document.getElementById(`d${id}`);
+                if (tempBindEl) tempBindEl.remove();
             });
     }, [code, isDark]);
 
