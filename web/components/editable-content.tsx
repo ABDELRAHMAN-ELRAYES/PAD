@@ -4,13 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Edit2, Check, X } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
-interface EditableContentProps {
-  content: string
-  isEditing: boolean
-  onEdit: () => void
-  onSave: (content: string) => void
-  onCancel: () => void
-}
+import { EditableContentProps } from "./editable-content.types"
 
 export default function EditableContent({ content, isEditing, onEdit, onSave, onCancel }: EditableContentProps) {
   return (

@@ -17,9 +17,7 @@ import {
 } from "lucide-react";
 import { useStreaming } from "@/components/streaming-provider";
 
-interface FeaturesPanelProps {
-    ideaId: string;
-}
+import { FeaturesPanelProps } from "./FeaturesPanel.types";
 
 export const FeaturesPanel: FC<FeaturesPanelProps> = ({ ideaId }) => {
     const router = useRouter();

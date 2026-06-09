@@ -11,14 +11,8 @@ import { useIterationChat } from "@/hooks/use-iteration-chat";
 import { AiStatusIndicator, AiPhase } from "@/components/features/iteration/AiStatusIndicator";
 import Logo from "@/components/logo";
 
-interface UnifiedChatProps {
-    /** null = new idea mode; string = iteration mode for existing idea */
-    ideaId: string | null;
-    onIdeaCreated?: (ideaId: string) => void;
-    onArtifactUpdated?: () => void;
-}
-
-const MIN_CHAR_COUNT = 20;
+import { UnifiedChatProps } from "./UnifiedChat.types";
+import { MIN_CHAR_COUNT } from "@/lib/constants/chat";
 
 export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArtifactUpdated }) => {
     // Shared state

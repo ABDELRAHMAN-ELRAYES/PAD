@@ -1,58 +1,13 @@
 "use client";
 
 import { FC, useState } from "react";
-import { Check, X, Loader2, FileText, GitBranch, ListChecks, Workflow, Zap, Undo2, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Loader2, ListChecks, Undo2, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ModificationPlan, SuggestionModule, SuggestionActionType } from "@/lib/types/idea";
-
-interface PlanCardProps {
-    plan: ModificationPlan;
-    ideaId: string;
-    onConfirm: (planId: string) => Promise<void>;
-    onRollback?: (planId: string) => Promise<void>;
-    onDismiss: () => void;
-}
-
-const moduleIcons: Record<string, FC<{ className?: string }>> = {
-    DOCUMENT: FileText,
-    DIAGRAM: GitBranch,
-    FEATURE: ListChecks,
-    TASK: Zap,
-    WORKFLOW: Workflow,
-};
-
-const moduleLabels: Record<string, string> = {
-    DOCUMENT: "Document",
-    DIAGRAM: "Diagram",
-    FEATURE: "Feature",
-    TASK: "Task",
-    WORKFLOW: "Workflow",
-};
-
-const actionLabels: Record<string, string> = {
-    CREATE: "Create",
-    MODIFY: "Modify",
-    DELETE: "Delete",
-    REGENERATE: "Regenerate",
-};
-
-const statusStyles: Record<string, string> = {
-    draft: "bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300",
-    confirmed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-    applying: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 animate-pulse",
-    applied: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-    failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-    rolled_back: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-};
-
-const actionStatusStyles: Record<string, string> = {
-    pending: "text-muted-foreground",
-    applying: "text-violet-500 font-semibold animate-pulse",
-    applied: "text-green-500 font-semibold",
-    failed: "text-red-500 font-semibold",
-};
+import { PlanCardProps } from "./PlanCard.types";
+import { moduleIcons } from "@/lib/constants/history";
+import { moduleLabels, actionLabels, statusStyles, actionStatusStyles } from "./PlanCard.constants";
 
 export const PlanCard: FC<PlanCardProps> = ({ plan, ideaId, onConfirm, onRollback, onDismiss }) => {
     const [isConfirming, setIsConfirming] = useState(false);

@@ -9,13 +9,7 @@ import Diagrams from "./tabs/diagrams"
 import TestPlan from "./tabs/test-plan"
 import ExportButton from "./export-button"
 import SkeletonLoader from "./skeleton-loader"
-
-interface OutputPanelProps {
-  data: any | null
-  isLoading: boolean
-}
-
-type TabType = "overview" | "requirements" | "architecture" | "diagrams" | "test-plan"
+import { OutputPanelProps, TabType } from "./output-panel.types"
 
 export default function OutputPanel({ data, isLoading }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview")

@@ -2,9 +2,7 @@
 
 import { useEffect, useRef } from "react"
 
-interface ResizableDividerProps {
-  onResize: (newLeftWidth: number) => void
-}
+import { ResizableDividerProps } from "./resizable-divider.types"
 
 export default function ResizableDivider({ onResize }: ResizableDividerProps) {
   const dividerRef = useRef<HTMLDivElement>(null)
@@ -56,7 +54,7 @@ export default function ResizableDivider({ onResize }: ResizableDividerProps) {
   return (
     <div
       ref={dividerRef}
-      className="hidden lg:block w-1.5 bg-border/40 hover:bg-accent/60 cursor-col-resize transition-colors duration-200 hover:w-2 flex-shrink-0"
+      className="hidden lg:block w-1.5 bg-border/40 hover:bg-accent/60 cursor-col-resize transition-colors duration-200 hover:w-2 shrink-0"
       style={{
         backgroundColor: "var(--color-border)",
       }}

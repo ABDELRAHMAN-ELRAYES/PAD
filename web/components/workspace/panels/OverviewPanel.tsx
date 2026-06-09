@@ -2,9 +2,9 @@
 
 import { FC, useState, useEffect } from "react";
 import { ideaApi } from "@/lib/api";
-import { Idea, IQuestionAnswer } from "@/lib/types/idea";
+import { IQuestionAnswer } from "@/lib/types/idea";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Brain,
@@ -16,17 +16,11 @@ import {
   Lightbulb,
   ListChecks,
   Send,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 
 import { useStreaming } from "@/components/streaming-provider";
-
-interface OverviewPanelProps {
-  idea: Idea;
-  ideaId: string;
-  onIdeaUpdate: (idea: Idea) => void;
-}
+import { OverviewPanelProps } from "./OverviewPanel.types";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 export const OverviewPanel: FC<OverviewPanelProps> = ({
   idea,
@@ -393,42 +387,4 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   );
 };
 
-/* — Collapsible Section Helper — */
-interface CollapsibleSectionProps {
-  title: string;
-  icon: React.ReactNode;
-  color: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  count: number;
-  children: React.ReactNode;
-}
 
-const CollapsibleSection: FC<CollapsibleSectionProps> = ({
-  title,
-  icon,
-  color,
-  isOpen,
-  onToggle,
-  count,
-  children,
-}) => (
-  <div className="border rounded-lg overflow-hidden">
-    <button
-      onClick={onToggle}
-      className="w-full flex items-center gap-2 px-4 py-3 hover:bg-muted/50 transition-colors"
-    >
-      <span className={color}>{icon}</span>
-      <span className={`text-sm font-medium ${color}`}>{title}</span>
-      <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5">
-        {count}
-      </Badge>
-      {isOpen ? (
-        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-      ) : (
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      )}
-    </button>
-    {isOpen && <div className="px-4 pb-4">{children}</div>}
-  </div>
-);

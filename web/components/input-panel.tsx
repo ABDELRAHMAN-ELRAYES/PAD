@@ -3,12 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 
-interface InputPanelProps {
-  value: string
-  onChange: (value: string) => void
-  onGenerate: () => void
-  isLoading: boolean
-}
+import { InputPanelProps } from "./input-panel.types"
 
 export default function InputPanel({ value, onChange, onGenerate, isLoading }: InputPanelProps) {
   return (
@@ -39,7 +34,7 @@ export default function InputPanel({ value, onChange, onGenerate, isLoading }: I
         {isLoading && (
           <div className="p-3 sm:p-4 bg-card border border-border/40 rounded-xl">
             <div className="flex items-center gap-3">
-              <Loader2 className="w-4 h-4 animate-spin text-accent flex-shrink-0" />
+              <Loader2 className="w-4 h-4 animate-spin text-accent shrink-0" />
               <div className="text-left">
                 <p className="text-sm font-medium text-foreground">Analyzing your idea...</p>
                 <p className="text-xs text-muted-foreground">This may take a few seconds</p>

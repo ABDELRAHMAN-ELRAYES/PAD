@@ -18,10 +18,7 @@ import { DocumentDetailPanel } from "./DocumentDetailPanel";
 
 import { useStreaming } from "@/components/streaming-provider";
 
-interface DocumentsPanelProps {
-  ideaId: string;
-  idea: Idea;
-}
+import { DocumentsPanelProps } from "./DocumentsPanel.types";
 
 export const DocumentsPanel: FC<DocumentsPanelProps> = ({ ideaId, idea }) => {
   const { setPhaseStreaming } = useStreaming();

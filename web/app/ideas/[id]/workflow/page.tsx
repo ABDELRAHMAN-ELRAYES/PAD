@@ -3,13 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ideaApi, workflowApi } from "@/lib/api";
-import { Idea, Workflow, WorkflowStep, WorkflowStepStatus, UpdateWorkflowStepInput } from "@/lib/types/idea";
+import { Idea, Workflow, WorkflowStepStatus } from "@/lib/types/idea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronRight, Circle, Clock, Download, Loader2, PlayCircle, RefreshCw, AlertTriangle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronRight, Circle, Download, Loader2, PlayCircle, RefreshCw, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 

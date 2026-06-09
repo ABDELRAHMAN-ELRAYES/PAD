@@ -2,24 +2,14 @@
 
 import React, { createContext, useContext, useState, useCallback } from "react";
 
-export type WorkspaceSection =
-  | "overview"
-  | "documents"
-  | "diagrams"
-  | "features"
-  | "workflow"
-  | "history";
+import { WorkspaceSection } from "@/lib/types/workspace";
+import { StreamingStatus, StreamingContextType, StreamingProviderProps } from "./streaming-provider.types";
 
-type StreamingStatus = Record<string, boolean>;
-
-interface StreamingContextType {
-  streamingStatus: StreamingStatus;
-  setPhaseStreaming: (phase: string, isStreaming: boolean) => void;
-}
+export type { WorkspaceSection };
 
 const StreamingContext = createContext<StreamingContextType | undefined>(undefined);
 
-export const StreamingProvider: React.FC<{ children: React.ReactNode }> = ({
+export const StreamingProvider: React.FC<StreamingProviderProps> = ({
   children,
 }) => {
   const [streamingStatus, setStreamingStatus] = useState<StreamingStatus>({});

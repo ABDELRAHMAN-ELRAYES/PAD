@@ -3,18 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
 
-interface MermaidPreviewProps {
-    code: string;
-}
-
-// Initialize mermaid once
-mermaid.initialize({
-    startOnLoad: false,
-    theme: "default",
-    securityLevel: "loose",
-    fontFamily: "inherit",
-    suppressErrorRendering: true,
-});
+import { MermaidPreviewProps } from "./mermaid-preview.types";
+import { initMermaid } from "@/lib/utils/mermaid";
 
 export default function MermaidPreview({ code }: MermaidPreviewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +13,7 @@ export default function MermaidPreview({ code }: MermaidPreviewProps) {
 
     useEffect(() => {
         const renderDiagram = async () => {
+            initMermaid("default");
             if (!code || !code.trim()) {
                 setSvgContent("");
                 setError(null);

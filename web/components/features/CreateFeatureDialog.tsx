@@ -24,12 +24,7 @@ import { featureApi } from "@/lib/api";
 import { Priority, Feature } from "@/lib/types/idea";
 import { Loader2 } from "lucide-react";
 
-interface CreateFeatureDialogProps {
-    ideaId: string;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onFeatureCreated: (feature: Feature) => void;
-}
+import { CreateFeatureDialogProps } from "./CreateFeatureDialog.types";
 
 export function CreateFeatureDialog({
     ideaId,

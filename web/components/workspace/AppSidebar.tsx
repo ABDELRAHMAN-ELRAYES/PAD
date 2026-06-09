@@ -5,11 +5,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { ideaApi } from "@/lib/api";
 import { Idea } from "@/lib/types/idea";
 import {
-  Brain,
-  FileText,
-  GitBranch,
-  ListChecks,
-  Bot,
   Plus,
   Lightbulb,
   CheckCircle,
@@ -17,7 +12,6 @@ import {
   Loader2,
   PanelLeftOpen,
   PanelRightOpen,
-  History,
 } from "lucide-react";
 import {
   Tooltip,
@@ -25,71 +19,10 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useStreaming, WorkspaceSection } from "@/components/streaming-provider";
-
-interface SectionItem {
-  id: WorkspaceSection;
-  label: string;
-  icon: React.ReactNode;
-  color: string;
-  activeColor: string;
-}
-
-const SECTION_ITEMS: SectionItem[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    icon: <Brain className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-primary",
-  },
-  {
-    id: "documents",
-    label: "Documents",
-    icon: <FileText className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-blue-500",
-  },
-  {
-    id: "diagrams",
-    label: "Diagrams",
-    icon: <GitBranch className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-violet-500",
-  },
-  {
-    id: "features",
-    label: "Features",
-    icon: <ListChecks className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-green-500",
-  },
-  {
-    id: "workflow",
-    label: "Workflow",
-    icon: <Bot className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-purple-500",
-  },
-  {
-    id: "history",
-    label: "Change History",
-    icon: <History className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-amber-500",
-  },
-];
-
-interface AppSidebarProps {
-  activeIdeaId: string | null;
-  activeSection: WorkspaceSection;
-  onSectionChange: (section: WorkspaceSection) => void;
-  onIdeaSelect: (ideaId: string) => void;
-  onNewIdea: () => void;
-  ideaStatus?: string;
-  isCollapsed: boolean;
-  onToggle: () => void;
-}
+import { useStreaming } from "@/components/streaming-provider";
+import { WorkspaceSection } from "@/lib/types/workspace";
+import { SECTION_ITEMS } from "@/lib/constants/workspace";
+import { AppSidebarProps } from "./AppSidebar.types";
 
 export const AppSidebar: FC<AppSidebarProps> = ({
   activeIdeaId,

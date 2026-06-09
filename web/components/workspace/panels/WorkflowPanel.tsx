@@ -33,10 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useStreaming } from "@/components/streaming-provider";
 
-interface WorkflowPanelProps {
-    ideaId: string;
-    idea: Idea;
-}
+import { WorkflowPanelProps } from "./WorkflowPanel.types";
 
 export const WorkflowPanel: FC<WorkflowPanelProps> = ({ ideaId, idea }) => {
     const { setPhaseStreaming } = useStreaming();

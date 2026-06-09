@@ -18,11 +18,9 @@ import { HistoryPanel } from "./panels/HistoryPanel";
 import { Idea } from "@/lib/types/idea";
 import { ideaApi } from "@/lib/api";
 import { Loader2 } from "lucide-react";
-import { StreamingProvider, WorkspaceSection } from "@/components/streaming-provider";
-
-interface WorkspaceLayoutProps {
-  initialIdeaId?: string | null;
-}
+import { StreamingProvider } from "@/components/streaming-provider";
+import { WorkspaceSection } from "@/lib/types/workspace";
+import { WorkspaceLayoutProps } from "./WorkspaceLayout.types";
 
 export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   initialIdeaId = null,

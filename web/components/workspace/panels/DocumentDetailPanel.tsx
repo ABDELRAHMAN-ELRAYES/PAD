@@ -45,11 +45,7 @@ import {
 import { toast } from "sonner";
 import { useStreaming } from "@/components/streaming-provider";
 
-interface DocumentDetailPanelProps {
-    docId: string;
-    ideaId: string;
-    onBack: () => void;
-}
+import { DocumentDetailPanelProps } from "./DocumentDetailPanel.types";
 
 export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     docId,

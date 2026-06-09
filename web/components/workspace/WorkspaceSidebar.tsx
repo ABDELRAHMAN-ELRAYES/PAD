@@ -2,78 +2,14 @@
 
 import { FC } from "react";
 import {
-    Brain,
-    FileText,
-    GitBranch,
-    ListChecks,
-    Bot,
-} from "lucide-react";
-import {
     Tooltip,
     TooltipTrigger,
     TooltipContent,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export type WorkspaceSection =
-    | "overview"
-    | "documents"
-    | "diagrams"
-    | "features"
-    | "workflow"
-    | "history";
-
-interface SidebarItem {
-    id: WorkspaceSection;
-    label: string;
-    icon: React.ReactNode;
-    color: string;
-    activeColor: string;
-}
-
-const SIDEBAR_ITEMS: SidebarItem[] = [
-    {
-        id: "overview",
-        label: "Overview",
-        icon: <Brain className="h-5 w-5" />,
-        color: "text-muted-foreground",
-        activeColor: "text-primary",
-    },
-    {
-        id: "documents",
-        label: "Documents",
-        icon: <FileText className="h-5 w-5" />,
-        color: "text-muted-foreground",
-        activeColor: "text-blue-500",
-    },
-    {
-        id: "diagrams",
-        label: "Diagrams",
-        icon: <GitBranch className="h-5 w-5" />,
-        color: "text-muted-foreground",
-        activeColor: "text-violet-500",
-    },
-    {
-        id: "features",
-        label: "Features",
-        icon: <ListChecks className="h-5 w-5" />,
-        color: "text-muted-foreground",
-        activeColor: "text-green-500",
-    },
-    {
-        id: "workflow",
-        label: "Workflow",
-        icon: <Bot className="h-5 w-5" />,
-        color: "text-muted-foreground",
-        activeColor: "text-purple-500",
-    },
-];
-
-interface WorkspaceSidebarProps {
-    activeSection: WorkspaceSection;
-    onSectionChange: (section: WorkspaceSection) => void;
-    ideaStatus?: string;
-}
+import { SIDEBAR_ITEMS } from "@/lib/constants/workspace";
+import { WorkspaceSidebarProps } from "./WorkspaceSidebar.types";
 
 export const WorkspaceSidebar: FC<WorkspaceSidebarProps> = ({
     activeSection,

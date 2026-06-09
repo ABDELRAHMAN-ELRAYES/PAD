@@ -5,11 +5,7 @@ import { IterationMessage } from "@/lib/types/idea";
 import { SuggestionCard } from "./SuggestionCard";
 import { ChatMarkdown } from "./ChatMarkdown";
 
-interface ChatMessageProps {
-    message: IterationMessage;
-    ideaId: string;
-    onSuggestionApproved?: (suggestionId: string) => void;
-}
+import { ChatMessageProps } from "./ChatMessage.types";
 
 export const ChatMessage: FC<ChatMessageProps> = ({ message, ideaId, onSuggestionApproved }) => {
     const isUser = message.role === "user";

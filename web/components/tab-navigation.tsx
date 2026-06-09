@@ -1,18 +1,7 @@
 "use client"
 
-interface TabNavigationProps {
-  activeTab: string
-  onTabChange: (tab: string) => void
-  tabs: string[]
-}
-
-const tabLabels: Record<string, string> = {
-  overview: "Overview",
-  requirements: "Requirements",
-  architecture: "Architecture",
-  diagrams: "Diagrams",
-  "test-plan": "Test Plan",
-}
+import { TabNavigationProps } from "./tab-navigation.types"
+import { tabLabels } from "@/lib/constants/tabs"
 
 export default function TabNavigation({ activeTab, onTabChange, tabs }: TabNavigationProps) {
   return (
