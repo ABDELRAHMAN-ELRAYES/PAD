@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useState, useRef } from "react";
 import { documentApi } from "../api/documents.api";
 import { DocumentWithVersions } from "../types/models/documents";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
     Sheet,
@@ -43,9 +44,11 @@ import {
     Trash2,
     Edit,
     X,
+    MoreVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStreaming } from "@/components/providers/StreamingProvider";
+import { cn } from "@/lib/utils";
 
 import { DocumentDetailPanelProps } from "../types/components/DocumentDetailPanel.types";
 
@@ -67,6 +70,20 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [hasChanges, setHasChanges] = useState(false);
+
+    const headerRef = useRef<HTMLDivElement>(null);
+    const [headerWidth, setHeaderWidth] = useState(700);
+
+    useEffect(() => {
+        if (!headerRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setHeaderWidth(entry.contentRect.width);
+            }
+        });
+        observer.observe(headerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const [showHistory, setShowHistory] = useState(false);
     const [reverting, setReverting] = useState<number | null>(null);
@@ -247,91 +264,140 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between border-b px-6 py-3 shrink-0">
-                <div className="flex items-center gap-4 flex-1">
-                    <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 rounded-full">
+            <div ref={headerRef} className="flex items-center justify-between border-b px-6 py-3 shrink-0">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 rounded-full shrink-0">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <div className="flex-1 max-w-xl">
-                        {isEditMode ? (
-                            <Input
-                                value={title}
-                                onChange={(e) => {
-                                    setTitle(e.target.value);
-                                    setHasChanges(true);
-                                }}
-                                className="bg-transparent border-none text-lg font-bold p-0 h-auto focus-visible:ring-0 shadow-none focus:outline-none"
-                                placeholder="Document Title"
-                            />
-                        ) : (
-                            <h1 className="text-lg font-bold text-foreground truncate">{title}</h1>
-                        )}
+                    <div className="flex-1 max-w-xl min-w-0">
+                        <Input
+                            value={title}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                setHasChanges(true);
+                            }}
+                            readOnly={!isEditMode}
+                            className={cn(
+                                "bg-transparent text-lg font-bold p-0 h-auto focus-visible:ring-0 shadow-none focus:outline-none w-full truncate text-foreground transition-all duration-200 pb-0.5",
+                                isEditMode 
+                                    ? "border-b border-border/80 cursor-text" 
+                                    : "border-none cursor-default select-none pointer-events-none"
+                            )}
+                            placeholder="Document Title"
+                        />
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="mr-2 capitalize text-[10px] font-semibold">
+                <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="mr-1 capitalize text-[10px] font-semibold shrink-0">
                         {docData.type}
                     </Badge>
                     
                     {/* View Mode Actions */}
                     {!isEditMode && (
-                        <>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setShowHistory(true)}
-                                className="h-8 text-xs gap-1.5 hover:bg-muted/60"
-                            >
-                                <History className="h-3.5 w-3.5" />
-                                History
-                            </Button>
+                        headerWidth >= 650 ? (
+                            <>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowHistory(true)}
+                                    className="h-8 text-xs gap-1.5 hover:bg-muted/60"
+                                >
+                                    <History className="h-3.5 w-3.5" />
+                                    History
+                                </Button>
 
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 hover:bg-muted/60">
+                                            <Download className="h-3.5 w-3.5" />
+                                            Export
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleExport("markdown")} className="cursor-pointer">
+                                            <FileCode className="h-4 w-4 mr-2" />
+                                            Markdown (.md)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleExport("html")} className="cursor-pointer">
+                                            <FileText className="h-4 w-4 mr-2" />
+                                            HTML (.html)
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenerate}
+                                    disabled={regenerating || deleting}
+                                    className="h-8 text-xs gap-1.5 border-border/80 hover:bg-muted/50 cursor-pointer"
+                                >
+                                    <RefreshCw className={cn("h-3.5 w-3.5", regenerating && "animate-spin")} />
+                                    Regenerate
+                                </Button>
+
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleDelete}
+                                    disabled={deleting || regenerating}
+                                    className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                                >
+                                    {deleting ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    )}
+                                    Delete
+                                </Button>
+                            </>
+                        ) : (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 hover:bg-muted/60">
-                                        <Download className="h-3.5 w-3.5" />
-                                        Export
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full border border-border/60 hover:bg-muted/50 cursor-pointer">
+                                        <MoreVertical className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+                                <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuItem onClick={() => setShowHistory(true)} className="cursor-pointer">
+                                        <History className="h-4 w-4 mr-2 text-muted-foreground" />
+                                        Version History
+                                    </DropdownMenuItem>
+                                    
+                                    <DropdownMenuSeparator />
+                                    
                                     <DropdownMenuItem onClick={() => handleExport("markdown")} className="cursor-pointer">
-                                        <FileCode className="h-4 w-4 mr-2" />
-                                        Markdown (.md)
+                                        <FileCode className="h-4 w-4 mr-2 text-muted-foreground" />
+                                        Export Markdown
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExport("html")} className="cursor-pointer">
-                                        <FileText className="h-4 w-4 mr-2" />
-                                        HTML (.html)
+                                        <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                                        Export HTML
+                                    </DropdownMenuItem>
+                                    
+                                    <DropdownMenuSeparator />
+                                    
+                                    <DropdownMenuItem 
+                                        onClick={handleRegenerate} 
+                                        disabled={regenerating || deleting}
+                                        className="cursor-pointer"
+                                    >
+                                        <RefreshCw className={cn("h-4 w-4 mr-2 text-muted-foreground", regenerating && "animate-spin")} />
+                                        Regenerate
+                                    </DropdownMenuItem>
+                                    
+                                    <DropdownMenuItem 
+                                        onClick={handleDelete} 
+                                        disabled={deleting || regenerating}
+                                        className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Document
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleRegenerate}
-                                disabled={regenerating || deleting}
-                                className="h-8 text-xs gap-1.5 border-border/80 hover:bg-muted/50 cursor-pointer"
-                            >
-                                <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
-                                Regenerate
-                            </Button>
-
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleDelete}
-                                disabled={deleting || regenerating}
-                                className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                            >
-                                {deleting ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                                Delete
-                            </Button>
-                        </>
+                        )
                     )}
 
                     {/* Edit Mode Controls */}
@@ -342,7 +408,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                                 size="sm"
                                 onClick={handleCancelEdit}
                                 disabled={saving}
-                                className="h-8 text-xs gap-1.5 hover:bg-muted/60 cursor-pointer"
+                                className="h-8 text-xs gap-1.5 hover:bg-muted/60 cursor-pointer shrink-0"
                             >
                                 <X className="h-3.5 w-3.5" />
                                 Cancel
@@ -351,7 +417,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                                 size="sm"
                                 onClick={handleSave}
                                 disabled={!hasChanges || saving}
-                                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer"
+                                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer shrink-0"
                             >
                                 {saving ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -366,10 +432,10 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                             size="sm"
                             onClick={() => setIsEditMode(true)}
                             disabled={regenerating || deleting}
-                            className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer"
+                            className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer shrink-0"
                         >
                             <Edit className="h-3.5 w-3.5" />
-                            Edit Document
+                            <span>Edit Document</span>
                         </Button>
                     )}
                 </div>
@@ -377,8 +443,8 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
 
             {/* Main Canvas Area */}
             <div className="flex-1 relative flex flex-col overflow-hidden bg-background">
-                {/* Scrollable Document Area (Borderless Full-Page Layout) */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8">
+                {/* Scrollable Document Area (Borderless Full-Page Layout with Internal Scrolling) */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <RichTextEditor
                         value={content}
                         onChange={(val) => {
@@ -387,7 +453,8 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                         }}
                         disabled={!isEditMode || regenerating}
                         placeholder="Write your document details here..."
-                        className="w-full h-full"
+                        className="w-full h-full flex-1 min-h-0"
+                        borderless={true}
                     />
                 </div>
 

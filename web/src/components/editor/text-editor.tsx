@@ -42,6 +42,7 @@ interface RichTextEditorProps {
   className?: string;
   onImageUpload?: (file: File) => Promise<string>;
   disabled?: boolean;
+  borderless?: boolean;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -53,6 +54,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   className = '',
   onImageUpload,
   disabled = false,
+  borderless = false,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -816,9 +818,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         .editor-root-container {
           display: flex;
           flex-direction: column;
-          height: auto;
+          height: 100%;
           min-height: 200px;
-          padding:20px;
+          padding: 24px 32px;
         }
 
         .wysiwyg-editor {
@@ -827,10 +829,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           line-height: 1.6;
           outline: none;
           min-height: 200px;
-          background-color: white;
+          background-color: transparent;
+          color: inherit;
           flex: 1;
           overflow: visible;
-          padding-bottom: 100px;
+          padding-bottom: 150px;
         }
 
         .wysiwyg-editor:empty:before {
@@ -848,7 +851,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           font-size: 2em;
           font-weight: bold;
           margin: 1.5em 0 0.75em 0;
-          color: #1f2937;
+          color: var(--foreground);
           line-height: 1.3;
         }
 
@@ -856,7 +859,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           font-size: 1.5em;
           font-weight: bold;
           margin: 1.25em 0 0.625em 0;
-          color: #374151;
+          color: var(--foreground);
           line-height: 1.3;
         }
 
@@ -864,7 +867,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           font-size: 1.17em;
           font-weight: bold;
           margin: 1em 0 0.5em 0;
-          color: #4b5563;
+          color: var(--foreground);
           line-height: 1.3;
         }
 
@@ -969,38 +972,40 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }
 
         .wysiwyg-editor blockquote {
-          border-left: 4px solid #d1d5db;
+          border-left: 4px solid var(--border);
           border-right: none;
           padding: 0.75em 1.25em;
           margin: 1.5em 0;
           font-style: italic;
-          color: #6b7280;
-          background: #f9fafb;
+          color: var(--muted-foreground);
+          background: var(--muted);
           border-radius: 0.375em;
         }
 
         .wysiwyg-editor pre {
-          background: #f3f4f6;
+          background: var(--muted);
           padding: 1em;
           border-radius: 0.5em;
           overflow-x: auto;
           font-family: 'Courier New', monospace;
           margin: 1.5em 0;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--border);
+          color: var(--foreground);
         }
 
         .wysiwyg-editor code {
-          background: #f3f4f6;
+          background: var(--muted);
           padding: 0.2em 0.4em;
           border-radius: 0.25em;
           font-family: 'Courier New', monospace;
           font-size: 0.9em;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--border);
+          color: var(--foreground);
         }
 
         .wysiwyg-editor hr {
           border: none;
-          border-top: 2px solid #e5e7eb;
+          border-top: 2px solid var(--border);
           margin: 2.5em 0;
         }
 
@@ -1036,7 +1041,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           margin: 0 !important;
           border: none !important;
           border-radius: 0 !important;
-          background-color: white;
+          background-color: var(--background);
         }
 
         .fullscreen-editor .wysiwyg-editor {
@@ -1045,9 +1050,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }
 
         .editor-border-container {
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border);
           border-radius: 0.75rem;
-          background-color: white;
+          background-color: var(--card);
+          color: var(--card-foreground);
           overflow: visible;
         }
 
@@ -1078,13 +1084,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
       <div
         className={cn(
-          "editor-border-container transition-all duration-300",
-          disabled ? "border-none shadow-none rounded-none bg-transparent" : "shadow-sm",
+          "editor-border-container flex flex-col flex-1 min-h-0 transition-all duration-300",
+          borderless || disabled ? "border-none shadow-none rounded-none bg-transparent" : "shadow-sm",
           isFullscreen && "fullscreen-editor"
         )}
       >
-        {!disabled && (
-          <div className="border-b border-slate-200 bg-slate-50 p-2">
+        <div 
+          className={cn(
+            "transition-all duration-300 ease-in-out overflow-hidden border-b border-border bg-muted/40 shrink-0",
+            disabled 
+              ? "max-h-0 opacity-0 border-b-0 py-0 pointer-events-none invisible" 
+              : "max-h-[250px] opacity-100 p-2"
+          )}
+        >
           <div className="flex flex-wrap items-center gap-1">
             <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
               <Button
@@ -1345,9 +1357,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </div>
           </div>
         </div>
-        )}
 
-        <div className="editor-root-container">
+        <div className="editor-root-container flex-1 overflow-y-auto custom-scrollbar">
           <div
             ref={editorRef}
             contentEditable={!disabled}
