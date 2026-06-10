@@ -818,7 +818,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         .editor-root-container {
           display: flex;
           flex-direction: column;
-          height: 100%;
+          height: auto;
           min-height: 200px;
           padding: 24px 32px;
         }
@@ -1084,14 +1084,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
       <div
         className={cn(
-          "editor-border-container flex flex-col flex-1 min-h-0 transition-all duration-300",
+          "editor-border-container transition-all duration-300",
           borderless || disabled ? "border-none shadow-none rounded-none bg-transparent" : "shadow-sm",
           isFullscreen && "fullscreen-editor"
         )}
       >
         <div 
           className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden border-b border-border bg-muted/40 shrink-0",
+            "transition-all duration-300 ease-in-out overflow-hidden border-b border-border bg-background/95 backdrop-blur-xs sticky top-0 z-10 shrink-0",
             disabled 
               ? "max-h-0 opacity-0 border-b-0 py-0 pointer-events-none invisible" 
               : "max-h-[250px] opacity-100 p-2"
@@ -1358,7 +1358,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           </div>
         </div>
 
-        <div className="editor-root-container flex-1 overflow-y-auto custom-scrollbar">
+        <div className="editor-root-container">
           <div
             ref={editorRef}
             contentEditable={!disabled}

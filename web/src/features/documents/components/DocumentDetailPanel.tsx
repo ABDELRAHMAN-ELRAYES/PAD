@@ -443,8 +443,8 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
 
             {/* Main Canvas Area */}
             <div className="flex-1 relative flex flex-col overflow-hidden bg-background">
-                {/* Scrollable Document Area (Borderless Full-Page Layout with Internal Scrolling) */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Scrollable Document Area (Borderless Full-Page Layout) */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                     <RichTextEditor
                         value={content}
                         onChange={(val) => {
@@ -453,7 +453,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                         }}
                         disabled={!isEditMode || regenerating}
                         placeholder="Write your document details here..."
-                        className="w-full h-full flex-1 min-h-0"
+                        className="w-full"
                         borderless={true}
                     />
                 </div>
