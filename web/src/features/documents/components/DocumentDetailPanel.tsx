@@ -41,6 +41,8 @@ import {
     FileCode,
     RotateCcw,
     Trash2,
+    Edit,
+    X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStreaming } from "@/components/providers/StreamingProvider";
@@ -61,6 +63,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const [isEditMode, setIsEditMode] = useState(false);
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [hasChanges, setHasChanges] = useState(false);
@@ -76,6 +79,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     useEffect(() => {
         if (!loading && autoStream && !hasStartedAutoStream && docData) {
             setHasStartedAutoStream(true);
+            setIsEditMode(false); // Make sure we view the autostream first
             handleRegenerate();
         }
     }, [loading, autoStream, hasStartedAutoStream, docData]);
@@ -115,12 +119,22 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
             });
             setDocData(prev => prev ? { ...prev, ...updated } : updated as any);
             setHasChanges(false);
+            setIsEditMode(false); // Switch to View Mode
             toast.success("Document saved successfully");
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Failed to save document");
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleCancelEdit = () => {
+        if (docData) {
+            setTitle(docData.title);
+            setContent(docData.content);
+        }
+        setHasChanges(false);
+        setIsEditMode(false);
     };
 
     const handleRegenerate = async () => {
@@ -231,130 +245,173 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     }
 
     return (
-        <div className="flex flex-col h-full bg-background overflow-hidden">
+        <div className="flex flex-col h-full bg-background overflow-hidden animate-in fade-in duration-300">
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 py-3 shrink-0">
                 <div className="flex items-center gap-4 flex-1">
-                    <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 rounded-full">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div className="flex-1 max-w-xl">
-                        <Input
-                            value={title}
-                            onChange={(e) => {
-                                setTitle(e.target.value);
-                                setHasChanges(true);
-                            }}
-                            className="bg-transparent border-none text-lg font-bold p-0 h-auto focus-visible:ring-0 shadow-none"
-                            placeholder="Document Title"
-                        />
+                        {isEditMode ? (
+                            <Input
+                                value={title}
+                                onChange={(e) => {
+                                    setTitle(e.target.value);
+                                    setHasChanges(true);
+                                }}
+                                className="bg-transparent border-none text-lg font-bold p-0 h-auto focus-visible:ring-0 shadow-none focus:outline-none"
+                                placeholder="Document Title"
+                            />
+                        ) : (
+                            <h1 className="text-lg font-bold text-foreground truncate">{title}</h1>
+                        )}
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="mr-2 capitalize">
+                    <Badge variant="outline" className="mr-2 capitalize text-[10px] font-semibold">
                         {docData.type}
                     </Badge>
                     
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowHistory(true)}
-                        className="h-8 text-xs gap-1.5"
-                    >
-                        <History className="h-3.5 w-3.5" />
-                        History
-                    </Button>
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5">
-                                <Download className="h-3.5 w-3.5" />
-                                Export
+                    {/* View Mode Actions */}
+                    {!isEditMode && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowHistory(true)}
+                                className="h-8 text-xs gap-1.5 hover:bg-muted/60"
+                            >
+                                <History className="h-3.5 w-3.5" />
+                                History
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleExport("markdown")}>
-                                <FileCode className="h-4 w-4 mr-2" />
-                                Markdown (.md)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExport("html")}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                HTML (.html)
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
 
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRegenerate}
-                        disabled={regenerating || saving || deleting}
-                        className="h-8 text-xs gap-1.5"
-                    >
-                        <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
-                        Regenerate
-                    </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5 hover:bg-muted/60">
+                                        <Download className="h-3.5 w-3.5" />
+                                        Export
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleExport("markdown")} className="cursor-pointer">
+                                        <FileCode className="h-4 w-4 mr-2" />
+                                        Markdown (.md)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport("html")} className="cursor-pointer">
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        HTML (.html)
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleDelete}
-                        disabled={deleting || regenerating || saving}
-                        className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                        {deleting ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        Delete
-                    </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleRegenerate}
+                                disabled={regenerating || deleting}
+                                className="h-8 text-xs gap-1.5 border-border/80 hover:bg-muted/50 cursor-pointer"
+                            >
+                                <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+                                Regenerate
+                            </Button>
 
-                    <Button
-                        size="sm"
-                        onClick={handleSave}
-                        disabled={!hasChanges || saving || regenerating || deleting}
-                        className="h-8 text-xs gap-1.5"
-                    >
-                        {saving ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                            <Save className="h-3.5 w-3.5" />
-                        )}
-                        Save
-                    </Button>
-                </div>
-            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleDelete}
+                                disabled={deleting || regenerating}
+                                className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                            >
+                                {deleting ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                                Delete
+                            </Button>
+                        </>
+                    )}
 
-            {/* Editor Area */}
-            <div className="flex-1 overflow-auto p-6 md:p-10 bg-slate-50/50 dark:bg-slate-950/20">
-                <div className="max-w-4xl mx-auto">
-                    <Card className="shadow-sm border-none md:border">
-                        <CardContent className="p-0">
-                            <RichTextEditor
-                                value={content}
-                                onChange={(val) => {
-                                    setContent(val);
-                                    setHasChanges(true);
-                                }}
-                                disabled={regenerating}
-                            />
-                        </CardContent>
-                    </Card>
-                    
-                    {regenerating && (
-                        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/20 animate-pulse">
-                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            AI is rewriting this document...
-                        </div>
+                    {/* Edit Mode Controls */}
+                    {isEditMode ? (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancelEdit}
+                                disabled={saving}
+                                className="h-8 text-xs gap-1.5 hover:bg-muted/60 cursor-pointer"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleSave}
+                                disabled={!hasChanges || saving}
+                                className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer"
+                            >
+                                {saving ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Save className="h-3.5 w-3.5" />
+                                )}
+                                Save
+                            </Button>
+                        </>
+                    ) : (
+                        <Button
+                            size="sm"
+                            onClick={() => setIsEditMode(true)}
+                            disabled={regenerating || deleting}
+                            className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 cursor-pointer"
+                        >
+                            <Edit className="h-3.5 w-3.5" />
+                            Edit Document
+                        </Button>
                     )}
                 </div>
             </div>
 
+            {/* Main Canvas Area */}
+            <div className="flex-1 relative flex flex-col overflow-hidden bg-background">
+                {/* Scrollable Document Area (Borderless Full-Page Layout) */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-8">
+                    <RichTextEditor
+                        value={content}
+                        onChange={(val) => {
+                            setContent(val);
+                            setHasChanges(true);
+                        }}
+                        disabled={!isEditMode || regenerating}
+                        placeholder="Write your document details here..."
+                        className="w-full h-full"
+                    />
+                </div>
+
+                {/* AI Generation Full-Page Overlay */}
+                {regenerating && (
+                    <div className="absolute inset-0 bg-background/75 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300 select-none">
+                        <div className="flex flex-col items-center gap-3.5 max-w-sm text-center px-6 py-8 rounded-2xl border bg-card/90 shadow-lg border-border/60">
+                            <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center animate-pulse">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <h4 className="font-semibold text-sm">PAD is writing...</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    AI is generating specification details and updating version records. Please wait.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Version History Sheet */}
             <Sheet open={showHistory} onOpenChange={setShowHistory}>
-                <SheetContent className="w-[400px] sm:w-[540px]">
+                <SheetContent className="w-[400px] sm:w-[540px] custom-scrollbar overflow-y-auto">
                     <SheetHeader>
                         <SheetTitle>Version History</SheetTitle>
                         <SheetDescription>
@@ -376,38 +433,41 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                                                 </span>
                                             </div>
                                             {version.version === currentVersion && (
-                                                <Badge variant="default" className="bg-green-500 text-[10px]">
+                                                <Badge variant="default" className="bg-green-500 text-[10px] border-none text-white hover:bg-green-600">
                                                     Current
                                                 </Badge>
                                             )}
                                         </div>
-                                        <p className="text-sm font-medium mb-1 line-clamp-1">
+                                        <p className="text-xs font-semibold mb-1 line-clamp-2 leading-relaxed text-foreground/90">
                                             {version.changelog || "No changelog provided"}
                                         </p>
-                                        <div className="flex justify-between items-center mt-3">
+                                        <div className="flex justify-between items-center mt-3 border-t pt-2 border-border/30">
                                             <div className="text-[10px] text-muted-foreground">
                                                 {version.content.length} characters
                                             </div>
                                             {version.version !== currentVersion && (
                                                 <Dialog>
                                                     <DialogTrigger asChild>
-                                                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                                                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 cursor-pointer">
                                                             <RotateCcw className="h-3 w-3" />
                                                             Revert
                                                         </Button>
                                                     </DialogTrigger>
-                                                    <DialogContent>
+                                                    <DialogContent className="rounded-2xl">
                                                         <DialogHeader>
                                                             <DialogTitle>Revert to Version {version.version}</DialogTitle>
-                                                            <DialogDescription>
-                                                                This will create a new version of the document with the content from version {version.version}. Any unsaved changes in the current version will be lost.
+                                                            <DialogDescription className="text-xs">
+                                                                This will overwrite the current working document with version {version.version}. Any unsaved changes in your current view will be lost.
                                                             </DialogDescription>
                                                         </DialogHeader>
-                                                        <DialogFooter>
-                                                            <Button variant="ghost" onClick={() => {}}>Cancel</Button>
+                                                        <DialogFooter className="gap-2">
+                                                            <DialogTrigger asChild>
+                                                                <Button variant="ghost" className="rounded-xl text-xs h-9 cursor-pointer">Cancel</Button>
+                                                            </DialogTrigger>
                                                             <Button 
                                                                 onClick={() => handleRevert(version.version)}
                                                                 disabled={reverting !== null}
+                                                                className="rounded-xl text-xs h-9 cursor-pointer"
                                                             >
                                                                 {reverting === version.version && (
                                                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

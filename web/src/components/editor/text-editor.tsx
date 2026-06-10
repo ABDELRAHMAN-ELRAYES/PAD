@@ -1051,6 +1051,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           overflow: visible;
         }
 
+        .editor-border-container.border-none {
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background-color: transparent !important;
+        }
+
         @keyframes gentlePulse {
           0% { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
           50% { box-shadow: 0 4px 8px rgba(16, 185, 129, 0.1); }
@@ -1071,11 +1078,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
       <div
         className={cn(
-          "editor-border-container shadow-sm transition-all duration-300",
+          "editor-border-container transition-all duration-300",
+          disabled ? "border-none shadow-none rounded-none bg-transparent" : "shadow-sm",
           isFullscreen && "fullscreen-editor"
         )}
       >
-        <div className="border-b border-slate-200 bg-slate-50 p-2">
+        {!disabled && (
+          <div className="border-b border-slate-200 bg-slate-50 p-2">
           <div className="flex flex-wrap items-center gap-1">
             <div className="flex items-center gap-1 border-r border-slate-300 pr-2">
               <Button
@@ -1336,6 +1345,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </div>
           </div>
         </div>
+        )}
 
         <div className="editor-root-container">
           <div

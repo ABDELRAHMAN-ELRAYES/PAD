@@ -46,12 +46,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     if (!idea.analysisResult) return 15;
     const questions = idea.analysisResult.clarifyingQuestions || [];
     if (questions.length === 0) return 90;
-    
+
     const totalQuestions = questions.length;
     const answeredCount = Object.keys(answers).filter(
       (k) => answers[Number(k)]?.trim()
     ).length;
-    
+
     // Starting at 50% for completed analysis, scaling to 90%
     return Math.min(
       90,
@@ -68,13 +68,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <h2 className="text-xl font-bold tracking-tight">Project Overview</h2>
-            <Badge 
+            <Badge
               variant={idea.status === "confirmed" ? "default" : "secondary"}
-              className={`text-[10px] font-semibold ${
-                idea.status === "confirmed"
+              className={`text-[10px] font-semibold ${idea.status === "confirmed"
                   ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/15"
                   : "bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/15"
-              }`}
+                }`}
             >
               {idea.status === "confirmed" ? (
                 <>
@@ -93,7 +92,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
             Manage your initial project scope, analyze gaps, and finalize structural requirements.
           </p>
         </div>
-        
+
         {/* Quick Re-Analyze for draft projects */}
         {idea.status === "draft" && idea.analysisResult && (
           <Button
@@ -126,12 +125,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
 
       {/* Main Grid Workspace Dashboard */}
       <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6 items-start">
-        
+
         {/* Left Column: Project Brief & AI Diagnostic Details */}
         <div className="space-y-6 @4xl:col-span-2 @container">
-          
+
           {/* Executive Pitch Summary Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-violet-500/5 to-indigo-500/5 dark:from-violet-500/10 dark:to-indigo-500/5 p-5 shadow-xs">
+          <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-linear-to-br from-violet-500/5 to-indigo-500/5 dark:from-violet-500/10 dark:to-indigo-500/5 p-5 shadow-xs">
             <div className="absolute top-0 right-0 p-4 opacity-[0.03] dark:opacity-[0.06] pointer-events-none select-none">
               <Brain className="h-24 w-24" />
             </div>
@@ -155,9 +154,9 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                 <Brain className="h-3.5 w-3.5 text-primary" />
                 Strategic AI Analysis
               </h3>
-              
+
               <div className="grid grid-cols-1 @2xl:grid-cols-3 gap-4">
-                
+
                 {/* Scope Gaps */}
                 <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 dark:bg-amber-500/10 p-4 space-y-3 shadow-xs">
                   <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 font-semibold text-xs uppercase tracking-wider">
@@ -233,8 +232,8 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                     AI will map your initial description to identify requirements gaps, suggest boosters, and construct a Q&A interview path.
                   </p>
                 </div>
-                <Button 
-                  onClick={handleAnalyze} 
+                <Button
+                  onClick={handleAnalyze}
                   className="rounded-xl px-5 py-4 text-xs font-semibold cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] bg-primary text-primary-foreground"
                 >
                   <Brain className="mr-2 h-4 w-4" />
@@ -251,7 +250,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                 <HelpCircle className="h-4 w-4" />
                 <span>Scope Refinement Wizard (AI Interview)</span>
               </div>
-              
+
               <div className="space-y-4">
                 {idea.analysisResult.clarifyingQuestions.map(
                   (question: string, idx: number) => (
@@ -278,7 +277,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                     </div>
                   ),
                 )}
-                
+
                 {idea.status === "draft" && (
                   <Button
                     onClick={handleSubmitAnswers}
@@ -329,7 +328,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
 
         {/* Right Column: Readiness Index, Lifecycle Steps, Scope Approval CTA */}
         <div className="space-y-6 @4xl:col-span-1 @container">
-          
+
           {/* Project Readiness Meter */}
           <Card className="rounded-2xl border-border/80 shadow-xs">
             <CardContent className="p-5 space-y-4">
@@ -337,14 +336,14 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Readiness Index</span>
                 <span className="text-2xl font-black text-primary font-mono select-none">{readiness}%</span>
               </div>
-              
+
               <div className="relative w-full h-2.5 bg-muted/60 dark:bg-muted/30 rounded-full overflow-hidden">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-500 ease-out"
+                <div
+                  className="h-full rounded-full bg-linear-to-r from-violet-500 to-indigo-500 transition-all duration-500 ease-out"
                   style={{ width: `${readiness}%` }}
                 />
               </div>
-              
+
               <p className="text-[11px] leading-relaxed text-muted-foreground/80">
                 {readiness <= 15 && "Concept drafted. Run AI analysis to identify scope gaps and project roadmap."}
                 {readiness > 15 && readiness <= 50 && "Initial AI scope analysis complete. Review missing details and risks."}
@@ -359,9 +358,9 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
           <Card className="rounded-2xl border-border/80 shadow-xs">
             <CardContent className="p-5 space-y-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project Lifecycle</h3>
-              
+
               <div className="space-y-4 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-muted-foreground/20 select-none">
-                
+
                 {/* Step 1: Concept Intake */}
                 <div className="flex items-start gap-3 relative">
                   <div className="w-6 h-6 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 flex items-center justify-center shrink-0 z-10 bg-background">
@@ -372,12 +371,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                     <p className="text-[10px] text-muted-foreground">Submit raw project description</p>
                   </div>
                 </div>
-                
+
                 {/* Step 2: AI Diagnostics */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
-                    ${idea.analysisResult 
-                      ? "bg-green-500/10 border-green-500/20 text-green-600" 
+                    ${idea.analysisResult
+                      ? "bg-green-500/10 border-green-500/20 text-green-600"
                       : "bg-muted text-muted-foreground/30 border-transparent"
                     }`}
                   >
@@ -394,7 +393,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                     <p className="text-[10px] text-muted-foreground">Map scope, gaps, and risks</p>
                   </div>
                 </div>
-                
+
                 {/* Step 3: Scope Refinement */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
@@ -420,7 +419,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                     <p className="text-[10px] text-muted-foreground">Answer questions to solidify specifications</p>
                   </div>
                 </div>
-                
+
                 {/* Step 4: Finalize Blueprints */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
@@ -450,16 +449,16 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
           {/* Scope Confirmation / Active Project navigation Hub */}
           {idea.status === "draft" ? (
             idea.analysisResult && (
-              <Card className="rounded-2xl border-violet-500/10 bg-gradient-to-br from-violet-500/5 via-indigo-500/5 to-transparent shadow-xs">
+              <Card className="rounded-2xl border-violet-500/10 bg-linear-to-br from-violet-500/5 via-indigo-500/5 to-transparent shadow-xs">
                 <CardContent className="p-5 space-y-4">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Approve Scope</h3>
                   <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
                     Confirming this project locks in the current specification baseline and opens the active design workspace.
                   </p>
-                  <Button 
-                    onClick={handleConfirm} 
-                    disabled={isConfirming || (idea.analysisResult.clarifyingQuestions.length > 0 && !hasSubmittedAnswers)} 
-                    className="w-full rounded-xl font-semibold shadow-md hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white cursor-pointer py-4 text-xs"
+                  <Button
+                    onClick={handleConfirm}
+                    disabled={isConfirming || (idea.analysisResult.clarifyingQuestions.length > 0 && !hasSubmittedAnswers)}
+                    className="w-full rounded-xl font-semibold shadow-md hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] bg-linear-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white cursor-pointer py-4 text-xs"
                   >
                     {isConfirming ? (
                       <>
