@@ -15,7 +15,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, ideaId, onSuggestio
 
     if (isUser) {
         return (
-            <div className="flex flex-col items-end w-full space-y-1">
+            <div className="flex flex-col items-end w-full mb-0">
                 <div className="self-end max-w-[85%] rounded-2xl bg-chat-user-bg px-3.5 py-2 text-sm text-chat-user-fg">
                     <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>

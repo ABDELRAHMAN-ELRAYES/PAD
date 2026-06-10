@@ -161,7 +161,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                 )}
                 
                 <div 
-                    className="group relative flex flex-col w-full rounded-2xl border border-border/80 bg-muted/20 dark:bg-muted/10 hover:border-border/100 focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.15)] transition-all duration-300 ease-out cursor-text"
+                    className="group relative flex flex-col w-full rounded-2xl border border-border/80 bg-muted/20 dark:bg-muted/10 hover:border-border focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.15)] transition-all duration-300 ease-out cursor-text"
                     onClick={() => inputRef.current?.focus()}
                 >
                     <textarea

@@ -57,6 +57,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
             idea={idea}
             ideaId={activeIdeaId}
             onIdeaUpdate={handleIdeaUpdate}
+            onSectionChange={setActiveSection}
           />
         );
       case "documents":
