@@ -9,6 +9,7 @@ import {
     revertToVersion,
     regenerateDocument,
     exportDocument,
+    deleteDocument,
 } from "./document.controller";
 
 const DocumentRouter:Router = Router();
@@ -21,6 +22,9 @@ DocumentRouter.get("/idea/:ideaId", getDocumentsByIdea);
 
 // Get a single document
 DocumentRouter.get("/:id", getDocument);
+
+// Delete a document
+DocumentRouter.delete("/:id", deleteDocument);
 
 // Get document with version history
 DocumentRouter.get("/:id/full", getDocumentWithVersions);

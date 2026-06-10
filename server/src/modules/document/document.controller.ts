@@ -1,31 +1,26 @@
 import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../../utils/catch-async";
+import AppError from "../../utils/app-error";
 import DocumentService from "./document.service";
 import { IUpdateDocumentWithChangelogData } from "./types/IDocument";
 
-// Generate documents for an idea
+// Generate documents for an idea (creates placeholder and returns it)
 export const generateDocuments = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
+        const type = request.query.type as "PRD" | "BRD";
 
-        // Set headers for streaming
-        response.setHeader("Content-Type", "application/json");
-        response.setHeader("Transfer-Encoding", "chunked");
-        response.setHeader("Cache-Control", "no-cache");
-        response.setHeader("Connection", "keep-alive");
-
-        try {
-            await DocumentService.generateDocuments(ideaId, next, (chunk) => {
-                response.write(JSON.stringify(chunk) + "\n");
-            });
-            response.end();
-        } catch (err) {
-            if (!response.headersSent) {
-                return next(err);
-            }
-            console.error("Document generation streaming error:", err);
-            response.end();
+        if (!type || !["PRD", "BRD"].includes(type)) {
+            return next(new AppError(400, "Valid document type (PRD or BRD) is required"));
         }
+
+        const document = await DocumentService.createPlaceholder(ideaId, type, next);
+        if (!document) return;
+
+        response.status(201).json({
+            status: "success",
+            data: { document },
+        });
     }
 );
 
@@ -183,5 +178,19 @@ export const exportDocument = catchAsync(
         response.setHeader("Content-Type", result.mimeType);
         response.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
         response.status(200).send(result.content);
+    }
+);
+
+// Delete a document
+export const deleteDocument = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+
+        await DocumentService.deleteDocument(documentId, next);
+
+        response.status(204).json({
+            status: "success",
+            data: null,
+        });
     }
 );

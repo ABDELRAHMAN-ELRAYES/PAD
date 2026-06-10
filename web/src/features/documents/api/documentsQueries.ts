@@ -38,7 +38,7 @@ export const useDocumentVersions = (id?: string) => {
 export const useGenerateDocuments = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (ideaId: string) => documentApi.generate(ideaId),
+    mutationFn: (ideaId: string) => documentApi.createPlaceholder(ideaId, "PRD"),
     onSuccess: (_, ideaId) => {
       queryClient.invalidateQueries({ queryKey: ["documents", "idea", ideaId] });
       toast.success("Documents generated successfully");

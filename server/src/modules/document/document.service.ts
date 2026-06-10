@@ -16,9 +16,51 @@ class DocumentService {
     private static documentRepo: DocumentRepository = DocumentRepository.getInstance();
     private static ideaRepo = IdeaRepository.getInstance();
 
-    // Generate PRD and BRD documents for a confirmed idea
+    // Create placeholder document for a confirmed idea
+    static async createPlaceholder(
+        ideaId: string,
+        type: "PRD" | "BRD",
+        next: NextFunction
+    ): Promise<IDocument | void> {
+        // Get the idea
+        const idea = await this.ideaRepo.getIdeaById(ideaId);
+        if (!idea) {
+            return next(new AppError(404, "Idea not found"));
+        }
+
+        // Check if idea is confirmed
+        if (idea.status !== "confirmed") {
+            return next(new AppError(400, "Only confirmed ideas can generate documents"));
+        }
+
+        // Check if document already exists
+        const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
+        const hasSpecificDoc = existingDocs.some(doc => doc.type === type);
+        if (hasSpecificDoc) {
+            return next(new AppError(400, `${type} document already exists for this idea.`));
+        }
+
+        const title = type === "PRD" 
+            ? "Product Requirements Document (PRD)" 
+            : "Business Requirements Document (BRD)";
+
+        const document = await this.documentRepo.createDocument({
+            ideaId,
+            type,
+            title,
+            content: "",
+        });
+
+        // Create initial empty version (v1)
+        await this.documentRepo.createVersion(document.id, 1, "", "Placeholder created");
+
+        return document;
+    }
+
+    // Generate PRD and/or BRD documents for a confirmed idea
     static async generateDocuments(
         ideaId: string,
+        type: "PRD" | "BRD" | undefined,
         next: NextFunction,
         onChunk?: (data: any) => void
     ): Promise<IDocument[] | void> {
@@ -35,8 +77,15 @@ class DocumentService {
 
         // Check if documents already exist
         const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
-        if (existingDocs.length > 0) {
-            return next(new AppError(400, "Documents already exist for this idea. Please edit the existing documents."));
+        if (type) {
+            const hasSpecificDoc = existingDocs.some(doc => doc.type === type);
+            if (hasSpecificDoc) {
+                return next(new AppError(400, `${type} document already exists for this idea.`));
+            }
+        } else {
+            if (existingDocs.length > 0) {
+                return next(new AppError(400, "Documents already exist for this idea. Please edit the existing documents."));
+            }
         }
 
         const ideaText = idea.refinedText || idea.rawText;
@@ -44,10 +93,10 @@ class DocumentService {
 
         if (onChunk) {
             // Perform generation and stream directly to callback (HTTP response)
-            await this.processDocumentGeneration(ideaId, ideaText, analysisResult, onChunk);
+            await this.processDocumentGeneration(ideaId, ideaText, analysisResult, type, onChunk);
         } else {
             // Background generation for sockets
-            this.processDocumentGeneration(ideaId, ideaText, analysisResult);
+            this.processDocumentGeneration(ideaId, ideaText, analysisResult, type);
         }
 
         return [];
@@ -57,65 +106,70 @@ class DocumentService {
         ideaId: string,
         ideaText: string,
         analysisResult: any,
+        type: "PRD" | "BRD" | undefined,
         onChunk?: (data: any) => void
     ) {
         try {
+            const docsCreated: IDocument[] = [];
+
             // 1. Generate PRD
-            let prdFullResponse = "";
-            const prdStream = AiService.generatePRDStream(ideaText, analysisResult);
-            for await (const chunk of prdStream) {
-                prdFullResponse += chunk;
-                const chunkData = {
-                    type: "PRD",
-                    chunk,
-                    fullText: prdFullResponse,
-                };
-                if (onChunk) {
-                    onChunk(chunkData);
+            if (!type || type === "PRD") {
+                let prdFullResponse = "";
+                const prdStream = AiService.generatePRDStream(ideaText, analysisResult);
+                for await (const chunk of prdStream) {
+                    prdFullResponse += chunk;
+                    const chunkData = {
+                        type: "PRD",
+                        chunk,
+                        fullText: prdFullResponse,
+                    };
+                    if (onChunk) {
+                        onChunk(chunkData);
+                    }
+                }
+                const prdResult = AiService.parseDocumentResult(prdFullResponse);
+                if (prdResult) {
+                    const prdDoc = await this.documentRepo.createDocument({
+                        ideaId,
+                        type: "PRD",
+                        title: prdResult.title,
+                        content: prdResult.content,
+                    });
+                    await this.documentRepo.createVersion(prdDoc.id, 1, prdResult.content, "Initial generation");
+                    docsCreated.push(prdDoc);
                 }
             }
-            const prdResult = AiService.parseDocumentResult(prdFullResponse);
 
             // 2. Generate BRD
-            let brdFullResponse = "";
-            const brdStream = AiService.generateBRDStream(ideaText, analysisResult);
-            for await (const chunk of brdStream) {
-                brdFullResponse += chunk;
-                const chunkData = {
-                    type: "BRD",
-                    chunk,
-                    fullText: brdFullResponse,
-                };
-                if (onChunk) {
-                    onChunk(chunkData);
+            if (!type || type === "BRD") {
+                let brdFullResponse = "";
+                const brdStream = AiService.generateBRDStream(ideaText, analysisResult);
+                for await (const chunk of brdStream) {
+                    brdFullResponse += chunk;
+                    const chunkData = {
+                        type: "BRD",
+                        chunk,
+                        fullText: brdFullResponse,
+                    };
+                    if (onChunk) {
+                        onChunk(chunkData);
+                    }
+                }
+                const brdResult = AiService.parseDocumentResult(brdFullResponse);
+                if (brdResult) {
+                    const brdDoc = await this.documentRepo.createDocument({
+                        ideaId,
+                        type: "BRD",
+                        title: brdResult.title,
+                        content: brdResult.content,
+                    });
+                    await this.documentRepo.createVersion(brdDoc.id, 1, brdResult.content, "Initial generation");
+                    docsCreated.push(brdDoc);
                 }
             }
-            const brdResult = AiService.parseDocumentResult(brdFullResponse);
 
-            if (prdResult && brdResult) {
-                // Create PRD document
-                const prdDoc = await this.documentRepo.createDocument({
-                    ideaId,
-                    type: "PRD",
-                    title: prdResult.title,
-                    content: prdResult.content,
-                });
-
-                // Create BRD document
-                const brdDoc = await this.documentRepo.createDocument({
-                    ideaId,
-                    type: "BRD",
-                    title: brdResult.title,
-                    content: brdResult.content,
-                });
-
-                // Create initial versions
-                await this.documentRepo.createVersion(prdDoc.id, 1, prdResult.content, "Initial generation");
-                await this.documentRepo.createVersion(brdDoc.id, 1, brdResult.content, "Initial generation");
-
-                if (onChunk) {
-                    onChunk({ status: "final", documents: [prdDoc, brdDoc] });
-                }
+            if (onChunk) {
+                onChunk({ status: "final", documents: docsCreated });
             }
         } catch (error) {
             console.error("AI document generation error:", error);
@@ -310,6 +364,19 @@ class DocumentService {
         }
     }
 
+
+    // Delete a document
+    static async deleteDocument(
+        documentId: string,
+        next: NextFunction
+    ): Promise<void> {
+        const document = await this.documentRepo.getDocumentById(documentId);
+        if (!document) {
+            return next(new AppError(404, "Document not found"));
+        }
+
+        await this.documentRepo.deleteDocument(documentId);
+    }
 
     // Export document as specific format (returns content for client-side processing)
     static async exportDocument(

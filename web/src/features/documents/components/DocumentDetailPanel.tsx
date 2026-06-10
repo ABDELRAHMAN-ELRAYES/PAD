@@ -40,6 +40,7 @@ import {
     FileText,
     FileCode,
     RotateCcw,
+    Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStreaming } from "@/components/providers/StreamingProvider";
@@ -50,12 +51,14 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
     docId,
     ideaId,
     onBack,
+    autoStream = false,
 }) => {
     const { setPhaseStreaming } = useStreaming();
     const [docData, setDocData] = useState<DocumentWithVersions | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const [title, setTitle] = useState("");
@@ -64,10 +67,18 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
 
     const [showHistory, setShowHistory] = useState(false);
     const [reverting, setReverting] = useState<number | null>(null);
+    const [hasStartedAutoStream, setHasStartedAutoStream] = useState(false);
 
     useEffect(() => {
         fetchDocument();
     }, [docId]);
+
+    useEffect(() => {
+        if (!loading && autoStream && !hasStartedAutoStream && docData) {
+            setHasStartedAutoStream(true);
+            handleRegenerate();
+        }
+    }, [loading, autoStream, hasStartedAutoStream, docData]);
 
     useEffect(() => {
         if (regenerating) {
@@ -160,6 +171,24 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
             toast.error(err instanceof Error ? err.message : "Failed to revert");
         } finally {
             setReverting(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!docData) return;
+        if (!window.confirm(`Are you sure you want to delete this ${docData.type} document? This will permanently delete all its version history.`)) {
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            await documentApi.delete(docId);
+            toast.success("Document deleted successfully");
+            onBack();
+        } catch (err) {
+            toast.error("Failed to delete document");
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -260,7 +289,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                         variant="outline"
                         size="sm"
                         onClick={handleRegenerate}
-                        disabled={regenerating || saving}
+                        disabled={regenerating || saving || deleting}
                         className="h-8 text-xs gap-1.5"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
@@ -268,9 +297,24 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                     </Button>
 
                     <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDelete}
+                        disabled={deleting || regenerating || saving}
+                        className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                        {deleting ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Delete
+                    </Button>
+
+                    <Button
                         size="sm"
                         onClick={handleSave}
-                        disabled={!hasChanges || saving || regenerating}
+                        disabled={!hasChanges || saving || regenerating || deleting}
                         className="h-8 text-xs gap-1.5"
                     >
                         {saving ? (

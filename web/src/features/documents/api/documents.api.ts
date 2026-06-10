@@ -13,16 +13,10 @@ import { ApiResponse } from "@/features/ideas/types/models/idea";
 
 // Document API functions
 export const documentApi = {
-    // Generate PRD & BRD for an idea (Streaming)
-    async generateStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
-        const response = await apiClient.post<Response>(`/documents/generate/${ideaId}`, undefined, {}, true);
-        await readNdJsonStream(response, onChunk);
-    },
-
-    // Generate PRD & BRD for an idea (Legacy/Sync)
-    async generate(ideaId: string): Promise<Document[]> {
-        const response = await apiClient.post<ApiResponse<DocumentsListResponse>>(`/documents/generate/${ideaId}`);
-        return response.data!.documents;
+    // Create a placeholder document for an idea
+    async createPlaceholder(ideaId: string, type: "PRD" | "BRD"): Promise<Document> {
+        const response = await apiClient.post<ApiResponse<{ document: Document }>>(`/documents/generate/${ideaId}`, undefined, { params: { type } });
+        return response.data!.document;
     },
 
     // Get a document by ID
@@ -77,5 +71,10 @@ export const documentApi = {
     async export(id: string, format: ExportFormat): Promise<Blob> {
         const response = await apiClient.get<Response>(`/documents/${id}/export/${format}`, {}, true);
         return response.blob();
+    },
+
+    // Delete a document
+    async delete(id: string): Promise<void> {
+        await apiClient.delete(`/documents/${id}`);
     },
 };
