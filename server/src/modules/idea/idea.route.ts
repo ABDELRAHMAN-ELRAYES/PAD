@@ -11,9 +11,8 @@ import {
 
 const IdeaRouter: Router = Router();
 
-// TODO: Re-enable authentication before production
 // All routes require authentication
-// IdeaRouter.use(AuthMiddleware.protect);
+IdeaRouter.use(AuthMiddleware.protect);
 
 // Base routes
 IdeaRouter.route("/")

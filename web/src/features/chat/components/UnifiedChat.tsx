@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, MessageSquare, ArrowUp } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowUp, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ideaApi } from "@/features/ideas/api/ideas.api";
 import { ChatMessage } from "./ChatMessage";
@@ -15,8 +15,12 @@ import { IterationMessage } from "../types/models/chat";
 import { UnifiedChatProps } from "../types/components/UnifiedChat.types";
 import { MIN_CHAR_COUNT } from "@/config/chat";
 import { planApi } from "../api/chat.api";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArtifactUpdated }) => {
+    // Auth state
+    const { isAuthenticated, setIsAuthOpen, setAuthMode } = useAuth();
+
     // Shared state
     const [inputValue, setInputValue] = useState("");
     const [localError, setLocalError] = useState<string | null>(null);
@@ -74,6 +78,12 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
 
     // Handle sending
     const handleSend = async () => {
+        if (!isAuthenticated) {
+            setAuthMode("sign-in");
+            setIsAuthOpen(true);
+            return;
+        }
+
         const content = inputValue.trim();
         if (!content) return;
 
@@ -141,7 +151,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
     // Render the actual input box
     const renderInputBox = () => {
         const isInputEmpty = !inputValue.trim();
-        const isDisabled = isInputEmpty || isSubmitting || (isNewMode && charCount < MIN_CHAR_COUNT);
+        const isDisabled = isSubmitting || (isAuthenticated && (isInputEmpty || (isNewMode && charCount < MIN_CHAR_COUNT)));
         
         return (
             <div className="w-full max-w-2xl mx-auto flex flex-col gap-2.5">
@@ -183,7 +193,9 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                     <div className="flex items-center justify-between px-3.5 pb-2 pt-0.5 bg-transparent select-none">
                         {/* Helper text inside the box */}
                         <div className="text-[10px] tracking-wide text-muted-foreground/50 font-normal px-1">
-                            {isNewMode ? (
+                            {!isAuthenticated ? (
+                                <span>Please sign in to submit your idea</span>
+                            ) : isNewMode ? (
                                 <span>
                                     {charCount > 0 && charCount < MIN_CHAR_COUNT
                                         ? `${MIN_CHAR_COUNT - charCount} more characters required`
@@ -208,22 +220,28 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                                 ${isDisabled
                                     ? "w-8 justify-center pl-0 bg-muted text-muted-foreground/35 opacity-70 cursor-not-allowed"
                                     : `w-8 justify-start pl-2 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-primary/20 ${
-                                        isNewMode ? "hover:w-[82px]" : "hover:w-[70px]"
+                                        !isAuthenticated
+                                            ? "hover:w-[85px]"
+                                            : isNewMode
+                                              ? "hover:w-[82px]"
+                                              : "hover:w-[70px]"
                                       }`
                                 }`}
-                            aria-label={isNewMode ? "Submit idea" : "Send message"}
+                            aria-label={!isAuthenticated ? "Sign In" : isNewMode ? "Submit idea" : "Send message"}
                         >
                             {isSubmitting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <>
-                                    {isNewMode ? (
+                                    {!isAuthenticated ? (
+                                        <LogIn className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
+                                    ) : isNewMode ? (
                                         <ArrowUp className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
                                     ) : (
                                         <Send className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
                                     )}
-                                    <span className="max-w-0 opacity-0 overflow-hidden font-semibold text-[10.5px] tracking-wide transition-all duration-300 ease-in-out group-hover/btn:max-w-[42px] group-hover/btn:opacity-100 ml-0 group-hover/btn:ml-1.5 text-inherit whitespace-nowrap">
-                                        {isNewMode ? "Submit" : "Send"}
+                                    <span className="max-w-0 opacity-0 overflow-hidden font-semibold text-[10.5px] tracking-wide transition-all duration-300 ease-in-out group-hover/btn:max-w-[48px] group-hover/btn:opacity-100 ml-0 group-hover/btn:ml-1.5 text-inherit whitespace-nowrap">
+                                        {!isAuthenticated ? "Sign In" : isNewMode ? "Submit" : "Send"}
                                     </span>
                                 </>
                             )}

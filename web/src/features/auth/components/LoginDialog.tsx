@@ -218,19 +218,26 @@ export function LoginDialog({
                       )}
                     </Button>
                   </div>
-                  {form.formState.errors.password && (
-                    <span className="text-sm text-destructive">
-                      {form.formState.errors.password.message}
-                    </span>
-                  )}
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto px-0 text-xs text-muted-foreground"
-                  >
-                    Forgot password?
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    {form.formState.errors.password && (
+                      <span className="text-sm text-destructive">
+                        {form.formState.errors.password.message}
+                      </span>
+                    )}
+                    <div className="flex justify-start">
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-xs text-muted-foreground"
+                      >
+                        Forgot password?
+                      </Button>
+
+                    </div>
+
+                  </div>
+
                 </div>
               </div>
             )}

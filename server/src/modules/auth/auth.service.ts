@@ -174,10 +174,6 @@ class AuthenticationService {
             email: user.email,
         };
 
-        // Dev mode logging to help local testing without SMTP configuration
-        console.log(`\n==========================================`);
-        console.log(`[AUTH] DEVELOPMENT PASSWORD RESET LINK for ${user.email}: ${resetLink}`);
-        console.log(`==========================================\n`);
 
         EmailQueue.enqueue({
             to: user.email,

@@ -6,7 +6,7 @@ export type IdeaStatus = "draft" | "confirmed";
 // Base idea entity interface
 export interface IIdea {
     id: string;
-    userId?: string | null;
+    userId: string;
     rawText: string;
     refinedText: string | null;
     status: IdeaStatus;
@@ -18,6 +18,7 @@ export interface IIdea {
 // Input for creating a new idea
 export interface ICreateIdeaData {
     rawText: string;
+    userId: string;
 }
 
 // Question and answer pair for clarifying questions
@@ -35,7 +36,7 @@ export interface IUpdateIdeaData {
 // Repository-specific data
 export interface ICreateIdeaRepositoryData {
     rawText: string;
-    userId?: string;
+    userId: string;
 }
 
 export interface IUpdateIdeaRepositoryData {

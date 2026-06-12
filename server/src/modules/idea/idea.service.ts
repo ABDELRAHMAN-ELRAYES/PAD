@@ -34,6 +34,7 @@ class IdeaService {
         // Create the idea
         const idea = await this.ideaRepository.createIdea({
             rawText: normalizedText,
+            userId: data.userId,
         });
 
         return idea as IIdea;
@@ -53,8 +54,8 @@ class IdeaService {
     }
 
     // List all ideas
-    static async listIdeas(): Promise<IIdeaResponse[]> {
-        const ideas = await this.ideaRepository.getAllIdeas();
+    static async listIdeas(userId?: string): Promise<IIdeaResponse[]> {
+        const ideas = await this.ideaRepository.getAllIdeas(userId);
         return ideas as IIdeaResponse[];
     }
 

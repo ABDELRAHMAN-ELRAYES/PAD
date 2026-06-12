@@ -50,8 +50,14 @@ export const AppSidebar: FC<AppSidebarProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setIdeas([]);
+      setIsLoading(false);
+      return;
+    }
     async function loadIdeas() {
       try {
+        setIsLoading(true);
         const data = await ideaApi.list();
         setIdeas(data);
       } catch {
@@ -61,7 +67,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
       }
     }
     loadIdeas();
-  }, [activeIdeaId]);
+  }, [activeIdeaId, isAuthenticated]);
 
   return (
     <div
@@ -188,6 +194,13 @@ export const AppSidebar: FC<AppSidebarProps> = ({
             {isLoading ? (
               <div className="flex items-center justify-center py-6 shrink-0">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : !isAuthenticated ? (
+              <div className="text-center py-6 px-3 shrink-0 whitespace-normal">
+                <Lightbulb className="h-6 w-6 mx-auto mb-2 text-muted-foreground/40" />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Please sign in to save your projects and access all PAD features.
+                </p>
               </div>
             ) : ideas.length === 0 ? (
               <div className="text-center py-6 shrink-0">

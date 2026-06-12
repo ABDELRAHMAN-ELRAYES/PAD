@@ -48,9 +48,10 @@ class IdeaRepository {
     }
 
     // Get all ideas
-    async getAllIdeas() {
+    async getAllIdeas(userId?: string) {
         try {
             return await this.prisma.idea.findMany({
+                where: userId ? { userId } : {},
                 orderBy: { createdAt: "desc" },
             });
         } catch (error) {

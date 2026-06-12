@@ -1,6 +1,6 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useEffect } from "react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -18,6 +18,7 @@ import { StreamingProvider } from "@/components/providers/StreamingProvider";
 import { WorkspaceLayoutProps } from "../types/components/WorkspaceLayout.types";
 import { UnifiedChat } from "@/features/chat";
 import { useWorkspaceLayout } from "../hook/useWorkspaceLayout";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   initialIdeaId = null,
@@ -37,6 +38,13 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
     handleArtifactUpdated,
     toggleSidebar,
   } = useWorkspaceLayout(initialIdeaId);
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated && activeIdeaId) {
+      handleNewIdea();
+    }
+  }, [isAuthenticated, activeIdeaId, handleNewIdea]);
 
   const renderContentPanel = () => {
     if (!activeIdeaId || !idea) return null;

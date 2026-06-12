@@ -37,7 +37,7 @@ model User {
 
 model Idea {
     id             String   @id @default(uuid())
-    userId         String?  @map("user_id")
+    userId         String   @map("user_id")
     rawText        String   @map("raw_text") @db.Text
     refinedText    String?  @map("refined_text") @db.Text
     status         String   @default("draft") // draft | confirmed
@@ -47,7 +47,7 @@ model Idea {
 
     // Relations
     // Idea -> User (Many -> One)
-    user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
     // Idea -> Document (One -> Many)
     documents        Document[]
     // Idea -> Diagram (One -> Many)
