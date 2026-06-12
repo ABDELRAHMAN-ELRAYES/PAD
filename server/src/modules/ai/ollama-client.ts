@@ -160,6 +160,37 @@ export class OllamaClient {
             throw error;
         }
     }
+
+    async getEmbedding(text: string): Promise<number[]> {
+        const url = `${this.baseUrl}/api/embeddings`;
+        const body = {
+            model: config.ollama.embedModel,
+            prompt: text,
+        };
+
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+                // @ts-ignore
+                signal: AbortSignal.timeout(60000), // 1 minute timeout
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Ollama Embeddings API error (${response.status}): ${errorText}`);
+            }
+
+            const data = (await response.json()) as { embedding: number[] };
+            return data.embedding;
+        } catch (error) {
+            console.error("Error generating embeddings from Ollama:", error);
+            throw error;
+        }
+    }
 }
 
 export default OllamaClient;

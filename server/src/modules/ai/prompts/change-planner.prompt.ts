@@ -8,7 +8,6 @@
  *   - Validates against provided artifact IDs
  */
 
-import { MAX_VERBATIM_HISTORY } from "../../iteration/iteration-context.builder";
 
 export interface PlannedAction {
     module: "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW";

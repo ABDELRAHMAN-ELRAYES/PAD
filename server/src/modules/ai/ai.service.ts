@@ -18,6 +18,7 @@ import { IGeneratedWorkflowStep } from "../workflow/types/IWorkflow";
 import { IFeature } from "../feature/types/IFeature";
 import { ITask } from "../task/types/ITask";
 import OllamaClient from "./ollama-client";
+import { QdrantClient } from "../../data-server-clients/qdrant";
 
 class AiService {
   private static MAX_RETRIES = 2;
@@ -158,20 +159,61 @@ class AiService {
     return JSON.parse(repaired) as T;
   }
 
-  static async callLLM(prompt: string, formatJson: boolean | Record<string, any> = false, systemPrompt?: string): Promise<string> {
+  static async callLLM(
+    prompt: string,
+    formatJson: boolean | Record<string, any> = false,
+    systemPrompt?: string,
+    userId?: string
+  ): Promise<string> {
     const ollama = OllamaClient.getInstance();
 
-    const response = await ollama.chat(prompt, systemPrompt, formatJson);
+    let finalSystemPrompt = systemPrompt;
+    if (userId) {
+      try {
+        const guidelines = await QdrantClient.searchGuidelines(userId, prompt, 4);
+        if (guidelines.length > 0) {
+          const contextText = guidelines
+            .map((g, idx) => `[Guideline ${idx + 1}] "${g.title}":\n${g.text}`)
+            .join("\n\n");
+          
+          const ragInstructions = `\n\nAdhere strictly to the following best practice system design and architecture decisions uploaded by the user:\n\n${contextText}\n\nStrictly prioritize these design decisions in your choices.`;
+          finalSystemPrompt = (systemPrompt || "") + ragInstructions;
+        }
+      } catch (error) {
+        console.error("RAG search error in callLLM:", error);
+      }
+    }
 
-    // Debug: log the response (truncated if too long)
+    const response = await ollama.chat(prompt, finalSystemPrompt, formatJson);
     console.log("Ollama AI response received");
-
     return response;
   }
 
-  static async *callLLMStream(prompt: string): AsyncGenerator<string> {
+  static async *callLLMStream(
+    prompt: string,
+    systemPrompt?: string,
+    userId?: string
+  ): AsyncGenerator<string> {
     const ollama = OllamaClient.getInstance();
-    yield* ollama.chatStream(prompt);
+
+    let finalSystemPrompt = systemPrompt;
+    if (userId) {
+      try {
+        const guidelines = await QdrantClient.searchGuidelines(userId, prompt, 4);
+        if (guidelines.length > 0) {
+          const contextText = guidelines
+            .map((g, idx) => `[Guideline ${idx + 1}] "${g.title}":\n${g.text}`)
+            .join("\n\n");
+          
+          const ragInstructions = `\n\nAdhere strictly to the following best practice system design and architecture decisions uploaded by the user:\n\n${contextText}\n\nStrictly prioritize these design decisions in your choices.`;
+          finalSystemPrompt = (systemPrompt || "") + ragInstructions;
+        }
+      } catch (error) {
+        console.error("RAG search error in callLLMStream:", error);
+      }
+    }
+
+    yield* ollama.chatStream(prompt, finalSystemPrompt);
   }
 
   // Parse and validate the AI response
@@ -226,15 +268,16 @@ class AiService {
   }
 
   // Analyze a software idea (Streaming)
-  static async *analyzeIdeaStream(ideaText: string): AsyncGenerator<string> {
+  static async *analyzeIdeaStream(ideaText: string, userId?: string): AsyncGenerator<string> {
     const prompt = buildAnalyzeIdeaPrompt(ideaText);
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   // Analyze a software idea
   static async analyzeIdea(
     ideaText: string,
     next: NextFunction,
+    userId?: string,
   ): Promise<IIdeaAnalysisResult | void> {
     const prompt = buildAnalyzeIdeaPrompt(ideaText);
 
@@ -242,7 +285,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
         const result = this.parseAnalysisResult(responseText);
 
         if (result) {
@@ -298,6 +341,7 @@ class AiService {
     ideaText: string,
     answers: IQuestionAnswerInput[],
     next: NextFunction,
+    userId?: string,
   ): Promise<IIdeaAnalysisResult | void> {
     const prompt = buildReanalyzeWithAnswersPrompt(ideaText, answers);
 
@@ -305,7 +349,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
         const result = this.parseAnalysisResult(responseText);
 
         if (result) {
@@ -354,9 +398,10 @@ class AiService {
   static async *generatePRDStream(
     ideaText: string,
     analysisResult: unknown,
+    userId?: string,
   ): AsyncGenerator<string> {
     const prompt = buildGeneratePRDPrompt(ideaText, analysisResult);
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   // Generate PRD document
@@ -364,6 +409,7 @@ class AiService {
     ideaText: string,
     analysisResult: unknown,
     next: NextFunction,
+    userId?: string,
   ): Promise<IGeneratedDocumentContent | void> {
     const prompt = buildGeneratePRDPrompt(ideaText, analysisResult);
 
@@ -371,7 +417,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
         const result = this.parseDocumentResult(responseText);
 
         if (result) {
@@ -421,9 +467,10 @@ class AiService {
   static async *generateBRDStream(
     ideaText: string,
     analysisResult: unknown,
+    userId?: string,
   ): AsyncGenerator<string> {
     const prompt = buildGenerateBRDPrompt(ideaText, analysisResult);
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   // Generate BRD document
@@ -431,6 +478,7 @@ class AiService {
     ideaText: string,
     analysisResult: unknown,
     next: NextFunction,
+    userId?: string,
   ): Promise<IGeneratedDocumentContent | void> {
     const prompt = buildGenerateBRDPrompt(ideaText, analysisResult);
 
@@ -438,7 +486,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
         const result = this.parseDocumentResult(responseText);
 
         if (result) {
@@ -509,9 +557,10 @@ class AiService {
   static async *generateDiagramStream(
     type: DiagramType,
     ideaText: string,
+    userId?: string,
   ): AsyncGenerator<string> {
     const prompt = buildDiagramPrompt(type, ideaText);
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   // Generate a Mermaid diagram
@@ -519,6 +568,7 @@ class AiService {
     type: DiagramType,
     ideaText: string,
     next: NextFunction,
+    userId?: string,
   ): Promise<IGeneratedDiagram | void> {
     const prompt = buildDiagramPrompt(type, ideaText);
 
@@ -526,7 +576,7 @@ class AiService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
         const result = this.parseDiagramResult(responseText);
 
         if (result) {
@@ -608,6 +658,7 @@ class AiService {
   // Generate features (Streaming)
   static async *generateFeaturesStream(
     combinedContent: string,
+    userId?: string,
   ): AsyncGenerator<string> {
     const prompt = `Analyze the following software requirements documents and extract the main features that need to be implemented. For each feature, provide a title and detailed description.
 
@@ -622,7 +673,7 @@ Extract features in JSON format:
 ]
 
 Focus on extracting distinct, implementable features. Each feature should be a logical grouping of functionality.`;
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   // Generate workflow (Streaming)
@@ -630,13 +681,14 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     ideaText: string,
     features: (IFeature & { tasks: ITask[] })[],
     taskDependencies: Record<string, string[]>,
+    userId?: string,
   ): AsyncGenerator<string> {
     const prompt = buildGenerateWorkflowPrompt(
       ideaText,
       features,
       taskDependencies,
     );
-    yield* this.callLLMStream(prompt);
+    yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   static async generateWorkflow(
@@ -644,6 +696,7 @@ Focus on extracting distinct, implementable features. Each feature should be a l
     features: (IFeature & { tasks: ITask[] })[],
     taskDependencies: Record<string, string[]>,
     next: NextFunction,
+    userId?: string,
   ): Promise<IGeneratedWorkflowStep[] | void> {
     const prompt = buildGenerateWorkflowPrompt(
       ideaText,
@@ -655,7 +708,7 @@ Focus on extracting distinct, implementable features. Each feature should be a l
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const responseText = await this.callLLM(prompt, true);
+        const responseText = await this.callLLM(prompt, true, undefined, userId);
 
         const parsed = this.robustJSONParse<any>(responseText);
 
