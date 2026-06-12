@@ -27,6 +27,10 @@ model User {
     privileges AdminPrivilege[]
     // User -> Idea (One -> Many)
     ideas      Idea[]
+    // User -> Guideline (One -> Many)
+    guidelines Guideline[]
+    // User -> File (One -> Many)
+    files      File[]
 
     @@map("users")
 }
@@ -480,4 +484,36 @@ model ArtifactChangeRecord {
     plan ModificationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
     @@map("artifact_change_records")
+}
+
+model File {
+    id           String   @id @default(uuid())
+    userId       String   @map("user_id")
+    name         String   @unique
+    originalname String   @map("original_name")
+    mimetype     String
+    path         String
+    size         Int
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+
+    user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+    guideline    Guideline?
+
+    @@map("files")
+}
+
+model Guideline {
+    id        String   @id @default(uuid())
+    userId    String   @map("user_id")
+    fileId    String?  @unique @map("file_id")
+    title     String
+    content   String   @db.Text
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    file      File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+    @@map("guidelines")
 }
