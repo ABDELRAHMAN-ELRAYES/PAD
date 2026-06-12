@@ -5,7 +5,7 @@ import type {
   RegisterUserPayload,
   RegisterVerificationPayload,
   AuthResponse,
-} from "@/types/modules/auth/api";
+} from "@/features/auth/types/api";
 import type { ApiResponse } from "@/features/ideas/types/models/idea";
 
 export const authApi = {

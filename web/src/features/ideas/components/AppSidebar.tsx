@@ -11,16 +11,28 @@ import {
   Loader2,
   PanelLeftOpen,
   PanelRightOpen,
+  LogIn,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useStreaming } from "@/components/providers/StreamingProvider";
 import { SECTION_ITEMS, SidebarItem } from "@/config/workspace";
 import { AppSidebarProps } from "../types/components/AppSidebar.types";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export const AppSidebar: FC<AppSidebarProps> = ({
   activeIdeaId,
@@ -33,6 +45,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
   onToggle,
 }) => {
   const { streamingStatus } = useStreaming();
+  const { user, isAuthenticated, setIsAuthOpen, setAuthMode, logout } = useAuth();
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -91,7 +104,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
               className={cn(
                 "cursor-pointer flex items-center rounded-lg transition-colors border border-dashed border-border hover:bg-accent hover:border-accent-foreground/20 shrink-0",
                 !activeIdeaId &&
-                  "bg-accent border-solid border-accent-foreground/20",
+                "bg-accent border-solid border-accent-foreground/20",
                 isCollapsed
                   ? "w-9 h-9 justify-center mx-auto"
                   : "w-full gap-2 px-3 py-2 text-sm font-medium",
@@ -139,7 +152,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                             ? `${item.activeColor} bg-accent`
                             : `${item.color} hover:bg-accent/50`,
                           isDisabled &&
-                            "opacity-30 cursor-not-allowed hover:bg-transparent",
+                          "opacity-30 cursor-not-allowed hover:bg-transparent",
                         )}
                       >
                         {isStreaming ? (
@@ -212,7 +225,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                         {new Date(idea.updatedAt).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
-                         })}
+                        })}
                       </p>
                     </div>
                   </button>
@@ -256,7 +269,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                         ? `${item.activeColor} bg-accent font-medium`
                         : `${item.color} hover:bg-accent/50`,
                       isDisabled &&
-                        "opacity-30 cursor-not-allowed hover:bg-transparent",
+                      "opacity-30 cursor-not-allowed hover:bg-transparent",
                     )}
                   >
                     <div className="shrink-0 flex items-center justify-center">
@@ -276,6 +289,74 @@ export const AppSidebar: FC<AppSidebarProps> = ({
             );
           })}
         </div>
+      </div>
+
+      {/* SECTION: Auth Profile block */}
+      <div className="mt-auto border-t border-border p-3 shrink-0">
+        {isAuthenticated && user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "flex items-center text-left hover:bg-accent rounded-lg transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-ring shrink-0 w-full",
+                  isCollapsed ? "w-9 h-9 justify-center mx-auto" : "w-full gap-3 p-2"
+                )}
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold select-none">
+                  {user.firstName[0]?.toUpperCase() || "U"}
+                </div>
+                {!isCollapsed && (
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-none truncate text-foreground">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground truncate mt-1">
+                      {user.email}
+                    </p>
+                  </div>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {user.email}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer" onClick={() => logout()}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => {
+                  setAuthMode("sign-in");
+                  setIsAuthOpen(true);
+                }}
+                className={cn(
+                  "cursor-pointer flex items-center justify-center rounded-lg transition-colors border border-border bg-background hover:bg-accent text-foreground shrink-0",
+                  isCollapsed ? "w-9 h-9 mx-auto" : "w-full gap-2 px-3 py-2 text-sm font-medium"
+                )}
+              >
+                <LogIn className="h-4 w-4 shrink-0" />
+                {!isCollapsed && <span className="truncate">Sign In</span>}
+              </button>
+            </TooltipTrigger>
+            {isCollapsed && (
+              <TooltipContent side="right">Sign In</TooltipContent>
+            )}
+          </Tooltip>
+        )}
       </div>
     </div>
   );

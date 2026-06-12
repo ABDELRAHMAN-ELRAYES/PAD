@@ -5,7 +5,7 @@ import type {
   AuthenticatePayload,
   RegisterUserPayload,
   RegisterVerificationPayload,
-} from "@/types/modules/auth/api";
+} from "@/features/auth/types/api";
 
 export const authKeys = {
   all: ["auth"] as const,
