@@ -61,7 +61,7 @@ export class WorkflowRepository {
         });
     }
 
-    async createWorkflowSteps(workflowId: string, stepsData: Prisma.WorkflowStepCreateManyInput[]) {
+    async createWorkflowSteps(_workflowId: string, stepsData: Prisma.WorkflowStepCreateManyInput[]) {
         return await this.prisma.workflowStep.createMany({
             data: stepsData,
         });

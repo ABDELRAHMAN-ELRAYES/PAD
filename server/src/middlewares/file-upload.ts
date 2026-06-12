@@ -22,13 +22,15 @@ const ALLOWED_FILE_TYPES: {
     maxSize: 2 * 1024 * 1024,
   },
   documents: {
-    extensions: [".pdf", ".doc", ".docx", ".txt", ".rtf"],
+    extensions: [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md"],
     mimeTypes: [
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "text/plain",
       "application/rtf",
+      "text/markdown",
+      "text/x-markdown",
     ],
     maxSize: 10 * 1024 * 1024,
   },

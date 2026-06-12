@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { AuthMiddleware } from "../../middlewares/auth.middleware";
 import {
     suggestTasks,
     createTask,

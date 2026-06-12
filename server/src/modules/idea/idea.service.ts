@@ -87,7 +87,9 @@ class IdeaService {
         let fullResponse = "";
 
         try {
-            const stream = AiService.analyzeIdeaStream(text);
+            const idea = await this.ideaRepository.getIdeaById(ideaId);
+            const userId = idea?.userId;
+            const stream = AiService.analyzeIdeaStream(text, userId);
 
             for await (const chunk of stream) {
                 fullResponse += chunk;
@@ -163,7 +165,8 @@ class IdeaService {
             const analysisResult = await AiService.reAnalyzeWithAnswers(
                 idea.refinedText || idea.rawText,
                 data.answers,
-                next
+                next,
+                idea.userId
             );
 
             if (!analysisResult) {

@@ -36,8 +36,10 @@ export const getWorkflowByIdeaId = async (req: Request, res: Response, next: Nex
                 data: { workflow },
             });
         }
+        return;
     } catch (error) {
         next(error);
+        return;
     }
 };
 
@@ -55,8 +57,10 @@ export const updateWorkflowStep = async (req: Request, res: Response, next: Next
                 data: { step },
             });
         }
+        return;
     } catch (error) {
         next(error);
+        return;
     }
 };
 
@@ -71,7 +75,9 @@ export const exportWorkflow = async (req: Request, res: Response, next: NextFunc
                 data: { export: markdown },
             });
         }
+        return;
     } catch (error) {
         next(error);
+        return;
     }
 };

@@ -49,9 +49,12 @@ class DiagramService {
         const createdDiagrams: IDiagram[] = [];
 
         try {
+            const idea = await this.ideaRepository.getIdeaById(ideaId);
+            const userId = idea?.userId;
+
             for (const type of diagramTypes) {
                 let fullResponse = "";
-                const stream = AiService.generateDiagramStream(type, ideaText);
+                const stream = AiService.generateDiagramStream(type, ideaText, userId);
 
                 for await (const chunk of stream) {
                     fullResponse += chunk;
@@ -221,8 +224,10 @@ class DiagramService {
         const ideaId = existing.ideaId;
 
         try {
+            const idea = await this.ideaRepository.getIdeaById(ideaId);
+            const userId = idea?.userId;
             let fullResponse = "";
-            const stream = AiService.generateDiagramStream(type, ideaText);
+            const stream = AiService.generateDiagramStream(type, ideaText, userId);
 
             for await (const chunk of stream) {
                 fullResponse += chunk;

@@ -53,7 +53,7 @@ export const getTask = catchAsync(
 );
 
 export const getTasksByFeature = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
+    async (request: Request, response: Response, _next: NextFunction) => {
         const featureId = request.params.featureId as string;
         const tasks = await TaskService.getTasksByFeature(featureId);
 
@@ -144,7 +144,7 @@ export const addDependency = catchAsync(
 );
 
 export const removeDependency = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
+    async (request: Request, response: Response, _next: NextFunction) => {
         const taskId = request.params.id as string;
         const dependsOnId = request.params.dependsOnId as string;
 

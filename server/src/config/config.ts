@@ -67,6 +67,11 @@ interface Config {
     ollama: {
         url: string;
         model: string;
+        embedModel: string;
+    };
+    qdrant: {
+        url: string;
+        collectionName: string;
     };
 }
 
@@ -135,9 +140,12 @@ const config: Config = {
     ollama: {
         url: process.env.OLLAMA_URL || "http://localhost:11434",
         model: process.env.OLLAMA_MODEL || "qwen3.5",
+        embedModel: process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text:v1.5",
     },
-
-
+    qdrant: {
+        url: process.env.QDRANT_URL || "http://localhost:6333",
+        collectionName: process.env.QDRANT_COLLECTION || "user_guidelines",
+    },
 };
 
 export default config;

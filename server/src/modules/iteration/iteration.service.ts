@@ -101,12 +101,17 @@ export default class IterationService {
             // 4. Build prompt based on intent (discussion only)
             const prompt = buildDiscussionPrompt(contextStr, history, feedback);
 
+            // Retrieve userId from the idea
+            const ideaRepo = require("../idea/idea.repository").IdeaRepository.getInstance();
+            const ideaObj = await ideaRepo.getIdeaById(ideaId);
+            const userId = ideaObj?.userId;
+
             // 5. Stream LLM response
             let fullResponseText = "";
             let chunkCount = 0;
             let isGenerating = false;
             
-            for await (const chunk of AiService.callLLMStream(prompt)) {
+            for await (const chunk of AiService.callLLMStream(prompt, undefined, userId)) {
                 if (!isGenerating) {
                     socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "generating" });
                     isGenerating = true;

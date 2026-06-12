@@ -1,16 +1,16 @@
-import express from "express";
+import express, { RequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import config from "../config/config";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 
 // middlewares for parsing the request body
-export const bodyParser = express.json();
+export const bodyParser: RequestHandler = express.json();
 // Middleware for parsing cookies from browser
-export const cookieParserMiddleware = cookieParser();
+export const cookieParserMiddleware: RequestHandler = cookieParser();
 
 // To Parse the Form Data Request
-export const formParser = express.urlencoded({ extended: true });
+export const formParser: RequestHandler = express.urlencoded({ extended: true });
 
 // Middleware to verify cross origin requests
 export const corsMiddleware = cors({

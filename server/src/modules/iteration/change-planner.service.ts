@@ -137,7 +137,13 @@ export default class ChangePlannerService {
         };
 
         const prompts = buildChangePlannerPrompts(contextStr, history, userMessage);
-        const aiResponse = await AiService.callLLM(prompts.userPrompt, plannerSchema, prompts.systemPrompt);
+        
+        // Retrieve userId from the idea
+        const ideaRepo = require("../idea/idea.repository").IdeaRepository.getInstance();
+        const ideaObj = await ideaRepo.getIdeaById(ideaId);
+        const userId = ideaObj?.userId;
+        
+        const aiResponse = await AiService.callLLM(prompts.userPrompt, plannerSchema, prompts.systemPrompt, userId);
 
         // 4. Parse plan output
         let plannerOutput: PlannerOutput;

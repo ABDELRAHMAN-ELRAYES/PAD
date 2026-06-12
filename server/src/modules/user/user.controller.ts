@@ -47,7 +47,7 @@ export const updateUser = catchAsync(
  */
 export const deleteUser = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const user = await UserService.deleteUser(userId, next);
         if (!user) return;
         response.status(200).json({ status: "success", data: { user } });
@@ -73,7 +73,7 @@ export const getAllUsers = catchAsync(
  */
 export const getUser = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const user = await UserService.getUser(userId, next);
         if (!user) return;
         response.status(200).json({ status: "success", data: { user } });
@@ -83,7 +83,7 @@ export const getUser = catchAsync(
 // update User status
 export const updateUserStatus = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const active: boolean = request.body.active;
         const user = await UserService.updateUserStatus(userId, active, next);
         if (!user) return;
@@ -97,7 +97,7 @@ export const updateUserStatus = catchAsync(
 // Update the user password
 export const updateUserPassword = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const password: string = request.body.password;
         const user = await UserService.updateUserPassword(userId, password, next);
         if (!user) return;
@@ -110,7 +110,7 @@ export const updateUserPassword = catchAsync(
 
 export const updateUserProfilePassword = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const { currentPassword, newPassword } = request.body as {
             currentPassword: string;
             newPassword: string;
@@ -213,7 +213,7 @@ export const getUsersStatistics = catchAsync(
 
 export const updateUserProfile = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const userId = request.params.id;
+        const userId = request.params.id as string;
         const updatedData: UpdateUserRequest & {
             hasNewAvatar: string;
             avatar?: string;

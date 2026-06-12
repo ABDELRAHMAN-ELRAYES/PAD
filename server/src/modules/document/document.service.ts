@@ -111,11 +111,13 @@ class DocumentService {
     ) {
         try {
             const docsCreated: IDocument[] = [];
+            const idea = await this.ideaRepo.getIdeaById(ideaId);
+            const userId = idea?.userId;
 
             // 1. Generate PRD
             if (!type || type === "PRD") {
                 let prdFullResponse = "";
-                const prdStream = AiService.generatePRDStream(ideaText, analysisResult);
+                const prdStream = AiService.generatePRDStream(ideaText, analysisResult, userId);
                 for await (const chunk of prdStream) {
                     prdFullResponse += chunk;
                     const chunkData = {
@@ -143,7 +145,7 @@ class DocumentService {
             // 2. Generate BRD
             if (!type || type === "BRD") {
                 let brdFullResponse = "";
-                const brdStream = AiService.generateBRDStream(ideaText, analysisResult);
+                const brdStream = AiService.generateBRDStream(ideaText, analysisResult, userId);
                 for await (const chunk of brdStream) {
                     brdFullResponse += chunk;
                     const chunkData = {
@@ -321,8 +323,8 @@ class DocumentService {
         try {
             let fullResponse = "";
             const stream = type === "PRD" 
-                ? AiService.generatePRDStream(ideaText, analysisResult)
-                : AiService.generateBRDStream(ideaText, analysisResult);
+                ? AiService.generatePRDStream(ideaText, analysisResult, idea.userId)
+                : AiService.generateBRDStream(ideaText, analysisResult, idea.userId);
 
             for await (const chunk of stream) {
                 fullResponse += chunk;

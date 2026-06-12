@@ -74,7 +74,8 @@ export class WorkflowService {
             const stream = AiService.generateWorkflowStream(
                 ideaText,
                 featuresWithTasks,
-                taskDependenciesMap
+                taskDependenciesMap,
+                idea?.userId
             );
 
             for await (const chunk of stream) {

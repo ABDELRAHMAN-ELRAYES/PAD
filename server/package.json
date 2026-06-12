@@ -24,6 +24,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
+    "@langchain/textsplitters": "^1.0.1",
     "@prisma/client": "^5.22.0",
     "@types/cookie-parser": "^1.4.10",
     "bcrypt": "^6.0.0",

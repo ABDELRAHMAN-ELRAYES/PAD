@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { AuthMiddleware } from "../../middlewares/auth.middleware";
 import {
     generateWorkflow,
     getWorkflowByIdeaId,
@@ -7,7 +6,7 @@ import {
     exportWorkflow,
 } from "./workflow.controller";
 
-const router = Router();
+const router: Router = Router();
 
 // Run middleware for all workflow routes to ensure authentication
 //router.use(AuthMiddleware.protect);
