@@ -5,7 +5,7 @@ import AiService from "../ai/ai.service";
  * Determines whether user wants a discussion (Q&A) or a modification (change request).
  */
 
-export type IterationIntent = "discussion" | "modification";
+export type IterationIntent = "discussion" | "modification" | "ir_modification";
 
 // Patterns that strongly indicate modification intent
 const MODIFICATION_PATTERNS: RegExp[] = [
@@ -38,6 +38,9 @@ const IMPERATIVE_MODIFICATION: RegExp[] = [
     /^(add|create|remove|delete|update|change|modify|rename|replace|move|split|merge|regenerate|insert|drop)\b/i,
 ];
 
+// Patterns specific to IR modifications (schema, tables, roles, business rules)
+const IR_MOD_KEYWORDS = /\b(table|column|field|entity|relationship|business rule|db schema|role|logical module|data model)\b/i;
+
 /**
  * Heuristic classifier - used as scoring fallback or quick check
  */
@@ -47,17 +50,25 @@ export function classifyHeuristic(message: string): IterationIntent {
     // Check imperative commands first (strongest signal)
     for (const pattern of IMPERATIVE_MODIFICATION) {
         if (pattern.test(trimmed)) {
+            if (IR_MOD_KEYWORDS.test(trimmed)) {
+                return "ir_modification";
+            }
             return "modification";
         }
     }
 
     // Score-based approach for mixed signals
     let modScore = 0;
+    let irScore = 0;
     let discScore = 0;
 
     for (const pattern of MODIFICATION_PATTERNS) {
         if (pattern.test(trimmed)) {
-            modScore++;
+            if (IR_MOD_KEYWORDS.test(trimmed)) {
+                irScore++;
+            } else {
+                modScore++;
+            }
         }
     }
 
@@ -65,6 +76,10 @@ export function classifyHeuristic(message: string): IterationIntent {
         if (pattern.test(trimmed)) {
             discScore++;
         }
+    }
+
+    if (irScore > 0 && irScore >= modScore && irScore > discScore) {
+        return "ir_modification";
     }
 
     // Modification wins only if clearly stronger
@@ -87,13 +102,14 @@ export async function classifyIntent(message: string): Promise<IterationIntent> 
     }
 
     try {
-        const prompt = `You are a helper classifier. Classify the user message into one of two categories:
-1. "modification": User wants to add, create, edit, modify, update, remove, delete, drop, split, merge, or change artifacts (features, documents, diagrams, tasks, workflows). Examples: "add a login feature", "update the flowchart", "delete task 4", "change the PRD".
-2. "discussion": User is asking a question, seeking clarification, asking for explanation, outlining, discussing, or anything that does not directly request an edit to the project artifacts. Examples: "how does the payment flow work?", "explain the architecture", "what are the risks?".
+        const prompt = `You are a helper classifier. Classify the user message into one of three categories:
+1. "ir_modification": User wants to add, create, edit, modify, update, remove, delete, drop, split, merge, or change schema structures, entities, tables, fields, relationships, logical modules, user roles, or business rules in the Intermediate Representation (IR). Examples: "add a transactions table with fields id and amount", "create a one-to-many relationship between users and posts", "add field status to user role", "add business rule for transaction limit", "add user role admin".
+2. "modification": User wants to add, create, edit, modify, update, remove, delete, drop, split, merge, or change other artifacts like documents (PRD, BRD), diagrams (flowcharts, sequence diagrams), features, tasks, or workflows. Examples: "add a login feature", "update the flowchart", "delete task 4", "change the PRD".
+3. "discussion": User is asking a question, seeking clarification, asking for explanation, outlining, discussing, or anything that does not directly request an edit to the project artifacts. Examples: "how does the payment flow work?", "explain the architecture", "what are the risks?".
 
 Respond with a JSON object exactly like this:
 {
-  "intent": "modification" | "discussion"
+  "intent": "ir_modification" | "modification" | "discussion"
 }
 
 User Message: "${trimmed.replace(/"/g, '\\"')}"
@@ -110,6 +126,9 @@ JSON:`;
         
         // Extract JSON structure if present, or search for string
         const cleanedResponse = responseText.toLowerCase();
+        if (cleanedResponse.includes("ir_modification")) {
+            return "ir_modification";
+        }
         if (cleanedResponse.includes("modification")) {
             return "modification";
         }
@@ -122,7 +141,7 @@ JSON:`;
             const endIdx = responseText.lastIndexOf("}");
             if (startIdx !== -1 && endIdx !== -1) {
                 const parsed = JSON.parse(responseText.substring(startIdx, endIdx + 1));
-                if (parsed.intent === "modification" || parsed.intent === "discussion") {
+                if (parsed.intent === "ir_modification" || parsed.intent === "modification" || parsed.intent === "discussion") {
                     return parsed.intent;
                 }
             }

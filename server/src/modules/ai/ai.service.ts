@@ -651,6 +651,18 @@ class AiService {
     style A fill:#f9f
     Note: AI generation failed - please edit manually`,
       },
+      ARCHITECTURE: {
+        title: "System Architecture",
+        mermaidCode: `graph TB
+    subgraph Frontend
+        A[Client]
+    end
+    subgraph Backend
+        B[API]
+    end
+    A --> B
+    Note: AI generation failed - please edit manually`,
+      },
     };
 
     return fallbacks[type];

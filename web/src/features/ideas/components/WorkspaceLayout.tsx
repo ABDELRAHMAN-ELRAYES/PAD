@@ -13,6 +13,7 @@ import { DiagramsPanel } from "@/features/diagrams";
 import { FeaturesPanel } from "@/features/features";
 import { WorkflowPanel } from "@/features/workflow";
 import { HistoryPanel } from "@/features/chat";
+import IREditor from "@/features/ir/components/IREditor";
 import { Loader2 } from "lucide-react";
 import { StreamingProvider } from "@/components/providers/StreamingProvider";
 import { WorkspaceLayoutProps } from "../types/components/WorkspaceLayout.types";
@@ -78,6 +79,8 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
         return <WorkflowPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
       case "history":
         return <HistoryPanel key={refreshKey} ideaId={activeIdeaId} onArtifactUpdated={handleArtifactUpdated} />;
+      case "ir":
+        return <IREditor key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
       default:
         return null;
     }

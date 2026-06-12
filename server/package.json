@@ -42,7 +42,8 @@
     "pug": "^3.0.3",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
-    "turndown": "^7.2.2"
+    "turndown": "^7.2.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

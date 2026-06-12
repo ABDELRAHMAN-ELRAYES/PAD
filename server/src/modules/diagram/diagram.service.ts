@@ -88,6 +88,10 @@ class DiagramService {
                             title: "Process Flowchart (Fallback)",
                             mermaidCode: `flowchart TD\n    A[Start] --> B[Process]\n    B --> C{Decision}\n    C -->|Yes| D[Action]\n    C -->|No| E[Other Action]\n    D --> F[End]\n    E --> F`,
                         },
+                        ARCHITECTURE: {
+                            title: "System Architecture (Fallback)",
+                            mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`,
+                        },
                     };
                     result = fallbacks[type];
                 }
@@ -258,6 +262,10 @@ class DiagramService {
                     FLOWCHART: {
                         title: "Process Flowchart (Fallback)",
                         mermaidCode: `flowchart TD\n    A[Start] --> B[Process]\n    B --> C{Decision}\n    C -->|Yes| D[Action]\n    C -->|No| E[Other Action]\n    D --> F[End]\n    E --> F`,
+                    },
+                    ARCHITECTURE: {
+                        title: "System Architecture (Fallback)",
+                        mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`,
                     },
                 };
                 result = fallbacks[type];

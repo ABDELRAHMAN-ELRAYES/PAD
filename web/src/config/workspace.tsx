@@ -6,6 +6,7 @@ import {
   ListChecks,
   Bot,
   History,
+  Cpu,
 } from "lucide-react";
 import { WorkspaceSection } from "../types/workspace";
 
@@ -53,6 +54,13 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     color: "text-muted-foreground",
     activeColor: "text-purple-500",
   },
+  {
+    id: "ir",
+    label: "IR Engine",
+    icon: <Cpu className="h-5 w-5" />,
+    color: "text-muted-foreground",
+    activeColor: "text-red-500",
+  },
 ];
 
 export const SECTION_ITEMS: SidebarItem[] = [
@@ -97,5 +105,12 @@ export const SECTION_ITEMS: SidebarItem[] = [
     icon: <History className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-amber-500",
+  },
+  {
+    id: "ir",
+    label: "IR Engine",
+    icon: <Cpu className="h-4 w-4" />,
+    color: "text-muted-foreground",
+    activeColor: "text-red-500",
   },
 ];

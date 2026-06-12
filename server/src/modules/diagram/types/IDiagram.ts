@@ -1,5 +1,5 @@
 // Diagram types for ideas
-export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART";
+export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART" | "ARCHITECTURE";
 export type DiagramStatus = "draft" | "published";
 
 // Base diagram entity interface

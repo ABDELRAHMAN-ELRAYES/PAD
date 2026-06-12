@@ -1,6 +1,6 @@
 // Prompt templates for generating Mermaid diagrams
 
-export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART";
+export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART" | "ARCHITECTURE";
 
 // ERD Diagram Prompt
 export const ERD_PROMPT = `You are an expert database architect. Generate an Entity-Relationship Diagram (ERD) in Mermaid syntax based on the software idea provided.
@@ -107,6 +107,7 @@ const PROMPTS: Record<DiagramType, string> = {
     SEQUENCE: SEQUENCE_PROMPT,
     SCHEMA: SCHEMA_PROMPT,
     FLOWCHART: FLOWCHART_PROMPT,
+    ARCHITECTURE: SCHEMA_PROMPT,
 };
 
 export interface IGeneratedDiagram {

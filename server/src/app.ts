@@ -20,6 +20,7 @@ import TaskRouter from "./modules/task/task.route";
 import WorkflowRouter from "./modules/workflow/workflow.route";
 import IterationRouter from "./modules/iteration/iteration.route";
 import GuidelineRouter from "./modules/guideline/guideline.route";
+import IRRouter from "./modules/ir/ir.route";
 import { bodyParser, cookieParserMiddleware, corsMiddleware, formParser } from "./middlewares/middlewares";
 
 // Seed default admin user
@@ -93,6 +94,7 @@ app.use(
 app.use("/api/v1/auth", authLimiter, AuthRouter);
 app.use("/api/v1/users", UserRouter);
 app.use("/api/v1/ideas", IdeaRouter);
+app.use("/api/v1/ideas", IRRouter);
 app.use("/api/v1/documents", DocumentRouter);
 app.use("/api/v1/diagrams", DiagramRouter);
 app.use("/api/v1/features", FeatureRouter);

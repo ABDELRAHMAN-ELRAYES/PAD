@@ -61,6 +61,7 @@ model Idea {
     // Idea -> Workflow (One -> One)
     workflow         Workflow?
     iterationSession IterationSession?
+    projectIR        ProjectIR?
 
     @@map("ideas")
 }
@@ -517,3 +518,34 @@ model Guideline {
 
     @@map("guidelines")
 }
+
+model ProjectIR {
+    id          String   @id @default(uuid())
+    ideaId      String   @unique @map("idea_id")
+    version     Int      @default(1)
+    schemaData  Json     @map("schema_data")
+    createdAt   DateTime @default(now()) @map("created_at")
+    updatedAt   DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    idea        Idea              @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    versions    ProjectIRVersion[]
+
+    @@map("project_ir")
+}
+
+model ProjectIRVersion {
+    id          String   @id @default(uuid())
+    projectIRId String   @map("project_ir_id")
+    version     Int
+    schemaData  Json     @map("schema_data")
+    changelog   String?  @db.Text
+    createdAt   DateTime @default(now()) @map("created_at")
+
+    // Relations
+    projectIR   ProjectIR @relation(fields: [projectIRId], references: [id], onDelete: Cascade)
+
+    @@unique([projectIRId, version])
+    @@map("project_ir_versions")
+}
+

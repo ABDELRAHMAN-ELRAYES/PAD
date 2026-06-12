@@ -19,6 +19,7 @@ import ChangePlannerService from "./change-planner.service";
 
 // Artifact Update Engine — extracted apply logic with validation + proper REGENERATE
 import ArtifactUpdateEngine, { ActionInput } from "./artifact-update-engine";
+import IRService from "../ir/ir.service";
 
 export default class IterationService {
     constructor() {
@@ -80,6 +81,59 @@ export default class IterationService {
                 role: m.role,
                 content: m.content
             }));
+
+            if (intent === "ir_modification") {
+                socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "editing" });
+
+                // Retrieve userId from the idea
+                const ideaRepo = require("../idea/idea.repository").IdeaRepository.getInstance();
+                const ideaObj = await ideaRepo.getIdeaById(ideaId);
+                const userId = ideaObj?.userId;
+
+                if (!userId) {
+                    throw new Error("User ID not found for the project");
+                }
+
+                // Apply patch to the IR schema
+                const updatedIr = await IRService.patchIR(ideaId, feedback, userId, (err) => {
+                    if (err) throw err;
+                });
+
+                if (!updatedIr) {
+                    throw new Error("Failed to apply schema changes");
+                }
+
+                // Autocompile downstream documents & diagrams
+                const diagramRepo = require("../diagram/diagram.repository").DiagramRepository.getInstance();
+                const existingDiagrams = await diagramRepo.getDiagramsByIdeaId(ideaId);
+                const diagramTypesToCompile = existingDiagrams.length > 0 
+                    ? existingDiagrams.map((d: any) => d.type)
+                    : ["ERD", "SEQUENCE"];
+
+                await IRService.compileIR(ideaId, diagramTypesToCompile, userId, (err) => {
+                    if (err) throw err;
+                });
+
+                // Post a message in the chat explaining the changes applied
+                const explanation = `✅ **Facts Schema updated successfully!**\n\nI have merged your requested database/schema changes into the project's Intermediate Representation (IR) and recompiled all downstream assets (PRD, BRD, and diagrams).\n\n**Applied change:** "${feedback}"`;
+
+                const aiMessage = await repo.addMessage({
+                    sessionId,
+                    role: "assistant",
+                    content: explanation
+                });
+
+                socket.emitToRoom(ideaId, "message:new", aiMessage);
+
+                // Notify all client panels to refresh
+                socket.emitToRoom(ideaId, "artifact:updated", {
+                    ideaId,
+                    modulesAffected: ["IR", "DOCUMENT", "DIAGRAM"]
+                });
+
+                socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "idle" });
+                return;
+            }
 
             if (intent === "modification") {
                 socket.emitToRoom(ideaId, "ai:state", { sessionId, phase: "planning" });
