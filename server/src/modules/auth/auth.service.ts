@@ -13,7 +13,7 @@ import {
     signPasswordResetJWT,
     verifyPasswordResetJWT,
 } from "../../utils/jwt";
-import Email from "../../utils/email/email";
+import EmailQueue from "../../utils/email/email-queue";
 import { generateOTP } from "../../utils/otp-generator";
 import config from "../../config/config";
 import { IUser } from "../user/types/IUser";
@@ -74,22 +74,19 @@ class AuthenticationService {
 
         // send verification email
         const emailSender: string = config.mail.defaultFrom as string;
-        const emailObj: Email = new Email(emailSender, email);
         const templateData = {
             otp,
             email,
             otpExpiresIn,
         };
-        emailObj
-            .send("signup-verification", "عملية التحقق من التسجيل", templateData)
-            .catch((_error) =>
-                next(
-                    new AppError(
-                        500,
-                        "حدث خطأ ما أثناء محاولة إرسال بريد التحقق من التسجيل"
-                    )
-                )
-            );
+
+        EmailQueue.enqueue({
+            to: email,
+            from: emailSender,
+            emailType: "signup-verification",
+            subject: "عملية التحقق من التسجيل",
+            templateData
+        });
 
         return {
             email,
@@ -134,16 +131,17 @@ class AuthenticationService {
         const data = { user: newUser, token, isVerified: true };
         // send Welcome EmailgenerateRedisKey
         const emailSender: string = config.mail.defaultFrom as string;
-        const emailObj: Email = new Email(emailSender, newUserData.email);
         const templateData = {
             name: newUser?.firstName,
             email: newUser?.email,
         };
-        emailObj
-            .send("welcome", "مرحباً بك في Operest", templateData)
-            .catch((_error) =>
-                next(new AppError(500, "حدث خطأ ما أثناء محاولة إرسال بريد التحقق"))
-            );
+        EmailQueue.enqueue({
+            to: newUserData.email,
+            from: emailSender,
+            emailType: "welcome",
+            subject: "مرحباً بك في Operest",
+            templateData
+        });
         // Delete cashed data
         return data;
     }
@@ -169,8 +167,6 @@ class AuthenticationService {
         )}`;
 
         const defaultFrom = config.mail.defaultFrom as string;
-        const emailObj = new Email(defaultFrom, user.email);
-
         const templateData = {
             name: user.firstName,
             resetLink,
@@ -178,26 +174,19 @@ class AuthenticationService {
             email: user.email,
         };
 
-        try {
-            await emailObj.send(
-                "forget-password",
-                "إعادة تعيين كلمة المرور",
-                templateData
-            );
-        } catch (err: any) {
-            // Log more details about the error
-            if (err.code) {
-            }
-            if (err.response) {
-            }
-            return next(
-                new AppError(
-                    500,
-                    err.message ||
-                    "حدث خطأ ما أثناء محاولة إرسال بريد إعادة تعيين كلمة المرور. يرجى التحقق من إعدادات البريد الإلكتروني."
-                )
-            );
-        }
+        // Dev mode logging to help local testing without SMTP configuration
+        console.log(`\n==========================================`);
+        console.log(`[AUTH] DEVELOPMENT PASSWORD RESET LINK for ${user.email}: ${resetLink}`);
+        console.log(`==========================================\n`);
+
+        EmailQueue.enqueue({
+            to: user.email,
+            from: defaultFrom,
+            emailType: "forget-password",
+            subject: "إعادة تعيين كلمة المرور",
+            templateData
+        });
+
         let expiresIn = config.jwt.resetPasswordExpiresIn;
         return { email: user.email, expiresIn };
     }
@@ -262,16 +251,17 @@ class AuthenticationService {
 
         // Send Reset Email performed successfully mail
         const defaultFrom = config.mail.defaultFrom as string;
-        const emailObj = new Email(defaultFrom, email);
         const templateData = {
             name: user.firstName,
             email: user.email,
         };
-        emailObj.send(
-            "reset-password",
-            "تم إعادة تعيين كلمة المرور بنجاح",
+        EmailQueue.enqueue({
+            to: email,
+            from: defaultFrom,
+            emailType: "reset-password",
+            subject: "تم إعادة تعيين كلمة المرور بنجاح",
             templateData
-        );
+        });
         return user;
     }
 
