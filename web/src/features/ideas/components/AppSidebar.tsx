@@ -12,8 +12,9 @@ import {
   PanelLeftOpen,
   PanelRightOpen,
   LogIn,
-  LogOut,
-  User as UserIcon,
+  ChevronRight as CaretRight,
+  Settings as Gear,
+  LogOut as SignOut,
 } from "lucide-react";
 import {
   Tooltip,
@@ -27,12 +28,19 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useStreaming } from "@/components/providers/StreamingProvider";
 import { SECTION_ITEMS, SidebarItem } from "@/config/workspace";
 import { AppSidebarProps } from "../types/components/AppSidebar.types";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+import { SettingsDialog } from "@/features/auth/components/SettingsDialog";
 
 export const AppSidebar: FC<AppSidebarProps> = ({
   activeIdeaId,
@@ -48,6 +56,11 @@ export const AppSidebar: FC<AppSidebarProps> = ({
   const { user, isAuthenticated, setIsAuthOpen, setAuthMode, logout } = useAuth();
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const firstName = user?.firstName || "";
+  const lastName = user?.lastName || "";
+  const email = user?.email || "";
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -307,47 +320,83 @@ export const AppSidebar: FC<AppSidebarProps> = ({
       {/* SECTION: Auth Profile block */}
       <div className="mt-auto border-t border-border p-3 shrink-0">
         {isAuthenticated && user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "flex items-center text-left hover:bg-accent rounded-lg transition-colors cursor-pointer outline-none focus:ring-1 focus:ring-ring shrink-0 w-full",
-                  isCollapsed ? "w-9 h-9 justify-center mx-auto" : "w-full gap-3 p-2"
-                )}
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold select-none">
-                  {user.firstName[0]?.toUpperCase() || "U"}
-                </div>
-                {!isCollapsed && (
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold leading-none truncate text-foreground">
-                      {user.firstName} {user.lastName}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground truncate mt-1">
-                      {user.email}
-                    </p>
-                  </div>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-xl">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {user.firstName} {user.lastName}
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer" onClick={() => logout()}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "peer/menu-button flex items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground h-12 w-full outline-none focus:ring-1 focus:ring-ring cursor-pointer select-none",
+                      isCollapsed ? "h-10 w-10 p-0 justify-center mx-auto" : ""
+                    )}
+                  >
+                    <Avatar className="h-10 w-10 rounded-lg">
+                      <AvatarImage src="/avatar-profile.jpg" />
+                      <AvatarFallback className="rounded-lg">
+                        {firstName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    {!isCollapsed && (
+                      <>
+                        <div className="grid flex-1 text-left text-sm leading-tight">
+                          <span className="truncate font-semibold">
+                            {firstName} {lastName}
+                          </span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {email}
+                          </span>
+                        </div>
+                        <CaretRight className="ml-auto size-4" />
+                      </>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                  side="right"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                      <Avatar className="h-8 w-8 rounded-lg">
+                        <AvatarImage src="/avatar-profile.jpg" />
+                        <AvatarFallback className="rounded-lg">
+                          {firstName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">
+                          {firstName} {lastName}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {email}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onSelect={() => setIsSettingsOpen(true)}
+                    >
+                      <Gear className="h-4 w-4 mr-2" />
+                      <span>Account Settings</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                    onSelect={logout}
+                  >
+                    <SignOut className="h-4 w-4 mr-2" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -371,6 +420,8 @@ export const AppSidebar: FC<AppSidebarProps> = ({
           </Tooltip>
         )}
       </div>
+
+      <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
     </div>
   );
 };
