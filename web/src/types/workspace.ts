@@ -4,5 +4,4 @@ export type WorkspaceSection =
   | "diagrams"
   | "features"
   | "workflow"
-  | "history"
   | "ir";

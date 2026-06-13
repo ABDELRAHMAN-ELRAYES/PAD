@@ -1,12 +1,11 @@
 "use client";
 
 import { FC } from "react";
-import { SuggestionCard } from "./SuggestionCard";
 import { ChatMarkdown } from "./ChatMarkdown";
 
 import { ChatMessageProps } from "../types/components/ChatMessage.types";
 
-export const ChatMessage: FC<ChatMessageProps> = ({ message, ideaId, onSuggestionApproved }) => {
+export const ChatMessage: FC<ChatMessageProps> = ({ message }) => {
     const isUser = message.role === "user";
     const time = new Date(message.createdAt).toLocaleTimeString([], {
         hour: "2-digit",
@@ -31,16 +30,6 @@ export const ChatMessage: FC<ChatMessageProps> = ({ message, ideaId, onSuggestio
             <div className="w-full text-sm text-chat-assistant-fg py-1">
                 <ChatMarkdown content={message.content} />
             </div>
-
-            {message.suggestion && (
-                <div className="mt-2 w-full">
-                    <SuggestionCard
-                        suggestion={message.suggestion}
-                        ideaId={ideaId}
-                        onApproved={onSuggestionApproved}
-                    />
-                </div>
-            )}
         </div>
     );
 };

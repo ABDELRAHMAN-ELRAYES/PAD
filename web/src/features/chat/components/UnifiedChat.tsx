@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ideaApi } from "@/features/ideas/api/ideas.api";
 import { ChatMessage } from "./ChatMessage";
 import { ChatMarkdown } from "./ChatMarkdown";
-import { PlanCard } from "./PlanCard";
 import { useIterationChat } from "../hooks/use-iteration-chat";
 import { AiStatusIndicator } from "./AiStatusIndicator";
 import { Logo } from "./Logo";
@@ -14,7 +13,6 @@ import { IterationMessage } from "../types/models/chat";
 
 import { UnifiedChatProps } from "../types/components/UnifiedChat.types";
 import { MIN_CHAR_COUNT } from "@/config/chat";
-import { planApi } from "../api/chat.api";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArtifactUpdated }) => {
@@ -36,11 +34,8 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
         isLoading,
         isSending,
         aiPhase,
-        activePlan,
         error: chatError,
         sendMessage,
-        confirmPlan,
-        dismissPlan,
         clearError,
     } = useIterationChat(ideaId, onArtifactUpdated);
 
@@ -352,26 +347,8 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                             <ChatMessage
                                 key={msg.id}
                                 message={msg}
-                                ideaId={ideaId!}
-                                onSuggestionApproved={onArtifactUpdated}
                             />
                         ))}
-
-                        {/* Modification Plan Card */}
-                        {activePlan && (
-                            <div className="mt-4 w-full">
-                                <PlanCard
-                                    plan={activePlan}
-                                    ideaId={ideaId!}
-                                    onConfirm={confirmPlan}
-                                    onRollback={async (planId) => {
-                                        await planApi.rollback(ideaId!, planId);
-                                        onArtifactUpdated?.();
-                                    }}
-                                    onDismiss={dismissPlan}
-                                />
-                            </div>
-                        )}
 
                         {/* Unified Assistant Pending Slot */}
                         {(aiPhase !== "idle" && aiPhase !== "error" || streamingText) && (

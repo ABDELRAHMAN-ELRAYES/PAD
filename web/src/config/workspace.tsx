@@ -5,7 +5,6 @@ import {
   GitBranch,
   ListChecks,
   Bot,
-  History,
   Cpu,
 } from "lucide-react";
 import { WorkspaceSection } from "../types/workspace";
@@ -98,13 +97,6 @@ export const SECTION_ITEMS: SidebarItem[] = [
     icon: <Bot className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-purple-500",
-  },
-  {
-    id: "history",
-    label: "Change History",
-    icon: <History className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-amber-500",
   },
   {
     id: "ir",

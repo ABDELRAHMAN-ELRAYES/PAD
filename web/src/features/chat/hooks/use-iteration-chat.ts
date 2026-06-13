@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useIterationSession, useSendIterationMessage, useConfirmPlan } from "@/features/chat/api/chatQueries";
-import { IterationSession, IterationMessage, IterationSuggestion, ModificationPlan } from "../types/models/chat";
+import { useIterationSession, useSendIterationMessage } from "@/features/chat/api/chatQueries";
+import { IterationSession, IterationMessage } from "../types/models/chat";
 import { socket } from "@/lib/socket";
 import { AiPhase } from "../types/components/AiStatusIndicator.types";
 
@@ -14,11 +14,8 @@ interface UseIterationChatReturn {
     isSending: boolean;
     isThinking: boolean; // Backcompat
     aiPhase: AiPhase;
-    activePlan: ModificationPlan | null;
     error: string | null;
     sendMessage: (content: string) => Promise<void>;
-    confirmPlan: (planId: string) => Promise<void>;
-    dismissPlan: () => void;
     clearError: () => void;
 }
 
@@ -36,11 +33,9 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
     const [isSending, setIsSending] = useState(false);
     const [aiPhase, setAiPhase] = useState<AiPhase>("idle");
     const isThinking = aiPhase !== "idle" && aiPhase !== "error" && !streamingText;
-    const [activePlan, setActivePlan] = useState<ModificationPlan | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const sendMessageMutation = useSendIterationMessage();
-    const confirmPlanMutation = useConfirmPlan();
 
     const connectedIdeaRef = useRef<string | null>(null);
     const onArtifactUpdatedRef = useRef(onArtifactUpdated);
@@ -186,65 +181,15 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
                 setAiPhase(data.phase);
             }
         };
-
-        const handleSuggestionNew = (suggestion: IterationSuggestion) => {
-            setMessages(prev => {
-                const updated = [...prev];
-                for (let i = updated.length - 1; i >= 0; i--) {
-                    if (updated[i].role === "assistant" && updated[i].id === suggestion.messageId) {
-                        updated[i] = { ...updated[i], suggestion };
-                        break;
-                    }
-                }
-                return updated;
-            });
-        };
-
-        const handleSuggestionStatus = (data: { id: string; status: string }) => {
-            setMessages(prev =>
-                prev.map(msg => {
-                    if (msg.suggestion && msg.suggestion.id === data.id) {
-                        return {
-                            ...msg,
-                            suggestion: { ...msg.suggestion, status: data.status as IterationSuggestion["status"] }
-                        };
-                    }
-                    return msg;
-                })
-            );
-        };
-
         const handleArtifactUpdated = () => {
             onArtifactUpdatedRef.current?.();
-        };
-
-        const handlePlanCreated = (data: { plan: ModificationPlan }) => {
-            setActivePlan(data.plan);
-            setAiPhase("idle");
-        };
-
-        const handlePlanComplete = (data: { planId: string; status: string }) => {
-            setActivePlan(prev => prev && prev.id === data.planId ? { ...prev, status: data.status as any } : prev);
-            setAiPhase("idle");
-            onArtifactUpdatedRef.current?.();
-        };
-
-        const handlePlanFailed = (data: { planId: string; error: string }) => {
-            setActivePlan(prev => prev && prev.id === data.planId ? { ...prev, status: "failed" } : prev);
-            setAiPhase("error");
-            setError(`Plan failed: ${data.error}`);
         };
 
         socket.on("message:new", handleMessageNew);
         socket.on("message:stream", handleMessageStream);
         socket.on("message:error", handleMessageError);
         socket.on("ai:state", handleAiState);
-        socket.on("suggestion:new", handleSuggestionNew);
-        socket.on("suggestion:status", handleSuggestionStatus);
         socket.on("artifact:updated", handleArtifactUpdated);
-        socket.on("plan:created", handlePlanCreated);
-        socket.on("plan:complete", handlePlanComplete);
-        socket.on("plan:failed", handlePlanFailed);
 
         return () => {
             stopPolling();
@@ -253,12 +198,7 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
             socket.off("message:stream", handleMessageStream);
             socket.off("message:error", handleMessageError);
             socket.off("ai:state", handleAiState);
-            socket.off("suggestion:new", handleSuggestionNew);
-            socket.off("suggestion:status", handleSuggestionStatus);
             socket.off("artifact:updated", handleArtifactUpdated);
-            socket.off("plan:created", handlePlanCreated);
-            socket.off("plan:complete", handlePlanComplete);
-            socket.off("plan:failed", handlePlanFailed);
             connectedIdeaRef.current = null;
         };
     }, [ideaId, stopPolling]);
@@ -308,24 +248,6 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         }
     }, [ideaId, sessionData?.id, startPolling, sendMessageMutation]);
 
-    // Confirm plan action
-    const handleConfirmPlan = useCallback(async (planId: string) => {
-        if (!ideaId) return;
-        setAiPhase("applying");
-        setError(null);
-        try {
-            const updatedPlan = await confirmPlanMutation.mutateAsync({ ideaId, planId });
-            setActivePlan(updatedPlan);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to confirm plan");
-            setAiPhase("error");
-        }
-    }, [ideaId, confirmPlanMutation]);
-
-    const dismissPlan = useCallback(() => {
-        setActivePlan(null);
-    }, []);
-
     return {
         session: sessionData || null,
         messages,
@@ -334,11 +256,8 @@ export function useIterationChat(ideaId: string | null, onArtifactUpdated?: () =
         isSending,
         isThinking,
         aiPhase,
-        activePlan,
         error,
         sendMessage,
-        confirmPlan: handleConfirmPlan,
-        dismissPlan,
         clearError,
     };
 }

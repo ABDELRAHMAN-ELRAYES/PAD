@@ -11,8 +11,6 @@ import { OverviewPanel } from "./OverviewPanel";
 import { DocumentsPanel } from "@/features/documents";
 import { DiagramsPanel } from "@/features/diagrams";
 import { FeaturesPanel } from "@/features/features";
-import { WorkflowPanel } from "@/features/workflow";
-import { HistoryPanel } from "@/features/chat";
 import IREditor from "@/features/ir/components/IREditor";
 import { Loader2 } from "lucide-react";
 import { StreamingProvider } from "@/components/providers/StreamingProvider";
@@ -20,6 +18,7 @@ import { WorkspaceLayoutProps } from "../types/components/WorkspaceLayout.types"
 import { UnifiedChat } from "@/features/chat";
 import { useWorkspaceLayout } from "../hook/useWorkspaceLayout";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { WorkflowPanel } from "@/features/workflow";
 
 export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   initialIdeaId = null,
@@ -77,8 +76,6 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
         return <FeaturesPanel key={refreshKey} ideaId={activeIdeaId} />;
       case "workflow":
         return <WorkflowPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
-      case "history":
-        return <HistoryPanel key={refreshKey} ideaId={activeIdeaId} onArtifactUpdated={handleArtifactUpdated} />;
       case "ir":
         return <IREditor key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
       default:

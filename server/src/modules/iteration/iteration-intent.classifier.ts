@@ -5,7 +5,7 @@ import AiService from "../ai/ai.service";
  * Determines whether user wants a discussion (Q&A) or a modification (change request).
  */
 
-export type IterationIntent = "discussion" | "modification" | "ir_modification";
+export type IterationIntent = "discussion" | "ir_modification";
 
 // Patterns that strongly indicate modification intent
 const MODIFICATION_PATTERNS: RegExp[] = [
@@ -53,7 +53,7 @@ export function classifyHeuristic(message: string): IterationIntent {
             if (IR_MOD_KEYWORDS.test(trimmed)) {
                 return "ir_modification";
             }
-            return "modification";
+            return "discussion";
         }
     }
 
@@ -82,11 +82,6 @@ export function classifyHeuristic(message: string): IterationIntent {
         return "ir_modification";
     }
 
-    // Modification wins only if clearly stronger
-    if (modScore > 0 && modScore > discScore) {
-        return "modification";
-    }
-
     // Default to discussion (safer)
     return "discussion";
 }
@@ -102,14 +97,13 @@ export async function classifyIntent(message: string): Promise<IterationIntent> 
     }
 
     try {
-        const prompt = `You are a helper classifier. Classify the user message into one of three categories:
+        const prompt = `You are a helper classifier. Classify the user message into one of two categories:
 1. "ir_modification": User wants to add, create, edit, modify, update, remove, delete, drop, split, merge, or change schema structures, entities, tables, fields, relationships, logical modules, user roles, or business rules in the Intermediate Representation (IR). Examples: "add a transactions table with fields id and amount", "create a one-to-many relationship between users and posts", "add field status to user role", "add business rule for transaction limit", "add user role admin".
-2. "modification": User wants to add, create, edit, modify, update, remove, delete, drop, split, merge, or change other artifacts like documents (PRD, BRD), diagrams (flowcharts, sequence diagrams), features, tasks, or workflows. Examples: "add a login feature", "update the flowchart", "delete task 4", "change the PRD".
-3. "discussion": User is asking a question, seeking clarification, asking for explanation, outlining, discussing, or anything that does not directly request an edit to the project artifacts. Examples: "how does the payment flow work?", "explain the architecture", "what are the risks?".
+2. "discussion": User is asking a question, seeking clarification, asking for explanation, discussing, or requesting updates to documents/diagrams/features/tasks/workflows. General change requests are classified as discussion because the artifact modification engine is disabled. Examples: "how does the payment flow work?", "explain the architecture", "add a login feature", "update the flowchart", "delete task 4", "change the PRD".
 
 Respond with a JSON object exactly like this:
 {
-  "intent": "ir_modification" | "modification" | "discussion"
+  "intent": "ir_modification" | "discussion"
 }
 
 User Message: "${trimmed.replace(/"/g, '\\"')}"
@@ -124,13 +118,9 @@ JSON:`;
 
         const responseText = await Promise.race([classificationPromise, timeoutPromise]);
         
-        // Extract JSON structure if present, or search for string
         const cleanedResponse = responseText.toLowerCase();
         if (cleanedResponse.includes("ir_modification")) {
             return "ir_modification";
-        }
-        if (cleanedResponse.includes("modification")) {
-            return "modification";
         }
         if (cleanedResponse.includes("discussion")) {
             return "discussion";
@@ -141,7 +131,7 @@ JSON:`;
             const endIdx = responseText.lastIndexOf("}");
             if (startIdx !== -1 && endIdx !== -1) {
                 const parsed = JSON.parse(responseText.substring(startIdx, endIdx + 1));
-                if (parsed.intent === "ir_modification" || parsed.intent === "modification" || parsed.intent === "discussion") {
+                if (parsed.intent === "ir_modification" || parsed.intent === "discussion") {
                     return parsed.intent;
                 }
             }
