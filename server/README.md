@@ -42,7 +42,8 @@ DATABASE_URL="postgresql://your_username:your_password@localhost:5432/pad_db"
 NODE_ENV=development
 PORT=5000
 JWT_SECRET=your_jwt_secret
-GEMINI_API_KEY=your_gemini_api_key
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:4b
 ```
 
 ### 3. Generate Prisma Client
