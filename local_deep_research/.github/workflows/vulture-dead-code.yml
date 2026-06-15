@@ -1,0 +1,37 @@
+name: Vulture Dead Code Detection
+
+on:
+  workflow_call:  # Allows this workflow to be called by other workflows
+  workflow_dispatch:
+
+# Top-level permissions set to minimum (OSSF Scorecard Token-Permissions)
+permissions: {}
+
+jobs:
+  vulture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: Scan for dead code
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install vulture
+        run: pip install "vulture~=2.14"
+
+      - name: Run vulture (src/ only)
+        run: vulture src/local_deep_research/ vulture_whitelist.py --min-confidence 80

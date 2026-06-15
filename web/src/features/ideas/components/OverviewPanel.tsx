@@ -1,24 +1,36 @@
-"use client";
-
-import { FC } from "react";
+import React, { FC, useEffect, useState, useCallback } from "react";
+import { Idea } from "../types/models/idea";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
-  Brain,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   CheckCircle,
   Clock,
   Loader2,
+  FileText,
   AlertTriangle,
-  HelpCircle,
   Lightbulb,
-  ListChecks,
-  Send,
+  ExternalLink,
+  BookOpen,
   ArrowRight,
+  TrendingUp,
+  Cpu,
+  Bookmark,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { OverviewPanelProps } from "../types/components/OverviewPanel.types";
-import { useOverviewPanel } from "../hook/useOverviewPanel";
+import { DiscoveryQuestionnaireForm } from "./DiscoveryQuestionnaireForm";
+import { ResearchProgressPanel } from "./ResearchProgressPanel";
+import { useResearchStream } from "../hook/useResearchStream";
+import { ideaApi } from "../api/ideas.api";
 
 export const OverviewPanel: FC<OverviewPanelProps> = ({
   idea,
@@ -26,40 +38,332 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   onIdeaUpdate,
   onSectionChange,
 }) => {
+  const [questionnaire, setQuestionnaire] = useState<any | null>(null);
+  const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const handleResearchComplete = useCallback((updatedIdea: Idea) => {
+    onIdeaUpdate(updatedIdea);
+  }, [onIdeaUpdate]);
+
+  // Hook for deep research stream management
   const {
-    isAnalyzing,
-    isConfirming,
-    isSubmittingAnswers,
-    error,
-    answers,
-    hasSubmittedAnswers,
-    streamingText,
-    handleAnalyze,
-    handleConfirm,
-    handleSubmitAnswers,
-    handleAnswerChange,
-  } = useOverviewPanel(idea, ideaId, onIdeaUpdate);
+    progress,
+    phase,
+    message,
+    logs,
+    status: researchStatus,
+    error: researchError,
+    startResearch,
+  } = useResearchStream(ideaId, handleResearchComplete);
 
-  // Calculate dynamic completeness/readiness score
-  const getReadinessScore = () => {
-    if (idea.status === "confirmed") return 100;
-    if (!idea.analysisResult) return 15;
-    const questions = idea.analysisResult.clarifyingQuestions || [];
-    if (questions.length === 0) return 90;
+  // 1. Poll/Fetch discovery questionnaire when status is "draft"
+  useEffect(() => {
+    let active = true;
+    let pollTimeout: NodeJS.Timeout;
 
-    const totalQuestions = questions.length;
-    const answeredCount = Object.keys(answers).filter(
-      (k) => answers[Number(k)]?.trim()
-    ).length;
+    const fetchQuestionnaire = async () => {
+      if (idea.status !== "draft" && idea.status !== "questionnaire_ready") return;
 
-    // Starting at 50% for completed analysis, scaling to 90%
-    return Math.min(
-      90,
-      Math.round(50 + (answeredCount / totalQuestions) * 40)
+      try {
+        const q = await ideaApi.getQuestionnaire(ideaId);
+        if (active) {
+          if (q && q.questions) {
+            setQuestionnaire(q);
+            if (idea.status === "draft") {
+              // Automatically refresh idea to questionnaire_ready status
+              const updated = await ideaApi.getById(ideaId);
+              onIdeaUpdate(updated);
+            }
+          } else {
+            // Keep polling every 2.5 seconds if status is draft
+            if (idea.status === "draft") {
+              pollTimeout = setTimeout(fetchQuestionnaire, 2500);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch questionnaire:", err);
+        if (active && idea.status === "draft") {
+          pollTimeout = setTimeout(fetchQuestionnaire, 2500);
+        }
+      }
+    };
+
+    fetchQuestionnaire();
+
+    return () => {
+      active = false;
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+  }, [idea.status, ideaId]);
+
+  // Fetch questionnaire immediately if status changes to questionnaire_ready
+  useEffect(() => {
+    if (idea.status === "questionnaire_ready") {
+      setIsLoadingQuestionnaire(true);
+      ideaApi.getQuestionnaire(ideaId)
+        .then((q) => {
+          if (q) setQuestionnaire(q);
+        })
+        .catch((e) => console.error("Error loading questionnaire:", e))
+        .finally(() => setIsLoadingQuestionnaire(false));
+    }
+  }, [idea.status, ideaId]);
+
+  // 2. Submit questionnaire responses handler
+  const handleQuestionnaireSubmit = async (responses: any[]) => {
+    const responseRecord = await ideaApi.submitQuestionnaire(ideaId, responses);
+    // Refresh idea status in parent layout
+    const updatedIdea = await ideaApi.getById(ideaId);
+    onIdeaUpdate(updatedIdea);
+  };
+
+  // 3. Automatically trigger deep research when status is questionnaire_complete
+  useEffect(() => {
+    if (idea.status === "questionnaire_complete") {
+      startResearch();
+    }
+  }, [idea.status, startResearch]);
+
+  // 4. Confirm project scope baseline handler
+  const handleConfirmScope = async () => {
+    setIsConfirming(true);
+    setConfirmError(null);
+    try {
+      const confirmedIdea = await ideaApi.confirm(ideaId);
+      onIdeaUpdate(confirmedIdea);
+    } catch (err: any) {
+      setConfirmError(err?.message || "Failed to confirm project scope.");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  // Helper to render current state status badge
+  const renderStatusBadge = () => {
+    switch (idea.status) {
+      case "confirmed":
+        return (
+          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/15 text-[10px] font-semibold">
+            <CheckCircle className="mr-1 h-3 w-3 shrink-0" />
+            Approved Scope
+          </Badge>
+        );
+      case "research_complete":
+        return (
+          <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-500/15 text-[10px] font-semibold animate-pulse">
+            <BookOpen className="mr-1 h-3 w-3 shrink-0" />
+            Research Complete
+          </Badge>
+        );
+      case "researching":
+        return (
+          <Badge className="bg-violet-500/10 text-violet-600 border-violet-500/20 hover:bg-violet-500/15 text-[10px] font-semibold">
+            <Loader2 className="mr-1 h-3 w-3 shrink-0 animate-spin" />
+            Deep Researching...
+          </Badge>
+        );
+      default:
+        return (
+          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/15 text-[10px] font-semibold">
+            <Clock className="mr-1 h-3 w-3 shrink-0" />
+            Discovery Phase
+          </Badge>
+        );
+    }
+  };
+
+  // --- Sub-rendering: Render Blueprint results panel ---
+  const renderBlueprintContent = () => {
+    const result = idea.researchResult;
+    if (!result) return null;
+
+    const sections = [
+      {
+        id: "summary",
+        title: "Executive Summary",
+        icon: Lightbulb,
+        color: "text-amber-500",
+        content: result.synthesisSummary,
+      },
+      {
+        id: "understanding",
+        title: "Product Understanding",
+        icon: FileText,
+        color: "text-blue-500",
+        content: result.understanding,
+      },
+      {
+        id: "competitors",
+        title: "Competitor Analysis",
+        icon: TrendingUp,
+        color: "text-rose-500",
+        content: result.competitors,
+      },
+      {
+        id: "market",
+        title: "Market & Persona Profiling",
+        icon: BookOpen,
+        color: "text-emerald-500",
+        content: result.marketAnalysis,
+      },
+      {
+        id: "architecture",
+        title: "System Architecture",
+        icon: Cpu,
+        color: "text-violet-500",
+        content: result.architecture,
+      },
+      {
+        id: "scope",
+        title: "MVP Backlog & Roadmap",
+        icon: CheckCircle,
+        color: "text-indigo-500",
+        content: result.suggestedScope,
+      },
+      {
+        id: "risks",
+        title: "Risks & Mitigations",
+        icon: AlertTriangle,
+        color: "text-amber-600",
+        content: result.risksAndConcerns,
+      },
+    ];
+
+    const bibliography = result.sources || [];
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h3 className="text-md font-bold tracking-tight text-foreground">Deep Research Project Blueprint</h3>
+          <p className="text-xs text-muted-foreground">
+            Review the 7-phase structural system proposal generated from our deep agentic searches.
+          </p>
+        </div>
+
+        {/* Collapsible Blueprint Sections */}
+        <Accordion type="single" collapsible defaultValue="summary" className="w-full space-y-3">
+          {sections.map((sec) => {
+            const IconComponent = sec.icon;
+            return (
+              <AccordionItem
+                key={sec.id}
+                value={sec.id}
+                className="border border-border/80 bg-card rounded-2xl overflow-hidden px-4"
+              >
+                <AccordionTrigger className="hover:no-underline py-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl bg-muted/50 ${sec.color}`}>
+                      <IconComponent className="h-4.5 w-4.5" />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground tracking-tight">
+                      {sec.title}
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pb-4 pt-1 text-xs text-muted-foreground leading-relaxed pl-11 select-text">
+                  <div className="prose prose-neutral dark:prose-invert max-w-none text-[11.5px] whitespace-pre-line">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{sec.content}</ReactMarkdown>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+
+        {/* Interactive Bibliography/Sources */}
+        {bibliography.length > 0 && (
+          <Card className="border-border/80 rounded-2xl shadow-xs overflow-hidden">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center gap-2 border-b pb-2 mb-2 text-primary font-semibold text-xs uppercase tracking-wider">
+                <Bookmark className="h-4 w-4" />
+                <span>Search Sources Bibliography</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar select-text pr-1">
+                {bibliography.map((src: any, idx: number) => (
+                  <a
+                    key={idx}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-2.5 p-2.5 rounded-xl border border-muted hover:border-primary/30 bg-muted/20 hover:bg-muted/40 transition-colors group cursor-pointer"
+                  >
+                    <BookOpen className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div className="space-y-0.5 flex-1 min-w-0">
+                      <p className="text-[10.5px] font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                        {src.title || "Wikipedia Source"}
+                      </p>
+                      <p className="text-[9.5px] text-muted-foreground truncate flex items-center gap-1">
+                        <span>{src.url}</span>
+                        <ExternalLink className="h-2.5 w-2.5 inline shrink-0" />
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     );
   };
 
-  const readiness = getReadinessScore();
+  // --- Main Render Engine ---
+  const renderFlow = () => {
+    switch (idea.status) {
+      case "draft":
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-1">
+              <h4 className="font-semibold text-sm">Analyzing Concept</h4>
+              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                We are generating a customized discovery questionnaire to identify scope details.
+              </p>
+            </div>
+          </div>
+        );
+
+      case "questionnaire_ready":
+        if (isLoadingQuestionnaire || !questionnaire) {
+          return (
+            <div className="flex items-center justify-center min-h-[300px]">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          );
+        }
+        return (
+          <DiscoveryQuestionnaireForm
+            ideaId={ideaId}
+            questions={questionnaire.questions}
+            onSubmit={handleQuestionnaireSubmit}
+          />
+        );
+
+      case "questionnaire_complete":
+      case "researching":
+        return (
+          <ResearchProgressPanel
+            progress={progress}
+            phase={phase}
+            message={message}
+            logs={logs}
+            status={researchStatus}
+            error={researchError}
+            onRetry={startResearch}
+          />
+        );
+
+      case "research_complete":
+      case "confirmed":
+        return renderBlueprintContent();
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300 @container">
@@ -68,299 +372,28 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <h2 className="text-xl font-bold tracking-tight">Project Overview</h2>
-            <Badge
-              variant={idea.status === "confirmed" ? "default" : "secondary"}
-              className={`text-[10px] font-semibold ${idea.status === "confirmed"
-                  ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/15"
-                  : "bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/15"
-                }`}
-            >
-              {idea.status === "confirmed" ? (
-                <>
-                  <CheckCircle className="mr-1 h-3 w-3 shrink-0" />
-                  Confirmed Scope
-                </>
-              ) : (
-                <>
-                  <Clock className="mr-1 h-3 w-3 shrink-0" />
-                  Concept Draft
-                </>
-              )}
-            </Badge>
+            {renderStatusBadge()}
           </div>
           <p className="text-xs text-muted-foreground">
             Manage your initial project scope, analyze gaps, and finalize structural requirements.
           </p>
         </div>
-
-        {/* Quick Re-Analyze for draft projects */}
-        {idea.status === "draft" && idea.analysisResult && (
-          <Button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            variant="outline"
-            size="sm"
-            className="rounded-xl text-xs h-8 border-border/80 hover:bg-muted/50 cursor-pointer transition-all duration-200"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Brain className="mr-1.5 h-3.5 w-3.5" />
-                Re-Analyze
-              </>
-            )}
-          </Button>
-        )}
       </div>
 
-      {error && (
-        <div className="bg-destructive/5 dark:bg-destructive/10 border border-destructive/10 dark:border-destructive/20 text-destructive px-4 py-3 rounded-xl text-xs flex items-center justify-between shadow-xs">
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Main Grid Workspace Dashboard */}
       <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6 items-start">
-
-        {/* Left Column: Project Brief & AI Diagnostic Details */}
+        {/* Left Column: Interactive flow steps / Blueprint Accordion */}
         <div className="space-y-6 @4xl:col-span-2 @container">
-
-          {/* Executive Pitch Summary Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-linear-to-br from-violet-500/5 to-indigo-500/5 dark:from-violet-500/10 dark:to-indigo-500/5 p-5 shadow-xs">
-            <div className="absolute top-0 right-0 p-4 opacity-[0.03] dark:opacity-[0.06] pointer-events-none select-none">
-              <Brain className="h-24 w-24" />
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
-                <Lightbulb className="h-5 w-5" />
-              </div>
-              <div className="space-y-2 flex-1">
-                <h3 className="font-semibold text-sm text-foreground tracking-tight">Executive Pitch</h3>
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground/90">
-                  {idea.refinedText || idea.rawText}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Diagnostic Insights Grid */}
-          {idea.analysisResult ? (
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Brain className="h-3.5 w-3.5 text-primary" />
-                Strategic AI Analysis
-              </h3>
-
-              <div className="grid grid-cols-1 @2xl:grid-cols-3 gap-4">
-
-                {/* Scope Gaps */}
-                <div className="rounded-2xl border border-amber-500/10 bg-amber-500/5 dark:bg-amber-500/10 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 font-semibold text-xs uppercase tracking-wider">
-                    <ListChecks className="h-4 w-4" />
-                    <span>Scope Gaps</span>
-                  </div>
-                  {idea.analysisResult.missingDetails.length > 0 ? (
-                    <ul className="space-y-2 text-[11px] text-muted-foreground/90 leading-relaxed">
-                      {idea.analysisResult.missingDetails.map((item: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-amber-500 mt-0.5 shrink-0">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground/60 italic">No scope gaps identified.</p>
-                  )}
-                </div>
-
-                {/* Value Boosters */}
-                <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/5 dark:bg-emerald-500/10 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500 font-semibold text-xs uppercase tracking-wider">
-                    <Lightbulb className="h-4 w-4" />
-                    <span>Value Additions</span>
-                  </div>
-                  {idea.analysisResult.complementarySuggestions.length > 0 ? (
-                    <ul className="space-y-2 text-[11px] text-muted-foreground/90 leading-relaxed">
-                      {idea.analysisResult.complementarySuggestions.map((item: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-emerald-500 mt-0.5 shrink-0">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground/60 italic">No value additions identified.</p>
-                  )}
-                </div>
-
-                {/* Risks & Constraints */}
-                <div className="rounded-2xl border border-rose-500/10 bg-rose-500/5 dark:bg-rose-500/10 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500 font-semibold text-xs uppercase tracking-wider">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>Risks & Rules</span>
-                  </div>
-                  {idea.analysisResult.constraintsAndRisks.length > 0 ? (
-                    <ul className="space-y-2 text-[11px] text-muted-foreground/90 leading-relaxed">
-                      {idea.analysisResult.constraintsAndRisks.map((item: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-rose-500 mt-0.5 shrink-0">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground/60 italic">No major risks flagged.</p>
-                  )}
-                </div>
-
-              </div>
-            </div>
-          ) : (
-            /* AI Diagnostics Intake Empty State */
-            !isAnalyzing && (
-              <div className="rounded-2xl border border-dashed border-primary/20 bg-primary/5 p-8 flex flex-col items-center text-center gap-4">
-                <div className="rounded-full bg-primary/10 p-3.5 text-primary">
-                  <Brain className="h-6 w-6" />
-                </div>
-                <div className="space-y-1.5 max-w-sm">
-                  <h4 className="font-semibold text-sm">Analyze Project Concept</h4>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    AI will map your initial description to identify requirements gaps, suggest boosters, and construct a Q&A interview path.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleAnalyze}
-                  className="rounded-xl px-5 py-4 text-xs font-semibold cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] bg-primary text-primary-foreground"
-                >
-                  <Brain className="mr-2 h-4 w-4" />
-                  Analyze Concept with AI
-                </Button>
-              </div>
-            )
-          )}
-
-          {/* Q&A Clarifying Questions (Refinement interview) */}
-          {idea.analysisResult && idea.analysisResult.clarifyingQuestions.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-xs">
-              <div className="flex items-center gap-2.5 text-primary font-semibold text-sm border-b pb-2">
-                <HelpCircle className="h-4 w-4" />
-                <span>Scope Refinement Wizard (AI Interview)</span>
-              </div>
-
-              <div className="space-y-4">
-                {idea.analysisResult.clarifyingQuestions.map(
-                  (question: string, idx: number) => (
-                    <div key={idx} className="space-y-2 animate-in fade-in duration-300">
-                      <div className="flex items-start gap-2.5">
-                        <span className="text-primary mt-0.5 font-bold text-[10px] tracking-wide bg-primary/10 border border-primary/20 rounded-lg px-2 py-0.5 shrink-0 select-none">
-                          Q{idx + 1}
-                        </span>
-                        <span className="font-semibold text-[11.5px] text-foreground/90 leading-relaxed">{question}</span>
-                      </div>
-                      {idea.status === "draft" ? (
-                        <textarea
-                          className="w-full px-3.5 py-2.5 text-xs border border-border bg-muted/20 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary/50 min-h-[60px] max-h-[140px] resize-y rounded-xl transition-all duration-200 custom-scrollbar placeholder:text-muted-foreground/45"
-                          placeholder="Provide details for this question..."
-                          value={answers[idx] || ""}
-                          onChange={(e) =>
-                            handleAnswerChange(idx, e.target.value)
-                          }
-                          disabled={isSubmittingAnswers}
-                        />
-                      ) : (
-                        <p className="text-xs text-muted-foreground/60 italic pl-8">Scope finalized.</p>
-                      )}
-                    </div>
-                  ),
-                )}
-
-                {idea.status === "draft" && (
-                  <Button
-                    onClick={handleSubmitAnswers}
-                    disabled={
-                      isSubmittingAnswers ||
-                      Object.values(answers).every((a) => !a?.trim())
-                    }
-                    className="w-full rounded-xl py-2.5 font-medium transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] text-xs shadow-sm cursor-pointer"
-                    variant="secondary"
-                    size="sm"
-                  >
-                    {isSubmittingAnswers ? (
-                      <>
-                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                        Updating specifications...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="mr-2 h-3.5 w-3.5" />
-                        Submit Answers & Update Proposal
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Streaming/Loading State indicator in-place */}
-          {isAnalyzing && streamingText && (
-            <div className="space-y-3 animate-in fade-in duration-300">
-              <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
-                <Brain className="h-4 w-4 text-primary animate-pulse" />
-                AI Analysis Processing...
-              </h3>
-              <Card className="border-primary/10 bg-primary/5 shadow-xs rounded-2xl">
-                <CardContent className="p-4 leading-relaxed">
-                  <div className="whitespace-pre-wrap text-xs text-muted-foreground">
-                    {streamingText}
-                    <span className="inline-block w-1.5 h-3.5 ml-1 bg-primary animate-pulse align-middle" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+          {renderFlow()}
         </div>
 
-        {/* Right Column: Readiness Index, Lifecycle Steps, Scope Approval CTA */}
+        {/* Right Column: Sidebar lifecycle list & Scope Confirmation CTA */}
         <div className="space-y-6 @4xl:col-span-1 @container">
-
-          {/* Project Readiness Meter */}
-          <Card className="rounded-2xl border-border/80 shadow-xs">
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Readiness Index</span>
-                <span className="text-2xl font-black text-primary font-mono select-none">{readiness}%</span>
-              </div>
-
-              <div className="relative w-full h-2.5 bg-muted/60 dark:bg-muted/30 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-linear-to-r from-violet-500 to-indigo-500 transition-all duration-500 ease-out"
-                  style={{ width: `${readiness}%` }}
-                />
-              </div>
-
-              <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                {readiness <= 15 && "Concept drafted. Run AI analysis to identify scope gaps and project roadmap."}
-                {readiness > 15 && readiness <= 50 && "Initial AI scope analysis complete. Review missing details and risks."}
-                {readiness > 50 && readiness < 90 && "Refining scope. Answer clarifying questions to lock in requirements."}
-                {readiness === 90 && "Requirements finalized! Ready to approve scope and build design blueprints."}
-                {readiness === 100 && "Project approved! Blueprinting tools unlocked (Documents, Diagrams, Features, Workflows)."}
-              </p>
-            </CardContent>
-          </Card>
-
           {/* Project Lifecycle Checklist */}
           <Card className="rounded-2xl border-border/80 shadow-xs">
             <CardContent className="p-5 space-y-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project Lifecycle</h3>
-
               <div className="space-y-4 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-muted-foreground/20 select-none">
-
+                
                 {/* Step 1: Concept Intake */}
                 <div className="flex items-start gap-3 relative">
                   <div className="w-6 h-6 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 flex items-center justify-center shrink-0 z-10 bg-background">
@@ -372,55 +405,55 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Step 2: AI Diagnostics */}
+                {/* Step 2: Discovery Questionnaire */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
-                    ${idea.analysisResult
+                    ${idea.status !== "draft"
                       ? "bg-green-500/10 border-green-500/20 text-green-600"
                       : "bg-muted text-muted-foreground/30 border-transparent"
                     }`}
                   >
-                    {idea.analysisResult ? (
+                    {idea.status !== "draft" ? (
                       <CheckCircle className="h-3.5 w-3.5" />
                     ) : (
                       <Clock className="h-3.5 w-3.5" />
                     )}
                   </div>
                   <div>
-                    <h4 className={`text-xs font-semibold ${idea.analysisResult ? "text-foreground" : "text-muted-foreground"}`}>
-                      2. AI Analysis
+                    <h4 className={`text-xs font-semibold ${idea.status !== "draft" ? "text-foreground" : "text-muted-foreground"}`}>
+                      2. Discovery Questionnaire
                     </h4>
-                    <p className="text-[10px] text-muted-foreground">Map scope, gaps, and risks</p>
+                    <p className="text-[10px] text-muted-foreground">Answer tailored refinement questions</p>
                   </div>
                 </div>
 
-                {/* Step 3: Scope Refinement */}
+                {/* Step 3: Deep Research Agent */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
-                    ${(idea.analysisResult && idea.analysisResult.clarifyingQuestions.length === 0) || idea.status === "confirmed" || hasSubmittedAnswers
+                    ${idea.status === "research_complete" || idea.status === "confirmed"
                       ? "bg-green-500/10 border-green-500/20 text-green-600"
-                      : idea.analysisResult && idea.analysisResult.clarifyingQuestions.length > 0
+                      : idea.status === "researching"
                         ? "bg-violet-500/10 border-violet-500/20 text-violet-600 animate-pulse"
                         : "bg-muted text-muted-foreground/30 border-transparent"
                     }`}
                   >
-                    {(idea.analysisResult && idea.analysisResult.clarifyingQuestions.length === 0) || idea.status === "confirmed" || hasSubmittedAnswers ? (
+                    {idea.status === "research_complete" || idea.status === "confirmed" ? (
                       <CheckCircle className="h-3.5 w-3.5" />
                     ) : (
-                      <HelpCircle className="h-3.5 w-3.5" />
+                      <Clock className="h-3.5 w-3.5" />
                     )}
                   </div>
                   <div>
                     <h4 className={`text-xs font-semibold 
-                      ${idea.analysisResult && idea.analysisResult.clarifyingQuestions.length > 0 ? "text-foreground" : "text-muted-foreground"}`}
+                      ${idea.status === "researching" || idea.status === "research_complete" || idea.status === "confirmed" ? "text-foreground" : "text-muted-foreground"}`}
                     >
-                      3. Scope Refinement
+                      3. Deep Research Agent
                     </h4>
-                    <p className="text-[10px] text-muted-foreground">Answer questions to solidify specifications</p>
+                    <p className="text-[10px] text-muted-foreground">Compile web search reports</p>
                   </div>
                 </div>
 
-                {/* Step 4: Finalize Blueprints */}
+                {/* Step 4: Lock Blueprints */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
                     ${idea.status === "confirmed"
@@ -446,42 +479,41 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
             </CardContent>
           </Card>
 
-          {/* Scope Confirmation / Active Project navigation Hub */}
-          {idea.status === "draft" ? (
-            idea.analysisResult && (
-              <Card className="rounded-2xl border-violet-500/10 bg-linear-to-br from-violet-500/5 via-indigo-500/5 to-transparent shadow-xs">
-                <CardContent className="p-5 space-y-4">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Approve Scope</h3>
-                  <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-                    Confirming this project locks in the current specification baseline and opens the active design workspace.
-                  </p>
-                  <Button
-                    onClick={handleConfirm}
-                    disabled={isConfirming || (idea.analysisResult.clarifyingQuestions.length > 0 && !hasSubmittedAnswers)}
-                    className="w-full rounded-xl font-semibold shadow-md hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] bg-linear-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white cursor-pointer py-4 text-xs"
-                  >
-                    {isConfirming ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Locking baseline...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Confirm Project Scope
-                      </>
-                    )}
-                  </Button>
-                  {idea.analysisResult.clarifyingQuestions.length > 0 && !hasSubmittedAnswers && (
-                    <p className="text-[10px] text-amber-600/70 text-center">
-                      Tip: Complete the Q&A Refinement before locking.
-                    </p>
+          {/* Scope Confirmation / Active Navigation Hub */}
+          {idea.status === "research_complete" && (
+            <Card className="rounded-2xl border-indigo-500/10 bg-linear-to-br from-indigo-500/5 via-violet-500/5 to-transparent shadow-xs">
+              <CardContent className="p-5 space-y-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Approve Scope</h3>
+                <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                  Confirming this project locks in the current specification baseline and opens the active design workspace.
+                </p>
+                {confirmError && (
+                  <div className="text-[10.5px] text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-2">
+                    {confirmError}
+                  </div>
+                )}
+                <Button
+                  onClick={handleConfirmScope}
+                  disabled={isConfirming}
+                  className="w-full rounded-xl font-semibold shadow-md hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white cursor-pointer py-4 text-xs"
+                >
+                  {isConfirming ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Locking baseline...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Confirm Project Scope
+                    </>
                   )}
-                </CardContent>
-              </Card>
-            )
-          ) : (
-            /* Active Project Navigation Hub (Confirmed) */
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {idea.status === "confirmed" && (
             <Card className="rounded-2xl border-emerald-500/10 bg-emerald-500/5 dark:bg-emerald-500/10 shadow-xs border">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-start gap-3">
@@ -497,23 +529,25 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                 </div>
 
                 {onSectionChange && (
-                  <div className="grid grid-cols-1 @sm:grid-cols-2 gap-2.5 pt-2">
+                  <div className="grid grid-cols-1 gap-2 pt-2">
                     {[
-                      { id: "documents", label: "Requirements", desc: "Specifications" },
-                      { id: "diagrams", label: "Architecture", desc: "System ERD" },
-                      { id: "features", label: "Features", desc: "Backlog list" },
-                      { id: "workflow", label: "Workflows", desc: "Flow builder" },
+                      { id: "documents", label: "Requirements Specifications", desc: "PRD & BRD documents" },
+                      { id: "diagrams", label: "Architecture Diagrams", desc: "System ERD & Flows" },
+                      { id: "features", label: "Features Backlog", desc: "User stories & checklist" },
+                      { id: "workflow", label: "Implementation Workflows", desc: "Active step builder" },
                     ].map((item) => (
                       <button
                         key={item.id}
                         onClick={() => onSectionChange(item.id as any)}
-                        className="flex flex-col items-start p-3 rounded-xl border border-emerald-500/10 dark:border-emerald-500/20 bg-background/60 hover:bg-background/95 hover:border-emerald-500/30 text-left transition-all duration-200 cursor-pointer shadow-xs"
+                        className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/10 dark:border-emerald-500/20 bg-background/60 hover:bg-background/95 hover:border-emerald-500/30 text-left transition-all duration-200 cursor-pointer shadow-xs"
                       >
-                        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                          {item.label}
-                          <ArrowRight className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </span>
-                        <span className="text-[9.5px] text-muted-foreground mt-0.5">{item.desc}</span>
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                            {item.label}
+                          </span>
+                          <span className="text-[9.5px] text-muted-foreground mt-0.5">{item.desc}</span>
+                        </div>
+                        <ArrowRight className="h-3 w-3 text-emerald-500 shrink-0" />
                       </button>
                     ))}
                   </div>
@@ -521,7 +555,6 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
               </CardContent>
             </Card>
           )}
-
         </div>
       </div>
     </div>

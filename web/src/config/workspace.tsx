@@ -20,7 +20,7 @@ export interface SidebarItem {
 export const SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: "overview",
-    label: "Overview",
+    label: "Discovery & Research",
     icon: <Brain className="h-5 w-5" />,
     color: "text-muted-foreground",
     activeColor: "text-primary",
@@ -65,7 +65,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 export const SECTION_ITEMS: SidebarItem[] = [
   {
     id: "overview",
-    label: "Overview",
+    label: "Discovery & Research",
     icon: <Brain className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-primary",

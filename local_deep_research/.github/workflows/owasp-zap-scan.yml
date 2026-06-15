@@ -1,0 +1,212 @@
+name: OWASP ZAP Security Scan
+
+# Baseline and API scans - called by release-gate.yml
+
+on:
+  workflow_call:  # Called by release-gate.yml
+  workflow_dispatch:
+
+# Restrict top-level permissions (jobs define their own)
+permissions: {}
+
+jobs:
+  zap-baseline-scan:
+    name: ZAP Baseline Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@973541a5febeafcfdadf8a51211435be6ecfd90f # v4.5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies for SQLCipher
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlcipher-dev
+
+      - name: Install dependencies
+        run: |
+          pdm sync -d
+
+      - name: Start LDR server for testing
+        run: |
+          export CI=true
+          export LDR_DB_CONFIG_KDF_ITERATIONS=1000
+          # Without LDR_TEST_MODE the 1000 is clamped to the production
+          # minimum (256000), making SQLCipher ~256x slower — see #4430.
+          export LDR_TEST_MODE=1
+          export PYTHONPATH=$PWD/src:$PYTHONPATH
+          pdm run python -m local_deep_research.web.app > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "$SERVER_PID" > server.pid
+
+          # Wait for server to start.
+          # --connect-timeout/--max-time bound TCP and total request time so a
+          # hung connection fails fast instead of eating the job timeout.
+          for _ in {1..90}; do
+            if curl -s --connect-timeout 2 --max-time 5 http://localhost:5000/api/v1/health > /dev/null; then
+              echo "Server started successfully"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify server is running
+          if ! curl -s --connect-timeout 2 --max-time 5 http://localhost:5000/api/v1/health > /dev/null; then
+            echo "Server failed to start"
+            cat server.log
+            exit 1
+          fi
+
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: 'http://localhost:5000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -I'  # -I: only fail on FAIL-level alerts per rules.tsv (ignore WARN/INFO)
+          allow_issue_writing: false
+          fail_action: true
+          artifact_name: zapbaseline
+
+      - name: Upload ZAP scan results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: zap-baseline-scan-results
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+            rm server.pid
+          fi
+
+  zap-api-scan:
+    name: ZAP API Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@973541a5febeafcfdadf8a51211435be6ecfd90f # v4.5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies for SQLCipher
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlcipher-dev
+
+      - name: Install dependencies
+        run: |
+          pdm sync -d
+
+      - name: Start LDR server for testing
+        run: |
+          export CI=true
+          export LDR_DB_CONFIG_KDF_ITERATIONS=1000
+          # Without LDR_TEST_MODE the 1000 is clamped to the production
+          # minimum (256000), making SQLCipher ~256x slower — see #4430.
+          export LDR_TEST_MODE=1
+          export PYTHONPATH=$PWD/src:$PYTHONPATH
+          pdm run python -m local_deep_research.web.app > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "$SERVER_PID" > server.pid
+
+          # Wait for server to start.
+          # --connect-timeout/--max-time bound TCP and total request time so a
+          # hung connection fails fast instead of eating the job timeout.
+          for _ in {1..90}; do
+            if curl -s --connect-timeout 2 --max-time 5 http://localhost:5000/api/v1/health > /dev/null; then
+              echo "Server started successfully"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify server is running
+          if ! curl -s --connect-timeout 2 --max-time 5 http://localhost:5000/api/v1/health > /dev/null; then
+            echo "Server failed to start"
+            cat server.log
+            exit 1
+          fi
+
+      - name: Generate OpenAPI specification
+        run: |
+          # If you have an OpenAPI spec, use it. Otherwise, ZAP will discover endpoints
+          # For now, we'll let ZAP discover API endpoints automatically
+          echo "Using automatic API endpoint discovery"
+
+      - name: Run ZAP API Scan
+        uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
+        with:
+          target: 'http://localhost:5000/api/v1'
+          format: 'openapi'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -I'  # -I: only fail on FAIL-level alerts per rules.tsv (ignore WARN/INFO)
+          allow_issue_writing: false
+          fail_action: true
+          artifact_name: zapapi
+
+      - name: Upload ZAP API scan results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: zap-api-scan-results
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          retention-days: 30
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+            rm server.pid
+          fi

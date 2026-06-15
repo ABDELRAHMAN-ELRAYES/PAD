@@ -44,24 +44,29 @@ model Idea {
     userId         String   @map("user_id")
     rawText        String   @map("raw_text") @db.Text
     refinedText    String?  @map("refined_text") @db.Text
-    status         String   @default("draft") // draft | confirmed
+    status         String   @default("draft") // draft | questionnaire_ready | questionnaire_complete | researching | research_complete | confirmed
     analysisResult Json?    @map("analysis_result")
+    researchResult Json?    @map("research_result")
+    confirmedAt    DateTime? @map("confirmed_at")
     createdAt      DateTime @default(now()) @map("created_at")
     updatedAt      DateTime @updatedAt @map("updated_at")
 
     // Relations
     // Idea -> User (Many -> One)
-    user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    discoveryQuestionnaire DiscoveryQuestionnaire?
+    questionnaireResponse  QuestionnaireResponse?
+    researchJob            ResearchJob?
     // Idea -> Document (One -> Many)
-    documents        Document[]
+    documents              Document[]
     // Idea -> Diagram (One -> Many)
-    diagrams         Diagram[]
+    diagrams               Diagram[]
     // Idea -> Feature (One -> Many)
-    features         Feature[]
+    features               Feature[]
     // Idea -> Workflow (One -> One)
-    workflow         Workflow?
-    iterationSession IterationSession?
-    projectIR        ProjectIR?
+    workflow               Workflow?
+    iterationSession       IterationSession?
+    projectIR              ProjectIR?
 
     @@map("ideas")
 }
@@ -547,5 +552,50 @@ model ProjectIRVersion {
 
     @@unique([projectIRId, version])
     @@map("project_ir_versions")
+}
+
+// ============================================
+// Module 1 Redesign: Discovery & Research
+// ============================================
+
+model DiscoveryQuestionnaire {
+    id          String   @id @default(uuid())
+    ideaId      String   @unique @map("idea_id")
+    questions   Json     // Stored as JSON array of IDiscoveryQuestion
+    generatedAt DateTime @default(now()) @map("generated_at")
+
+    // Relations
+    idea        Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+    @@map("discovery_questionnaires")
+}
+
+model QuestionnaireResponse {
+    id          String   @id @default(uuid())
+    ideaId      String   @unique @map("idea_id")
+    responses   Json     // Stored as JSON array of response values (questionId, value)
+    submittedAt DateTime @default(now()) @map("submitted_at")
+
+    // Relations
+    idea        Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+    @@map("questionnaire_responses")
+}
+
+model ResearchJob {
+    id           String   @id @default(uuid())
+    ideaId       String   @unique @map("idea_id")
+    status       String   @default("pending") // pending | running | completed | failed
+    currentPhase String?  @map("current_phase") // understanding | competitors | market | architecture | scope | risks | summary
+    progress     Int      @default(0) // 0 to 100
+    logs         Json?    // Array of phase completion logs / statuses
+    error        String?  @db.Text
+    createdAt    DateTime @default(now()) @map("created_at")
+    updatedAt    DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    idea         Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+    @@map("research_jobs")
 }
 

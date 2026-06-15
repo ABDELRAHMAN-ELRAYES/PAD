@@ -1,0 +1,100 @@
+name: Checkov IaC Security Scan
+
+on:
+  workflow_dispatch:
+  workflow_call:  # Called by release-gate.yml
+
+permissions: {}  # Minimal top-level for OSSF Scorecard Token-Permissions
+
+jobs:
+  checkov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Checkov
+        run: pip install checkov==3.2.499
+
+      # Reverted to CLI approach due to known bug in bridgecrewio/checkov-action
+      # when running multiple consecutive action calls (heredoc delimiter overflow)
+      # See: https://github.com/bridgecrewio/checkov-action/issues/170
+      # See: https://github.com/bridgecrewio/checkov/issues/5866
+      - name: Run Checkov on Dockerfile
+        run: |
+          checkov -f Dockerfile \
+            --framework dockerfile \
+            --skip-check CKV_DOCKER_3 \
+            -o cli -o sarif \
+            --output-file-path console,checkov-docker.sarif
+
+      - name: Run Checkov on docker-compose files
+        run: |
+          checkov \
+            -f docker-compose.yml \
+            -f docker-compose.gpu.override.yml \
+            -f docker-compose.tts.yml \
+            -f docker-compose.unraid.yml \
+            --framework yaml \
+            -o cli -o sarif \
+            --output-file-path console,checkov-compose.sarif
+
+      - name: Run Checkov on GitHub Actions workflows
+        run: |
+          checkov -d .github/workflows \
+            --framework github_actions \
+            --skip-check CKV_GHA_7 \
+            -o cli -o sarif \
+            --output-file-path console,checkov-workflows.sarif
+
+      - name: Check SARIF files exist
+        id: check-sarif
+        if: always()
+        run: |
+          [ -f checkov-docker.sarif ] && echo "docker=true" >> "$GITHUB_OUTPUT"
+          [ -f checkov-compose.sarif ] && echo "compose=true" >> "$GITHUB_OUTPUT"
+          [ -f checkov-workflows.sarif ] && echo "workflows=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Dockerfile SARIF results
+        if: always() && steps.check-sarif.outputs.docker == 'true'
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: checkov-docker.sarif
+          category: checkov-dockerfile
+
+      - name: Upload docker-compose SARIF results
+        if: always() && steps.check-sarif.outputs.compose == 'true'
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: checkov-compose.sarif
+          category: checkov-compose
+
+      - name: Upload GitHub Actions SARIF results
+        if: always() && steps.check-sarif.outputs.workflows == 'true'
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: checkov-workflows.sarif
+          category: checkov-workflows
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== Checkov IaC Security Scan Summary ==="
+          echo "SARIF results uploaded to GitHub Security tab"
+          echo "Scan completed (strict mode - failures block CI)"

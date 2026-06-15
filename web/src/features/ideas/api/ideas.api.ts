@@ -51,4 +51,33 @@ export const ideaApi = {
         const response = await apiClient.post<ApiResponse<IdeaResponse>>(`/ideas/${id}/confirm`);
         return response.data!.idea;
     },
+
+    // Get discovery questionnaire
+    async getQuestionnaire(id: string): Promise<any> {
+        const response = await apiClient.get<ApiResponse<{ questionnaire: any }>>(`/ideas/${id}/questionnaire`);
+        return response.data!.questionnaire;
+    },
+
+    // Submit discovery questionnaire responses
+    async submitQuestionnaire(id: string, responses: any[]): Promise<any> {
+        const response = await apiClient.post<ApiResponse<{ response: any }>>(`/ideas/${id}/questionnaire/submit`, { responses });
+        return response.data!.response;
+    },
+
+    // Regenerate discovery questionnaire
+    async regenerateQuestionnaire(id: string): Promise<any> {
+        const response = await apiClient.post<ApiResponse<any>>(`/ideas/${id}/questionnaire/regenerate`);
+        return response;
+    },
+
+    // Get research job status
+    async getResearchStatus(id: string): Promise<any> {
+        const response = await apiClient.get<ApiResponse<{ job: any; ideaStatus: string; researchResult: any }>>(`/ideas/${id}/research/status`);
+        return response.data!;
+    },
+
+    // Trigger/stream research (returns raw response stream)
+    async startResearchStream(id: string): Promise<Response> {
+        return await apiClient.post<Response>(`/ideas/${id}/research`, undefined, {}, true);
+    },
 };

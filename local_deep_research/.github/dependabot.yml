@@ -1,0 +1,95 @@
+# Dependabot configuration for automated dependency updates
+
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    ignore:
+      # faiss-cpu >=1.14 wheels execute AVX2 instructions unconditionally at
+      # dlopen and SIGILL on CPUs without AVX2 (#4480). Do not propose bumping
+      # the constraint past 1.13.x until upstream ships an AVX2-safe wheel
+      # (facebookresearch/faiss#5296). Remove this ignore together with the
+      # pyproject pin when lifting it — exit conditions tracked in #4499.
+      - dependency-name: "faiss-cpu"
+        versions: [">=1.14"]
+
+  # JavaScript dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/api_tests_with_login
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/infrastructure_tests
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/puppeteer
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/ui_tests
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/ui_tests/playwright
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /tests/accessibility_tests
+    schedule:
+      interval: daily

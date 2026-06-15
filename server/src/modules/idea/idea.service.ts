@@ -9,6 +9,7 @@ import {
     IIdeaResponse,
 } from "./types/IIdea";
 import SocketService from "../../services/socket.service";
+import DiscoveryService from "../discovery/discovery.service";
 
 class IdeaService {
     private static ideaRepository: IdeaRepository = IdeaRepository.getInstance();
@@ -35,6 +36,11 @@ class IdeaService {
         const idea = await this.ideaRepository.createIdea({
             rawText: normalizedText,
             userId: data.userId,
+        });
+
+        // Trigger discovery questionnaire generation in the background
+        DiscoveryService.generateQuestionnaire(idea.id).catch((err) => {
+            console.error("Failed to generate background questionnaire:", err);
         });
 
         return idea as IIdea;
@@ -207,10 +213,10 @@ class IdeaService {
             return next(new AppError(400, "Idea is already confirmed"));
         }
 
-        // Require AI analysis before confirmation
-        if (!idea.analysisResult) {
+        // Require Deep Research to be complete before confirmation
+        if (idea.status !== "research_complete" && !idea.researchResult) {
             return next(
-                new AppError(400, "AI analysis is required before confirmation")
+                new AppError(400, "Deep research must be completed before confirmation")
             );
         }
 

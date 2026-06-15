@@ -1,5 +1,11 @@
 // Idea status type
-export type IdeaStatus = "draft" | "confirmed";
+export type IdeaStatus =
+    | "draft"
+    | "questionnaire_ready"
+    | "questionnaire_complete"
+    | "researching"
+    | "research_complete"
+    | "confirmed";
 
 // AI Analysis result schema
 export interface IIdeaAnalysisResult {
@@ -16,6 +22,7 @@ export interface Idea {
     refinedText: string | null;
     status: IdeaStatus;
     analysisResult: IIdeaAnalysisResult | null;
+    researchResult: any | null;
     createdAt: string;
     updatedAt: string;
 }
