@@ -374,8 +374,6 @@ model IterationSession {
     idea     Idea               @relation(fields: [ideaId], references: [id], onDelete: Cascade)
     // IterationSession -> IterationMessage (One -> Many)
     messages IterationMessage[]
-    // IterationSession -> ModificationPlan (One -> Many)
-    plans    ModificationPlan[]
 
     @@map("iteration_sessions")
 }
@@ -402,10 +400,6 @@ model IterationSuggestion {
     title              String
     summary            String   @db.Text
     status             String   @default("pending") // pending | approved | rejected | applied | partial | failed
-    planId             String?  @map("plan_id")
-    failureReason      String?  @map("failure_reason") @db.Text
-    appliedActionCount Int      @default(0) @map("applied_action_count")
-    totalActionCount   Int      @default(0) @map("total_action_count")
     createdAt          DateTime @default(now()) @map("created_at")
     updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -414,8 +408,6 @@ model IterationSuggestion {
     message IterationMessage            @relation(fields: [messageId], references: [id], onDelete: Cascade)
     // IterationSuggestion -> IterationSuggestionAction (One -> Many)
     actions IterationSuggestionAction[]
-    // IterationSuggestion -> ModificationPlan (Many -> One, optional)
-    plan    ModificationPlan?           @relation(fields: [planId], references: [id], onDelete: SetNull)
 
     @@map("iteration_suggestions")
 }
@@ -436,61 +428,7 @@ model IterationSuggestionAction {
     @@map("iteration_suggestion_actions")
 }
 
-// ============================================
-// Artifact Modification Engine (AME)
-// ============================================
 
-model ModificationPlan {
-    id          String   @id @default(uuid())
-    sessionId   String   @map("session_id")
-    userMessage String   @map("user_message") @db.Text
-    status      String   @default("draft") // draft | confirmed | applying | applied | failed | rolled_back
-    summary     String?  @db.Text
-    createdAt   DateTime @default(now()) @map("created_at")
-    appliedAt   DateTime? @map("applied_at")
-
-    // Relations
-    session     IterationSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-    actions     ModificationPlanAction[]
-    suggestions IterationSuggestion[]
-    changeRecords ArtifactChangeRecord[]
-
-    @@map("modification_plans")
-}
-
-model ModificationPlanAction {
-    id                String   @id @default(uuid())
-    planId            String   @map("plan_id")
-    module            String   // DOCUMENT | DIAGRAM | FEATURE | TASK | WORKFLOW
-    targetId          String   @map("target_id")
-    actionType        String   @map("action_type") // CREATE | MODIFY | DELETE | REGENERATE
-    newContent        String?  @map("new_content") @db.Text
-    status            String   @default("pending") // pending | applying | applied | failed | skipped
-    error             String?  @db.Text
-    artifactVersionId String?  @map("artifact_version_id")
-    createdAt         DateTime @default(now()) @map("created_at")
-
-    // Relations
-    plan ModificationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-    @@map("modification_plan_actions")
-}
-
-model ArtifactChangeRecord {
-    id         String   @id @default(uuid())
-    planId     String   @map("plan_id")
-    module     String   // DOCUMENT | DIAGRAM | FEATURE | TASK | WORKFLOW
-    artifactId String   @map("artifact_id")
-    fromVersion Int?    @map("from_version")
-    toVersion   Int?    @map("to_version")
-    changelog  String?  @db.Text
-    createdAt  DateTime @default(now()) @map("created_at")
-
-    // Relations
-    plan ModificationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-    @@map("artifact_change_records")
-}
 
 model File {
     id           String   @id @default(uuid())

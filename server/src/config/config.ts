@@ -57,9 +57,6 @@ interface Config {
         clientSecret: string;
         callbackUrl: string;
     };
-    gemini: {
-        apiKey: string;
-    };
     claude: string;
     puter: {
         authToken: string;
@@ -129,9 +126,6 @@ const config: Config = {
         clientId: process.env.GOOGLE_CLIENT_ID || "",
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
         callbackUrl: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/api/v1/auth/google/callback",
-    },
-    gemini: {
-        apiKey: process.env.GEMINI_API_KEY || "",
     },
     claude: process.env.CLAUDE_API || "",
     puter: {
