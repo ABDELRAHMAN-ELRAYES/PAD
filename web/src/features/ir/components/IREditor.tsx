@@ -89,6 +89,7 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
 
   // --- Relations UI state ---
   const [showAddRelation, setShowAddRelation] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [newRelFrom, setNewRelFrom] = useState("");
   const [newRelTo, setNewRelTo] = useState("");
   const [newRelType, setNewRelType] = useState<"one-to-one" | "one-to-many" | "many-to-many">("one-to-many");
@@ -337,160 +338,166 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
   }
 
   return (
-    <div className={isFullscreen ? "fixed inset-0 z-50 bg-background p-6 flex flex-col w-screen h-screen overflow-hidden gap-4" : "flex flex-col h-full gap-4"}>
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card/40 border border-border rounded-xl p-4 backdrop-blur-md shrink-0">
-        <div>
-          <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-            <Cpu className="h-4 w-4 text-primary" />
-            Project Compilation Workspace
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            Unified single source of truth (IR v{ir?.version || 1}) mapping requirements to downstream assets.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={loadIR}
-            className="flex items-center gap-1 text-xs h-8"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Reload Facts
-          </Button>
-          <Button 
-            size="sm" 
-            onClick={handleCompile} 
-            disabled={isCompiling}
-            className="flex items-center gap-1 font-semibold text-xs h-8"
-          >
-            {isCompiling ? <Spinner className="h-3 w-3" /> : <Layers className="h-3 w-3" />}
-            Compile Assets
-          </Button>
-        </div>
-      </div>
+    <div className={isFullscreen 
+      ? "fixed inset-0 z-50 bg-background w-screen h-screen overflow-hidden" 
+      : "relative w-full h-full overflow-hidden border border-border rounded-xl bg-slate-50 dark:bg-zinc-950/20"
+    }>
+      <div
+        ref={canvasRef}
+        className="relative w-full h-full overflow-hidden select-none cursor-grab active:cursor-grabbing"
+        style={{
+          backgroundImage: "radial-gradient(circle, var(--grid-color) 1.5px, transparent 1.5px)",
+          backgroundSize: `${24 * scale}px ${24 * scale}px`,
+          backgroundPosition: `${position.x}px ${position.y}px`,
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+      >
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root { --grid-color: rgba(100, 116, 139, 0.12); }
+          .dark { --grid-color: rgba(161, 161, 170, 0.08); }
+        `}} />
 
-      {/* Warnings & Notices */}
-      {warnings.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg p-3 text-xs flex flex-col gap-1.5 shrink-0">
-          <div className="flex items-center gap-1 font-semibold">
-            <AlertTriangle className="h-4 w-4" />
-            Compiler Warnings ({warnings.length})
+        {/* Floating Top-Left Workspace Panels */}
+        <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-3 items-start max-w-[calc(100%-32px)]">
+          {/* Project Compilation Workspace Title Panel */}
+          <div className={`pointer-events-auto flex justify-between items-center bg-card/45 border border-border rounded-xl backdrop-blur-md shrink-0 w-full sm:w-[420px] md:w-[480px] shadow-sm ${
+            isFullscreen ? "p-4 gap-4" : "p-2.5 px-3.5 gap-3"
+          }`}>
+            <div className="min-w-0 flex-1">
+              <h2 className={`font-semibold flex items-center gap-2 text-foreground ${
+                isFullscreen ? "text-sm" : "text-xs"
+              }`}>
+                <Cpu className={`${isFullscreen ? "h-4 w-4" : "h-3.5 w-3.5"} text-primary shrink-0`} />
+                <span className="truncate">Project Compilation Workspace</span>
+              </h2>
+              {isFullscreen ? (
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                  Unified single source of truth (IR v{ir?.version || 24}) mapping requirements to downstream assets.
+                </p>
+              ) : (
+                <p className="text-[9px] text-muted-foreground mt-0.5 truncate">
+                  IR v{ir?.version || 24} • Unified source of truth
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleCompile}
+                disabled={isCompiling}
+                className={`cursor-pointer justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md flex items-center gap-1.5 font-semibold shadow-xs ${
+                  isFullscreen ? "px-3 text-xs h-8" : "px-2.5 text-[10px] h-7"
+                }`}
+              >
+                {isCompiling ? (
+                  <Spinner className="h-3 w-3" />
+                ) : (
+                  <Layers className="h-3 w-3" />
+                )}
+                Compile Assets
+              </button>
+            </div>
           </div>
-          <ul className="list-disc pl-5 space-y-0.5">
-            {warnings.map((w, idx) => (
-              <li key={idx}>{w}</li>
-            ))}
-          </ul>
+
+          {/* Canvas Actions Dock - Vertical Sidebar style */}
+          <div className={`pointer-events-auto flex flex-col items-stretch bg-background border border-border shrink-0 shadow-sm rounded-lg ${
+            isFullscreen ? "p-2 gap-1.5 w-48" : "p-1.5 gap-1 w-40"
+          }`}>
+            <button
+              type="button"
+              onClick={() => {
+                const next = [...schema.entities];
+                next.push({
+                  name: `NewEntity${next.length + 1}`,
+                  fields: [{ name: "id", type: "string", isPrimaryKey: true, isNullable: false }],
+                });
+                updateEntities(next);
+              }}
+              className={`cursor-pointer justify-start whitespace-nowrap font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 rounded-md flex items-center gap-2 ${
+                isFullscreen ? "h-8 text-xs px-3" : "h-7 text-[10px] px-2.5"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" /> Add Entity
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = [...schema.modules];
+                next.push({
+                  name: `NewModule${next.length + 1}`,
+                  dependencies: [],
+                  description: "",
+                });
+                updateModules(next);
+              }}
+              className={`cursor-pointer justify-start whitespace-nowrap font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 rounded-md flex items-center gap-2 ${
+                isFullscreen ? "h-8 text-xs px-3" : "h-7 text-[10px] px-2.5"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" /> Add Module
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = [...schema.roles];
+                next.push({
+                  name: `NewRole${next.length + 1}`,
+                  actions: ["view_dashboard"],
+                  description: "",
+                });
+                updateRoles(next);
+              }}
+              className={`cursor-pointer justify-start whitespace-nowrap font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 rounded-md flex items-center gap-2 ${
+                isFullscreen ? "h-8 text-xs px-3" : "h-7 text-[10px] px-2.5"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" /> Add User Role
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = [...schema.businessRules];
+                next.push({
+                  title: `New Business Rule ${next.length + 1}`,
+                  description: "",
+                  constraints: [],
+                });
+                updateRules(next);
+              }}
+              className={`cursor-pointer justify-start whitespace-nowrap font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 rounded-md flex items-center gap-2 ${
+                isFullscreen ? "h-8 text-xs px-3" : "h-7 text-[10px] px-2.5"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" /> Add Constraint
+            </button>
+
+            <div data-orientation="horizontal" role="none" className={`bg-border shrink-0 w-full ${
+              isFullscreen ? "h-px my-1" : "h-px my-0.5"
+            }`} />
+
+            <button
+              type="button"
+              onClick={() => {
+                if (schema.entities.length < 2) {
+                  toast({ title: "Operation Blocked", description: "Need at least 2 entities to create a relation.", variant: "warning" as any });
+                  return;
+                }
+                setNewRelFrom(schema.entities[0].name);
+                setNewRelTo(schema.entities[1].name);
+                setShowAddRelation(true);
+              }}
+              className={`cursor-pointer justify-start whitespace-nowrap font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 rounded-md flex items-center gap-2 ${
+                isFullscreen ? "h-8 text-xs px-3" : "h-7 text-[10px] px-2.5"
+              }`}
+            >
+              <GitBranch className="h-3.5 w-3.5 text-violet-500" /> Relationships
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Top Floating Control Bar */}
-      <div className="flex flex-wrap items-center gap-2 bg-background border border-border p-2 rounded-lg shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const next = [...schema.entities];
-            next.push({
-              name: `NewEntity${next.length + 1}`,
-              fields: [{ name: "id", type: "string", isPrimaryKey: true, isNullable: false }],
-            });
-            updateEntities(next);
-          }}
-          className="h-8 text-xs flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Add Entity
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const next = [...schema.modules];
-            next.push({
-              name: `NewModule${next.length + 1}`,
-              dependencies: [],
-              description: "",
-            });
-            updateModules(next);
-          }}
-          className="h-8 text-xs flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Add Module
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const next = [...schema.roles];
-            next.push({
-              name: `NewRole${next.length + 1}`,
-              actions: ["view_dashboard"],
-              description: "",
-            });
-            updateRoles(next);
-          }}
-          className="h-8 text-xs flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Add User Role
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const next = [...schema.businessRules];
-            next.push({
-              title: `New Business Rule ${next.length + 1}`,
-              description: "",
-              constraints: [],
-            });
-            updateRules(next);
-          }}
-          className="h-8 text-xs flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" /> Add Business Constraint
-        </Button>
-
-        <Separator orientation="vertical" className="h-5 mx-1" />
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (schema.entities.length < 2) {
-              toast({ title: "Operation Blocked", description: "Need at least 2 entities to create a relation.", variant: "warning" as any });
-              return;
-            }
-            setNewRelFrom(schema.entities[0].name);
-            setNewRelTo(schema.entities[1].name);
-            setShowAddRelation(true);
-          }}
-          className="h-8 text-xs flex items-center gap-1"
-        >
-          <GitBranch className="h-3 w-3 text-violet-500" /> Manage Relationships
-        </Button>
-      </div>
-
-      {/* Main Canvas Area */}
-      <div className="relative flex-1 min-h-0 w-full overflow-hidden border border-border">
-        <div
-          ref={canvasRef}
-          className="relative w-full h-full overflow-hidden select-none cursor-grab active:cursor-grabbing bg-slate-50 dark:bg-zinc-950/20"
-          style={{
-            backgroundImage: "radial-gradient(circle, var(--grid-color) 1.5px, transparent 1.5px)",
-            backgroundSize: `${24 * scale}px ${24 * scale}px`,
-            backgroundPosition: `${position.x}px ${position.y}px`,
-          }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUpOrLeave}
-          onMouseLeave={handleMouseUpOrLeave}
-        >
-          <style dangerouslySetInnerHTML={{ __html: `
-            :root { --grid-color: rgba(100, 116, 139, 0.12); }
-            .dark { --grid-color: rgba(161, 161, 170, 0.08); }
-          `}} />
 
           {/* Pannable/Zoomable Board Content Container */}
           <div
@@ -1190,133 +1197,164 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
               {Math.round(scale * 100)}%
             </span>
           </div>
-
-          {/* Floating Panel: Manage Relationships */}
-          {showAddRelation && (
-            <Card className="absolute top-4 left-4 w-80 bg-background/95 backdrop-blur border border-border shadow-lg z-20 pointer-events-auto flex flex-col max-h-[calc(100%-32px)]">
-              <CardHeader className="p-3 border-b flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-xs font-bold flex items-center gap-1">
-                  <GitBranch className="h-3.5 w-3.5 text-violet-500" /> Entity Relationships
-                </CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowAddRelation(false)}
-                >
-                  Close
-                </Button>
-              </CardHeader>
-              <CardContent className="p-3 flex-1 overflow-y-auto space-y-4">
-                {/* Create form */}
-                <div className="space-y-2.5 border-b pb-3">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">New Link</div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">Source Table</span>
-                    <select
-                      value={newRelFrom}
-                      onChange={(e) => setNewRelFrom(e.target.value)}
-                      className="w-full h-8 text-xs border rounded bg-background px-2"
-                    >
-                      {schema.entities.map((e, idx) => (
-                        <option key={idx} value={e.name}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">Relationship Type</span>
-                    <select
-                      value={newRelType}
-                      onChange={(e) => setNewRelType(e.target.value as any)}
-                      className="w-full h-8 text-xs border rounded bg-background px-2"
-                    >
-                      <option value="one-to-one">1 : 1 (One to One)</option>
-                      <option value="one-to-many">1 : N (One to Many)</option>
-                      <option value="many-to-many">N : M (Many to Many)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">Target Table</span>
-                    <select
-                      value={newRelTo}
-                      onChange={(e) => setNewRelTo(e.target.value)}
-                      className="w-full h-8 text-xs border rounded bg-background px-2"
-                    >
-                      {schema.entities.map((e, idx) => (
-                        <option key={idx} value={e.name}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground">Label / Description</span>
-                    <Input 
-                      value={newRelDesc}
-                      placeholder="e.g. owns, references"
-                      onChange={(e) => setNewRelDesc(e.target.value)}
-                      className="h-8 text-xs px-2"
-                    />
-                  </div>
-
+          {/* Floating Bottom-Left Panels (Warnings and Relationships Modal) */}
+          <div className="absolute top-4 right-4 z-20 pointer-events-none flex flex-col-reverse gap-3 items-start max-h-[calc(100%-120px)]">
+            {showAddRelation && (
+              <Card className="pointer-events-auto w-80 bg-background/95 backdrop-blur border border-border shadow-lg flex flex-col max-h-[500px] overflow-hidden">
+                <CardHeader className="p-3 border-b flex flex-row items-center justify-between space-y-0 shrink-0">
+                  <CardTitle className="text-xs font-bold flex items-center gap-1">
+                    <GitBranch className="h-3.5 w-3.5 text-violet-500" /> Entity Relationships
+                  </CardTitle>
                   <Button 
-                    onClick={() => {
-                      if (!newRelFrom || !newRelTo) return;
-                      const next = [...schema.relationships];
-                      next.push({
-                        fromEntity: newRelFrom,
-                        toEntity: newRelTo,
-                        type: newRelType,
-                        description: newRelDesc.trim() || "references",
-                      });
-                      updateRelationships(next);
-                      setNewRelDesc("");
-                      toast({
-                        title: "Relationship Added",
-                        description: `Link established between ${newRelFrom} and ${newRelTo}.`,
-                      });
-                    }}
-                    className="w-full h-8 text-xs"
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowAddRelation(false)}
                   >
-                    Create Relationship Link
+                    Close
                   </Button>
-                </div>
+                </CardHeader>
+                <CardContent className="p-3 flex-1 flex flex-col gap-3 min-h-0">
+                  {/* Create form toggle button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(!showCreateForm)}
+                    className="text-[11px] font-semibold flex items-center justify-center gap-1 w-full py-1.5 border border-dashed rounded border-border hover:bg-accent text-foreground transition-all shrink-0"
+                  >
+                    {showCreateForm ? "Hide Form" : "+ Add New Relationship"}
+                  </button>
 
-                {/* List active */}
-                <div className="space-y-2">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Active Links ({schema.relationships.length})</div>
-                  <div className="space-y-1.5">
-                    {schema.relationships.map((rel, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-muted/40 border border-border/80 rounded p-1.5 text-xs">
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="font-semibold text-foreground truncate">{rel.fromEntity} → {rel.toEntity}</span>
-                          <span className="text-[10px] text-muted-foreground italic truncate">
-                            {rel.type} {rel.description ? `(${rel.description})` : ""}
-                          </span>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => {
-                            const next = [...schema.relationships];
-                            next.splice(idx, 1);
-                            updateRelationships(next);
-                          }}
+                  {/* Create form */}
+                  {showCreateForm && (
+                    <div className="space-y-2 border border-border/60 bg-muted/20 rounded-lg p-2.5 shrink-0 text-xs transition-all">
+                      <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">New Link</div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">Source Table</span>
+                        <select
+                          value={newRelFrom}
+                          onChange={(e) => setNewRelFrom(e.target.value)}
+                          className="w-full h-8 text-xs border rounded bg-background px-2"
                         >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                          {schema.entities.map((e, idx) => (
+                            <option key={idx} value={e.name}>{e.name}</option>
+                          ))}
+                        </select>
                       </div>
-                    ))}
-                    {schema.relationships.length === 0 && (
-                      <span className="text-[10px] text-muted-foreground italic">No active relationships</span>
-                    )}
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">Relationship Type</span>
+                        <select
+                          value={newRelType}
+                          onChange={(e) => setNewRelType(e.target.value as any)}
+                          className="w-full h-8 text-xs border rounded bg-background px-2"
+                        >
+                          <option value="one-to-one">1 : 1 (One to One)</option>
+                          <option value="one-to-many">1 : N (One to Many)</option>
+                          <option value="many-to-many">N : M (Many to Many)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">Target Table</span>
+                        <select
+                          value={newRelTo}
+                          onChange={(e) => setNewRelTo(e.target.value)}
+                          className="w-full h-8 text-xs border rounded bg-background px-2"
+                        >
+                          {schema.entities.map((e, idx) => (
+                            <option key={idx} value={e.name}>{e.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground">Label / Description</span>
+                        <Input 
+                          value={newRelDesc}
+                          placeholder="e.g. owns, references"
+                          onChange={(e) => setNewRelDesc(e.target.value)}
+                          className="h-8 text-xs px-2"
+                        />
+                      </div>
+
+                      <Button 
+                        onClick={() => {
+                          if (!newRelFrom || !newRelTo) return;
+                          const next = [...schema.relationships];
+                          next.push({
+                            fromEntity: newRelFrom,
+                            toEntity: newRelTo,
+                            type: newRelType,
+                            description: newRelDesc.trim() || "references",
+                          });
+                          updateRelationships(next);
+                          setNewRelDesc("");
+                          setShowCreateForm(false);
+                          toast({
+                            title: "Relationship Added",
+                            description: `Link established between ${newRelFrom} and ${newRelTo}.`,
+                          });
+                        }}
+                        className="w-full h-8 text-xs"
+                      >
+                        Create Relationship Link
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* List active */}
+                  <div className="flex flex-col flex-1 min-h-0 gap-1.5">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground shrink-0">
+                      Active Links ({schema.relationships.length})
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+                      {schema.relationships.map((rel, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-muted/40 border border-border/80 rounded p-1.5 text-xs">
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="font-semibold text-foreground truncate">{rel.fromEntity} → {rel.toEntity}</span>
+                            <span className="text-[10px] text-muted-foreground italic truncate">
+                              {rel.type} {rel.description ? `(${rel.description})` : ""}
+                            </span>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => {
+                              const next = [...schema.relationships];
+                              next.splice(idx, 1);
+                              updateRelationships(next);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      {schema.relationships.length === 0 && (
+                        <span className="text-[10px] text-muted-foreground italic block pt-1">
+                          No active relationships
+                        </span>
+                      )}
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Floating Warnings Overlay */}
+            {warnings.length > 0 && (
+              <div className="pointer-events-auto max-w-xs bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg p-2.5 text-[10px] flex flex-col gap-1.5 shadow-md backdrop-blur-md dark:bg-amber-950/20">
+                <div className="flex items-center gap-1 font-bold">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  Warnings ({warnings.length})
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <ul className="list-disc pl-4 space-y-0.5 max-h-24 overflow-y-auto">
+                  {warnings.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
         </div>
       </div>
     </div>
