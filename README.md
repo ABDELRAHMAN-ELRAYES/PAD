@@ -16,7 +16,7 @@
 
 ---
 
-PAD is a modern web application designed to accelerate software engineering planning. Starting from a simple client brief or business idea, PAD automatically generates system design documents, interactive UML diagrams, structured feature breakdowns, actionable tasks with dependency graphs, and IDE-compatible workflow instructions — all powered by Google Gemini and live-editable inside a unified React workspace.
+PAD is a modern web application designed to accelerate software engineering planning. Starting from a simple client brief or business idea, PAD automatically generates system design documents, interactive UML diagrams, structured feature breakdowns, actionable tasks with dependency graphs, and IDE-compatible workflow instructions — all powered by local models via Ollama and live-editable inside a unified React workspace.
 
 ---
 
@@ -62,13 +62,13 @@ flowchart TD
     subgraph Server [Backend Layer — Express.js]
         Router[HTTP Router / Controllers]
         Auth[JWT Protection Middleware]
-        Gemini[Gemini Integration Service]
+        Ollama[Ollama Integration Service]
         SIO_S[Socket.io Server]
         Prisma[Prisma Client ORM]
     end
 
     subgraph External [AI Providers]
-        GeminiAPI[[Google Gemini API]]
+        OllamaAPI[[Local Ollama Instance]]
     end
 
     subgraph Storage [Storage Layer]
@@ -81,9 +81,9 @@ flowchart TD
     TQ --->|"REST API Requests"| Router
     SIO_C <--->|"Real-time Change Plans"| SIO_S
     Router ---> Auth
-    Router ---> Gemini
+    Router ---> Ollama
     Router ---> SIO_S
-    Gemini <--->|"AI Analysis & Generation"| GeminiAPI
+    Ollama <--->|"AI Analysis & Generation"| OllamaAPI
     Router ---> Prisma
     Prisma <---> DB
 
@@ -134,7 +134,7 @@ flowchart TD
 | **Backend Runtime** | Node.js + Express.js |
 | **Language** | TypeScript |
 | **Database & ORM** | PostgreSQL + Prisma ORM |
-| **Generative AI** | Google Gemini API (via `@google/generative-ai`) |
+| **Generative AI** | Local LLM via Ollama (e.g., Qwen / Llama) |
 | **Authentication** | JSON Web Tokens (JWT) + HTTP Headers |
 | **Diagram Engine** | MermaidJS Live Rendering |
 
@@ -149,7 +149,7 @@ PAD/
 │   │   └── schema.prisma      # PostgreSQL models
 │   ├── src/
 │   │   ├── modules/           # Module controllers, services, and routes
-│   │   │   ├── ai/            # Gemini client logic
+│   │   │   ├── ai/            # Ollama client & prompt service
 │   │   │   ├── auth/          # User login, registration, and forget password
 │   │   │   ├── diagram/       # Mermaid generation & versions
 │   │   │   ├── document/      # PRD/BRD generation & versions
@@ -184,7 +184,7 @@ PAD/
 - [Node.js](https://nodejs.org/) v18+
 - [PostgreSQL](https://www.postgresql.org/) v16+
 - [pnpm](https://pnpm.io/) package manager (`npm install -g pnpm`)
-- Google Gemini API Key
+- Local Ollama instance (installed and running)
 
 ---
 
@@ -197,7 +197,7 @@ pnpm install
 
 # Create environment file
 cp .env.example .env
-# Edit .env and supply your DATABASE_URL and GEMINI_API_KEY
+# Edit .env and supply your DATABASE_URL, OLLAMA_URL, and OLLAMA_MODEL
 ```
 
 Run database migrations:
@@ -240,7 +240,8 @@ Open `http://localhost:3000` in your web browser.
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://...` |
 | `PORT` | Backend port | `8080` |
 | `JWT_SECRET` | Secret key for signing authorization tokens | — |
-| `GEMINI_API_KEY` | **Required.** Google Gemini API Key | — |
+| `OLLAMA_URL` | **Required.** Ollama Server URL | `http://localhost:11434` |
+| `OLLAMA_MODEL` | **Required.** Main LLM Model name | `qwen3.5:4b` |
 
 ---
 
