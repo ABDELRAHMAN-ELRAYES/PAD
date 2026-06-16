@@ -8,6 +8,9 @@ const EntityFieldSchema = z.object({
     isNullable: z.boolean().optional(),
     isPrimaryKey: z.boolean().optional(),
     isUnique: z.boolean().optional(),
+    isForeignKey: z.boolean().optional(),
+    referencesEntity: z.string().optional(),
+    referencesField: z.string().optional(),
 });
 
 const EntitySchema = z.object({
