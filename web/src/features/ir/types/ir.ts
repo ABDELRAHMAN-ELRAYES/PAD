@@ -6,6 +6,9 @@ export interface EntityField {
   isNullable?: boolean;
   isPrimaryKey?: boolean;
   isUnique?: boolean;
+  isForeignKey?: boolean;
+  referencesEntity?: string;
+  referencesField?: string;
 }
 
 export interface Entity {

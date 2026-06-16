@@ -72,7 +72,8 @@ export const DiagramCanvas: FC<DiagramCanvasProps> = ({ code }) => {
       className="relative w-full h-full flex-1 min-h-[500px] overflow-hidden select-none cursor-grab active:cursor-grabbing bg-slate-50 dark:bg-slate-950/40"
       style={{
         backgroundImage: "radial-gradient(circle, var(--grid-color, #cbd5e1) 1px, transparent 1px)",
-        backgroundSize: "20px 20px",
+        backgroundSize: `${20 * scale}px ${20 * scale}px`,
+        backgroundPosition: `${position.x}px ${position.y}px`,
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

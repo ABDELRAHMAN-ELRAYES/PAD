@@ -4,10 +4,12 @@ import React, { useState, useEffect } from "react";
 import { 
   Plus, Trash2, Cpu, Save, RefreshCw, 
   Database, GitBranch, Shield, AlertTriangle, CheckCircle, 
-  HelpCircle, ChevronDown, ChevronRight, Layers
+  HelpCircle, ChevronDown, ChevronRight, Layers,
+  ZoomIn, ZoomOut, Maximize2, Minimize2, Pencil, Check
 } from "lucide-react";
 import { irApi } from "../api/ir.api";
 import { ProjectIRSchema, ProjectIR, Entity, Relationship, Module, UserRole, BusinessRule } from "../types/ir";
+import { useIRCanvas } from "../hooks/useIRCanvas";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const SQL_TYPES = [
+  "VARCHAR",
+  "CHAR",
+  "TEXT",
+  "INTEGER",
+  "BIGINT",
+  "SMALLINT",
+  "BOOLEAN",
+  "DECIMAL",
+  "NUMERIC",
+  "REAL",
+  "DOUBLE PRECISION",
+  "DATE",
+  "TIME",
+  "TIMESTAMP",
+  "TIMESTAMPTZ",
+  "JSON",
+  "JSONB",
+  "UUID",
+  "BYTEA",
+  "string",
+  "number",
+  "boolean",
+  "datetime",
+  "text"
+];
 
 interface IREditorProps {
   ideaId: string;
@@ -34,14 +65,34 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
   const [selectedDiagrams, setSelectedDiagrams] = useState<string[]>(["ERD", "SEQUENCE", "FLOWCHART", "ARCHITECTURE"]);
   const [warnings, setWarnings] = useState<string[]>([]);
 
-  // Expand/Collapse tree nodes
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    entities: true,
-    relationships: true,
-    modules: true,
-    roles: true,
-    businessRules: true,
-  });
+  // --- Canvas Management Hook ---
+  const {
+    scale,
+    position,
+    canvasRef,
+    nodePositions,
+    editingNodeId,
+    isFullscreen,
+    setNodePositions,
+    setEditingNodeId,
+    setIsFullscreen,
+    handleMouseDown,
+    handleNodeMouseDown,
+    handleMouseMove,
+    handleMouseUpOrLeave,
+    handleZoomIn,
+    handleZoomOut,
+    handleReset,
+    getInitialNodePosition,
+    getRelationshipPoints
+  } = useIRCanvas(schema);
+
+  // --- Relations UI state ---
+  const [showAddRelation, setShowAddRelation] = useState(false);
+  const [newRelFrom, setNewRelFrom] = useState("");
+  const [newRelTo, setNewRelTo] = useState("");
+  const [newRelType, setNewRelType] = useState<"one-to-one" | "one-to-many" | "many-to-many">("one-to-many");
+  const [newRelDesc, setNewRelDesc] = useState("");
 
   useEffect(() => {
     loadIR();
@@ -83,10 +134,6 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
     }
   };
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
-
   // --- Facts Mutator Helpers ---
   const saveSchema = async (updatedSchema: ProjectIRSchema) => {
     if (!schema) return;
@@ -111,8 +158,6 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
     }
   };
 
-
-
   const handleCompile = async () => {
     try {
       setIsCompiling(true);
@@ -133,7 +178,131 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
     }
   };
 
+  const handleRenameEntity = (entIdx: number, newName: string) => {
+    if (!schema) return;
+    const oldName = schema.entities[entIdx].name;
+    const oldKey = `entity-${oldName}`;
+    const newKey = `entity-${newName}`;
+    
+    setNodePositions((prev) => {
+      const next = { ...prev };
+      if (next[oldKey]) {
+        next[newKey] = next[oldKey];
+        delete next[oldKey];
+      }
+      return next;
+    });
 
+    if (editingNodeId === oldKey) {
+      setEditingNodeId(newKey);
+    }
+
+    const next = [...schema.entities];
+    next[entIdx].name = newName;
+    updateEntities(next);
+  };
+
+  const handleRenameModule = (idx: number, newName: string) => {
+    if (!schema) return;
+    const oldName = schema.modules[idx].name;
+    const oldKey = `module-${oldName}`;
+    const newKey = `module-${newName}`;
+    
+    setNodePositions((prev) => {
+      const next = { ...prev };
+      if (next[oldKey]) {
+        next[newKey] = next[oldKey];
+        delete next[oldKey];
+      }
+      return next;
+    });
+
+    if (editingNodeId === oldKey) {
+      setEditingNodeId(newKey);
+    }
+
+    const next = [...schema.modules];
+    next[idx].name = newName;
+    updateModules(next);
+  };
+
+  const handleRenameRole = (idx: number, newName: string) => {
+    if (!schema) return;
+    const oldName = schema.roles[idx].name;
+    const oldKey = `role-${oldName}`;
+    const newKey = `role-${newName}`;
+    
+    setNodePositions((prev) => {
+      const next = { ...prev };
+      if (next[oldKey]) {
+        next[newKey] = next[oldKey];
+        delete next[oldKey];
+      }
+      return next;
+    });
+
+    if (editingNodeId === oldKey) {
+      setEditingNodeId(newKey);
+    }
+
+    const next = [...schema.roles];
+    next[idx].name = newName;
+    updateRoles(next);
+  };
+
+  const handleRenameRule = (idx: number, newTitle: string) => {
+    if (!schema) return;
+    const oldTitle = schema.businessRules[idx].title;
+    const oldKey = `rule-${oldTitle}`;
+    const newKey = `rule-${newTitle}`;
+    
+    setNodePositions((prev) => {
+      const next = { ...prev };
+      if (next[oldKey]) {
+        next[newKey] = next[oldKey];
+        delete next[oldKey];
+      }
+      return next;
+    });
+
+    if (editingNodeId === oldKey) {
+      setEditingNodeId(newKey);
+    }
+
+    const next = [...schema.businessRules];
+    next[idx].title = newTitle;
+    updateRules(next);
+  };
+
+  const updateEntities = (updated: Entity[]) => {
+    const nextSchema = { ...schema!, entities: updated };
+    setSchema(nextSchema);
+    saveSchema(nextSchema);
+  };
+
+  const updateRelationships = (updated: Relationship[]) => {
+    const nextSchema = { ...schema!, relationships: updated };
+    setSchema(nextSchema);
+    saveSchema(nextSchema);
+  };
+
+  const updateModules = (updated: Module[]) => {
+    const nextSchema = { ...schema!, modules: updated };
+    setSchema(nextSchema);
+    saveSchema(nextSchema);
+  };
+
+  const updateRoles = (updated: UserRole[]) => {
+    const nextSchema = { ...schema!, roles: updated };
+    setSchema(nextSchema);
+    saveSchema(nextSchema);
+  };
+
+  const updateRules = (updated: BusinessRule[]) => {
+    const nextSchema = { ...schema!, businessRules: updated };
+    setSchema(nextSchema);
+    saveSchema(nextSchema);
+  };
 
   if (isLoading) {
     return (
@@ -167,47 +336,16 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
     );
   }
 
-  // --- Mutation Functions for local tree edits ---
-  const updateEntities = (updated: Entity[]) => {
-    const nextSchema = { ...schema, entities: updated };
-    setSchema(nextSchema);
-    saveSchema(nextSchema);
-  };
-
-  const updateRelationships = (updated: Relationship[]) => {
-    const nextSchema = { ...schema, relationships: updated };
-    setSchema(nextSchema);
-    saveSchema(nextSchema);
-  };
-
-  const updateModules = (updated: Module[]) => {
-    const nextSchema = { ...schema, modules: updated };
-    setSchema(nextSchema);
-    saveSchema(nextSchema);
-  };
-
-  const updateRoles = (updated: UserRole[]) => {
-    const nextSchema = { ...schema, roles: updated };
-    setSchema(nextSchema);
-    saveSchema(nextSchema);
-  };
-
-  const updateRules = (updated: BusinessRule[]) => {
-    const nextSchema = { ...schema, businessRules: updated };
-    setSchema(nextSchema);
-    saveSchema(nextSchema);
-  };
-
   return (
-    <div className="flex flex-col h-full gap-6 p-6">
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-background p-6 flex flex-col w-screen h-screen overflow-hidden gap-4" : "flex flex-col h-full gap-4"}>
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card/40 border border-border rounded-xl p-4 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card/40 border border-border rounded-xl p-4 backdrop-blur-md shrink-0">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
-            <Cpu className="h-5 w-5 text-primary" />
+          <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+            <Cpu className="h-4 w-4 text-primary" />
             Project Compilation Workspace
           </h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Unified single source of truth (IR v{ir?.version || 1}) mapping requirements to downstream assets.
           </p>
         </div>
@@ -216,18 +354,18 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
             variant="outline" 
             size="sm" 
             onClick={loadIR}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 text-xs h-8"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className="h-3 w-3" />
             Reload Facts
           </Button>
           <Button 
             size="sm" 
             onClick={handleCompile} 
             disabled={isCompiling}
-            className="flex items-center gap-1 font-semibold"
+            className="flex items-center gap-1 font-semibold text-xs h-8"
           >
-            {isCompiling ? <Spinner className="h-3.5 w-3.5" /> : <Layers className="h-3.5 w-3.5" />}
+            {isCompiling ? <Spinner className="h-3 w-3" /> : <Layers className="h-3 w-3" />}
             Compile Assets
           </Button>
         </div>
@@ -235,7 +373,7 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
 
       {/* Warnings & Notices */}
       {warnings.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg p-3 text-xs flex flex-col gap-1.5">
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-lg p-3 text-xs flex flex-col gap-1.5 shrink-0">
           <div className="flex items-center gap-1 font-semibold">
             <AlertTriangle className="h-4 w-4" />
             Compiler Warnings ({warnings.length})
@@ -248,545 +386,939 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
         </div>
       )}
 
-      {/* Facts Editor Workspace (Full Width) */}
-      <div className="w-full">
-        <Card className="border border-border">
-          <CardHeader className="py-4 px-5 border-b border-border flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold">System Facts Registry</CardTitle>
-                <CardDescription className="text-xs">Programmatic schema definitions of your application</CardDescription>
-              </div>
-              <Badge variant="secondary" className="font-mono text-xs">v{ir?.version || 1}</Badge>
-            </CardHeader>
-            <CardContent className="p-0">
-              
-              {/* SECTION: ENTITIES */}
-              <div className="border-b border-border">
-                <button 
-                  onClick={() => toggleSection("entities")}
-                  className="w-full flex items-center justify-between p-4 font-semibold text-sm hover:bg-accent/40 text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Database className="h-4 w-4 text-blue-500" />
-                    Data Entities ({schema.entities.length})
-                  </span>
-                  {expandedSections.entities ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-                
-                {expandedSections.entities && (
-                  <div className="px-5 pb-4 space-y-4">
-                    {schema.entities.map((entity, entIdx) => (
-                      <div key={entIdx} className="bg-accent/20 border border-border/80 rounded-lg p-3 relative flex flex-col gap-2">
-                        <div className="flex justify-between items-center gap-2">
+      {/* Top Floating Control Bar */}
+      <div className="flex flex-wrap items-center gap-2 bg-background border border-border p-2 rounded-lg shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const next = [...schema.entities];
+            next.push({
+              name: `NewEntity${next.length + 1}`,
+              fields: [{ name: "id", type: "string", isPrimaryKey: true, isNullable: false }],
+            });
+            updateEntities(next);
+          }}
+          className="h-8 text-xs flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Add Entity
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const next = [...schema.modules];
+            next.push({
+              name: `NewModule${next.length + 1}`,
+              dependencies: [],
+              description: "",
+            });
+            updateModules(next);
+          }}
+          className="h-8 text-xs flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Add Module
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const next = [...schema.roles];
+            next.push({
+              name: `NewRole${next.length + 1}`,
+              actions: ["view_dashboard"],
+              description: "",
+            });
+            updateRoles(next);
+          }}
+          className="h-8 text-xs flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Add User Role
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const next = [...schema.businessRules];
+            next.push({
+              title: `New Business Rule ${next.length + 1}`,
+              description: "",
+              constraints: [],
+            });
+            updateRules(next);
+          }}
+          className="h-8 text-xs flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Add Business Constraint
+        </Button>
+
+        <Separator orientation="vertical" className="h-5 mx-1" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (schema.entities.length < 2) {
+              toast({ title: "Operation Blocked", description: "Need at least 2 entities to create a relation.", variant: "warning" as any });
+              return;
+            }
+            setNewRelFrom(schema.entities[0].name);
+            setNewRelTo(schema.entities[1].name);
+            setShowAddRelation(true);
+          }}
+          className="h-8 text-xs flex items-center gap-1"
+        >
+          <GitBranch className="h-3 w-3 text-violet-500" /> Manage Relationships
+        </Button>
+      </div>
+
+      {/* Main Canvas Area */}
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden border border-border">
+        <div
+          ref={canvasRef}
+          className="relative w-full h-full overflow-hidden select-none cursor-grab active:cursor-grabbing bg-slate-50 dark:bg-zinc-950/20"
+          style={{
+            backgroundImage: "radial-gradient(circle, var(--grid-color) 1.5px, transparent 1.5px)",
+            backgroundSize: `${24 * scale}px ${24 * scale}px`,
+            backgroundPosition: `${position.x}px ${position.y}px`,
+          }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUpOrLeave}
+          onMouseLeave={handleMouseUpOrLeave}
+        >
+          <style dangerouslySetInnerHTML={{ __html: `
+            :root { --grid-color: rgba(100, 116, 139, 0.12); }
+            .dark { --grid-color: rgba(161, 161, 170, 0.08); }
+          `}} />
+
+          {/* Pannable/Zoomable Board Content Container */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              transformOrigin: "0 0",
+            }}
+          >
+            <div className="w-[2000px] h-[1600px] relative pointer-events-auto">
+              {/* SVG Connector Overlay for Relationships */}
+              <svg 
+                className="absolute inset-0 w-full h-full pointer-events-none select-none z-0"
+                style={{ overflow: "visible" }}
+              >
+                <defs>
+                  <marker 
+                    id="arrow" 
+                    viewBox="0 0 10 10" 
+                    refX="6" 
+                    refY="5" 
+                    markerWidth="6" 
+                    markerHeight="6" 
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#71717a" />
+                  </marker>
+                </defs>
+                {schema.relationships.map((rel, idx) => {
+                  const pts = getRelationshipPoints(rel);
+                  if (!pts) return null;
+                  return (
+                    <path 
+                      key={idx}
+                      d={pts.path} 
+                      fill="none" 
+                      stroke="#71717a" 
+                      strokeWidth="2" 
+                      strokeDasharray="4 4"
+                      markerEnd="url(#arrow)" 
+                    />
+                  );
+                })}
+              </svg>
+
+              {/* HTML Overlay labels for Relationships */}
+              {schema.relationships.map((rel, idx) => {
+                const pts = getRelationshipPoints(rel);
+                if (!pts) return null;
+                return (
+                  <div 
+                    key={idx}
+                    className="absolute bg-background/90 border border-border/80 px-2 py-0.5 rounded text-[10px] font-mono pointer-events-auto select-none nodrag flex items-center gap-1 shadow-sm"
+                    style={{
+                      left: pts.mx,
+                      top: pts.my,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  >
+                    <span className="font-semibold text-muted-foreground">{rel.description || "rel"}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3 border-none bg-muted font-normal text-muted-foreground">
+                      {rel.type === "one-to-many" ? "1:N" : rel.type === "many-to-many" ? "N:M" : "1:1"}
+                    </Badge>
+                  </div>
+                );
+              })}
+
+              {/* COLUMN 1 & 2: DATA ENTITIES */}
+              {schema.entities.map((entity, entIdx) => {
+                const nodeId = `entity-${entity.name}`;
+                const pos = nodePositions[nodeId] || getInitialNodePosition(nodeId);
+                const isEditing = editingNodeId === nodeId;
+
+                return (
+                  <Card 
+                    key={entIdx} 
+                    className="absolute w-[320px] bg-card border border-border shadow-sm nodrag cursor-move select-none"
+                    style={{ left: pos.x, top: pos.y }}
+                    onMouseDown={(e) => handleNodeMouseDown(e, nodeId)}
+                  >
+                    <CardHeader className="p-3 border-b border-border flex flex-row items-center justify-between space-y-0 cursor-move">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Database className="h-4 w-4 text-zinc-500 shrink-0" />
+                        {isEditing ? (
                           <Input 
                             value={entity.name} 
-                            onChange={(e) => {
-                              const next = [...schema.entities];
-                              next[entIdx].name = e.target.value;
-                              updateEntities(next);
-                            }}
-                            className="h-7 w-48 font-semibold bg-background/80 text-sm"
+                            onChange={(e) => handleRenameEntity(entIdx, e.target.value)}
+                            className="h-6 w-full font-bold bg-transparent border-none focus-visible:ring-0 p-0 text-sm"
+                            data-interactive
                           />
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const next = [...schema.entities];
-                              next.splice(entIdx, 1);
-                              updateEntities(next);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        
-                        {/* Fields List */}
-                        <div className="space-y-2 mt-2">
-                          <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Fields / Attributes</div>
-                          {entity.fields.map((field, fIdx) => (
-                            <div key={fIdx} className="grid grid-cols-12 gap-2 items-center bg-background/50 border border-border/40 rounded p-1.5 text-xs">
-                              <Input 
-                                value={field.name}
-                                onChange={(e) => {
-                                  const next = [...schema.entities];
-                                  next[entIdx].fields[fIdx].name = e.target.value;
-                                  updateEntities(next);
-                                }}
-                                className="col-span-4 h-6 px-1.5 py-0.5 text-xs"
-                                placeholder="name"
-                              />
-                              <select
-                                value={field.type}
-                                onChange={(e) => {
-                                  const next = [...schema.entities];
-                                  next[entIdx].fields[fIdx].type = e.target.value;
-                                  updateEntities(next);
-                                }}
-                                className="col-span-3 h-6 px-1 border border-input rounded bg-background text-xs"
-                              >
-                                <option value="string">string</option>
-                                <option value="number">number</option>
-                                <option value="boolean">boolean</option>
-                                <option value="datetime">datetime</option>
-                                <option value="text">text</option>
-                              </select>
-                              <div className="col-span-4 flex items-center justify-around gap-2 px-1">
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={!!field.isPrimaryKey} 
+                        ) : (
+                          <span className="font-bold text-sm truncate text-foreground select-none">{entity.name}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0" data-interactive>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingNodeId(isEditing ? null : nodeId)}
+                        >
+                          {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            const next = [...schema.entities];
+                            next.splice(entIdx, 1);
+                            updateEntities(next);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 space-y-3">
+                      {isEditing ? (
+                        <>
+                          <div className="space-y-2" data-interactive>
+                            {entity.fields.map((field, fIdx) => (
+                              <div key={fIdx} className="flex flex-col gap-1.5 bg-muted/20 dark:bg-zinc-900/30 border border-border/40 rounded-lg p-2 text-xs relative">
+                                {/* Row 1: Field Name and Delete Button */}
+                                <div className="flex items-center justify-between gap-2 w-full">
+                                  <Input 
+                                    value={field.name}
                                     onChange={(e) => {
                                       const next = [...schema.entities];
-                                      next[entIdx].fields[fIdx].isPrimaryKey = e.target.checked;
+                                      next[entIdx].fields[fIdx].name = e.target.value;
                                       updateEntities(next);
                                     }}
-                                    className="scale-90"
+                                    className="h-7 px-2 py-0.5 text-xs bg-background border border-border/80 focus-visible:ring-1 focus-visible:ring-primary flex-1 font-medium"
+                                    placeholder="field_name"
                                   />
-                                  <span className="text-[9px] font-bold text-blue-500">PK</span>
-                                </label>
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={!!field.isNullable} 
-                                    onChange={(e) => {
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                                    onClick={() => {
                                       const next = [...schema.entities];
-                                      next[entIdx].fields[fIdx].isNullable = e.target.checked;
+                                      next[entIdx].fields.splice(fIdx, 1);
                                       updateEntities(next);
                                     }}
-                                    className="scale-90"
-                                  />
-                                  <span className="text-[9px] text-muted-foreground">Null</span>
-                                </label>
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+
+                                {/* Row 2: SQL Type Select and Badges Toggles */}
+                                <div className="flex items-center gap-2 w-full">
+                                  {/* Native SQL Type Select */}
+                                  <div className="flex-1">
+                                    <select
+                                      value={field.type}
+                                      onChange={(e) => {
+                                        const next = [...schema.entities];
+                                        next[entIdx].fields[fIdx].type = e.target.value;
+                                        updateEntities(next);
+                                      }}
+                                      className="h-7 w-full px-2 text-xs border border-border/80 rounded bg-background text-foreground focus-visible:ring-1 focus-visible:ring-primary cursor-pointer font-sans"
+                                    >
+                                      {SQL_TYPES.map((type) => (
+                                        <option key={type} value={type}>
+                                          {type}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Constraint Toggles */}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      title="Primary Key"
+                                      onClick={() => {
+                                        const next = [...schema.entities];
+                                        next[entIdx].fields[fIdx].isPrimaryKey = !field.isPrimaryKey;
+                                        updateEntities(next);
+                                      }}
+                                      className={`px-2 py-1 rounded text-[9px] font-bold transition-all border ${
+                                        field.isPrimaryKey
+                                          ? "bg-blue-500/10 border-blue-500/30 text-blue-500 shadow-sm"
+                                          : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
+                                      }`}
+                                    >
+                                      PK
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      title="Nullable"
+                                      onClick={() => {
+                                        const next = [...schema.entities];
+                                        next[entIdx].fields[fIdx].isNullable = !field.isNullable;
+                                        updateEntities(next);
+                                      }}
+                                      className={`px-2 py-1 rounded text-[9px] font-medium transition-all border ${
+                                        field.isNullable
+                                          ? "bg-zinc-500/10 border-zinc-500/30 text-zinc-400 dark:text-zinc-500 shadow-sm"
+                                          : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
+                                      }`}
+                                    >
+                                      NULL
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      title="Foreign Key"
+                                      onClick={() => {
+                                        const next = [...schema.entities];
+                                        const nextField = next[entIdx].fields[fIdx];
+                                        const wasFk = !!nextField.isForeignKey;
+                                        nextField.isForeignKey = !wasFk;
+                                        if (!wasFk) {
+                                          const otherEntities = schema.entities.filter(e => e.name !== entity.name);
+                                          if (otherEntities.length > 0) {
+                                            nextField.referencesEntity = otherEntities[0].name;
+                                            if (otherEntities[0].fields.length > 0) {
+                                              nextField.referencesField = otherEntities[0].fields[0].name;
+                                            }
+                                          } else {
+                                            nextField.referencesEntity = entity.name;
+                                            if (entity.fields.length > 0) {
+                                              nextField.referencesField = entity.fields[0].name;
+                                            }
+                                          }
+                                        } else {
+                                          delete nextField.referencesEntity;
+                                          delete nextField.referencesField;
+                                        }
+                                        updateEntities(next);
+                                      }}
+                                      className={`px-2 py-1 rounded text-[9px] font-bold transition-all border ${
+                                        field.isForeignKey
+                                          ? "bg-violet-500/10 border-violet-500/30 text-violet-500 shadow-sm"
+                                          : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
+                                      }`}
+                                    >
+                                      FK
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Row 3: FK References Selector (Native HTML select) */}
+                                {field.isForeignKey && (
+                                  <div className="pt-2 border-t border-border/30 grid grid-cols-2 gap-2" data-interactive>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-bold">References Entity</span>
+                                      <select
+                                        value={field.referencesEntity || ""}
+                                        onChange={(e) => {
+                                          const next = [...schema.entities];
+                                          const nextField = next[entIdx].fields[fIdx];
+                                          nextField.referencesEntity = e.target.value;
+                                          const targetEnt = schema.entities.find(ent => ent.name === e.target.value);
+                                          if (targetEnt && targetEnt.fields.length > 0) {
+                                            const pkField = targetEnt.fields.find(f => f.isPrimaryKey) || targetEnt.fields[0];
+                                            nextField.referencesField = pkField.name;
+                                          }
+                                          updateEntities(next);
+                                        }}
+                                        className="h-7 w-full px-1.5 text-[10px] border border-border/80 rounded bg-background text-foreground focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+                                      >
+                                        {schema.entities.map((e, eIdx) => (
+                                          <option key={eIdx} value={e.name}>
+                                            {e.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-bold">References Field</span>
+                                      <select
+                                        value={field.referencesField || ""}
+                                        onChange={(e) => {
+                                          const next = [...schema.entities];
+                                          next[entIdx].fields[fIdx].referencesField = e.target.value;
+                                          updateEntities(next);
+                                        }}
+                                        className="h-7 w-full px-1.5 text-[10px] border border-border/80 rounded bg-background text-foreground focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+                                      >
+                                        {(schema.entities.find(ent => ent.name === field.referencesEntity)?.fields || []).map((f, colIdx) => (
+                                          <option key={colIdx} value={f.name}>
+                                            {f.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="col-span-1 h-5 w-5 text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  const next = [...schema.entities];
-                                  next[entIdx].fields.splice(fIdx, 1);
-                                  updateEntities(next);
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="h-6 text-[10px] w-fit flex items-center gap-1 mt-1 bg-background/50"
+                            className="h-6 text-[10px] w-full flex items-center justify-center gap-1 bg-background"
                             onClick={() => {
                               const next = [...schema.entities];
                               next[entIdx].fields.push({
-                                name: "new_field",
-                                type: "string",
+                                name: `new_col_${next[entIdx].fields.length + 1}`,
+                                type: "VARCHAR",
                                 isNullable: true,
                               });
                               updateEntities(next);
                             }}
+                            data-interactive
                           >
                             <Plus className="h-3 w-3" /> Add Field
                           </Button>
+                        </>
+                      ) : (
+                        <div className="space-y-1 mt-1 text-xs">
+                          {entity.fields.map((field, fIdx) => (
+                            <div key={fIdx} className="flex items-center justify-between border-b border-border/10 py-1">
+                              <span className="font-semibold text-foreground select-text">{field.name}</span>
+                              <div className="flex items-center gap-1.5 font-mono text-[10px] select-none">
+                                <span className="text-muted-foreground">{field.type}</span>
+                                {field.isPrimaryKey && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 border-blue-500/30 text-blue-500 font-bold bg-blue-500/5">
+                                    PK
+                                  </Badge>
+                                )}
+                                {field.isForeignKey && field.referencesEntity && field.referencesField && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-3.5 border-violet-500/30 text-violet-500 font-bold bg-violet-500/5 cursor-help" title={`References ${field.referencesEntity}.${field.referencesField}`}>
+                                    FK → {field.referencesEntity}.{field.referencesField}
+                                  </Badge>
+                                )}
+                                {field.isNullable && (
+                                  <span className="text-[9px] text-muted-foreground">null</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {entity.fields.length === 0 && (
+                            <span className="text-[10px] text-muted-foreground italic select-none">No fields defined</span>
+                          )}
                         </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* COLUMN 3: LOGICAL MODULES */}
+              {schema.modules.map((mod, idx) => {
+                const nodeId = `module-${mod.name}`;
+                const pos = nodePositions[nodeId] || getInitialNodePosition(nodeId);
+                const isEditing = editingNodeId === nodeId;
+
+                return (
+                  <Card 
+                    key={idx} 
+                    className="absolute w-[300px] bg-card border border-border shadow-sm nodrag cursor-move select-none"
+                    style={{ left: pos.x, top: pos.y }}
+                    onMouseDown={(e) => handleNodeMouseDown(e, nodeId)}
+                  >
+                    <CardHeader className="p-3 border-b border-border flex flex-row items-center justify-between space-y-0 cursor-move">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Cpu className="h-4 w-4 text-zinc-500 shrink-0" />
+                        {isEditing ? (
+                          <Input 
+                            value={mod.name} 
+                            onChange={(e) => handleRenameModule(idx, e.target.value)}
+                            className="h-6 w-full font-bold bg-transparent border-none focus-visible:ring-0 p-0 text-sm"
+                            data-interactive
+                          />
+                        ) : (
+                          <span className="font-bold text-sm truncate text-foreground select-none">{mod.name}</span>
+                        )}
                       </div>
-                    ))}
-                    <Button 
-                      onClick={() => {
-                        const next = [...schema.entities];
-                        next.push({
-                          name: `NewEntity${next.length + 1}`,
-                          fields: [{ name: "id", type: "string", isPrimaryKey: true, isNullable: false }],
-                        });
-                        updateEntities(next);
-                      }}
-                      className="w-full text-xs h-8 bg-background border border-dashed border-border hover:bg-accent/40 text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Entity Table
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION: RELATIONSHIPS */}
-              <div className="border-b border-border">
-                <button 
-                  onClick={() => toggleSection("relationships")}
-                  className="w-full flex items-center justify-between p-4 font-semibold text-sm hover:bg-accent/40 text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-violet-500" />
-                    Entity Relationships ({schema.relationships.length})
-                  </span>
-                  {expandedSections.relationships ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-                
-                {expandedSections.relationships && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {schema.relationships.map((rel, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-accent/20 border border-border/80 rounded-lg p-2 text-xs">
-                        <select
-                          value={rel.fromEntity}
-                          onChange={(e) => {
-                            const next = [...schema.relationships];
-                            next[idx].fromEntity = e.target.value;
-                            updateRelationships(next);
-                          }}
-                          className="col-span-3 h-7 border rounded bg-background text-xs"
+                      <div className="flex items-center gap-1 shrink-0" data-interactive>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingNodeId(isEditing ? null : nodeId)}
                         >
-                          {schema.entities.map((e, idx) => (
-                            <option key={idx} value={e.name}>{e.name}</option>
-                          ))}
-                        </select>
-                        
-                        <select
-                          value={rel.type}
-                          onChange={(e) => {
-                            const next = [...schema.relationships];
-                            next[idx].type = e.target.value as any;
-                            updateRelationships(next);
-                          }}
-                          className="col-span-3 h-7 border rounded bg-background text-xs"
-                        >
-                          <option value="one-to-one">1 : 1</option>
-                          <option value="one-to-many">1 : N</option>
-                          <option value="many-to-many">N : M</option>
-                        </select>
-
-                        <select
-                          value={rel.toEntity}
-                          onChange={(e) => {
-                            const next = [...schema.relationships];
-                            next[idx].toEntity = e.target.value;
-                            updateRelationships(next);
-                          }}
-                          className="col-span-3 h-7 border rounded bg-background text-xs"
-                        >
-                          {schema.entities.map((e, idx) => (
-                            <option key={idx} value={e.name}>{e.name}</option>
-                          ))}
-                        </select>
-                        
-                        <Input 
-                          value={rel.description || ""}
-                          placeholder="e.g. references"
-                          onChange={(e) => {
-                            const next = [...schema.relationships];
-                            next[idx].description = e.target.value;
-                            updateRelationships(next);
-                          }}
-                          className="col-span-2 h-7 text-[11px] px-1 bg-background/50"
-                        />
-
+                          {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="col-span-1 h-7 w-7 text-destructive hover:bg-destructive/10"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            const next = [...schema.modules];
+                            next.splice(idx, 1);
+                            updateModules(next);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 space-y-2">
+                      {isEditing ? (
+                        <div className="space-y-2" data-interactive>
+                          <Input 
+                            value={mod.description || ""} 
+                            placeholder="Module description"
+                            onChange={(e) => {
+                              const next = [...schema.modules];
+                              next[idx].description = e.target.value;
+                              updateModules(next);
+                            }}
+                            className="h-7 text-xs bg-background"
+                          />
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-muted-foreground">Dependencies</span>
+                            <div className="flex flex-wrap gap-1 border border-dashed rounded p-1 bg-muted/20">
+                              {schema.modules.filter(m => m.name !== mod.name).map((m, mIdx) => {
+                                const isDep = mod.dependencies.includes(m.name);
+                                return (
+                                  <Badge 
+                                    key={mIdx} 
+                                    variant={isDep ? "default" : "outline"}
+                                    className="cursor-pointer text-[9px] h-4 px-1.5 select-none"
+                                    onClick={() => {
+                                      const next = [...schema.modules];
+                                      if (isDep) {
+                                        next[idx].dependencies = next[idx].dependencies.filter(d => d !== m.name);
+                                      } else {
+                                        next[idx].dependencies.push(m.name);
+                                      }
+                                      updateModules(next);
+                                    }}
+                                  >
+                                    {m.name}
+                                  </Badge>
+                                );
+                              })}
+                              {schema.modules.filter(m => m.name !== mod.name).length === 0 && (
+                                <span className="text-[9px] text-muted-foreground italic">No other modules</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-xs select-text">
+                          <p className="text-muted-foreground leading-relaxed italic">{mod.description || "No description provided"}</p>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-muted-foreground select-none">Depends on:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {mod.dependencies.map((dep, depIdx) => (
+                                <Badge key={depIdx} variant="secondary" className="text-[9px] select-none">
+                                  {dep}
+                                </Badge>
+                              ))}
+                              {mod.dependencies.length === 0 && (
+                                <span className="text-[10px] text-muted-foreground italic select-none">No dependencies</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* COLUMN 4: USER ROLES */}
+              {schema.roles.map((role, idx) => {
+                const nodeId = `role-${role.name}`;
+                const pos = nodePositions[nodeId] || getInitialNodePosition(nodeId);
+                const isEditing = editingNodeId === nodeId;
+
+                return (
+                  <Card 
+                    key={idx} 
+                    className="absolute w-[300px] bg-card border border-border shadow-sm nodrag cursor-move select-none"
+                    style={{ left: pos.x, top: pos.y }}
+                    onMouseDown={(e) => handleNodeMouseDown(e, nodeId)}
+                  >
+                    <CardHeader className="p-3 border-b border-border flex flex-row items-center justify-between space-y-0 cursor-move">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Shield className="h-4 w-4 text-zinc-500 shrink-0" />
+                        {isEditing ? (
+                          <Input 
+                            value={role.name} 
+                            onChange={(e) => handleRenameRole(idx, e.target.value)}
+                            className="h-6 w-full font-bold bg-transparent border-none focus-visible:ring-0 p-0 text-sm"
+                            data-interactive
+                          />
+                        ) : (
+                          <span className="font-bold text-sm truncate text-foreground select-none">{role.name}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0" data-interactive>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingNodeId(isEditing ? null : nodeId)}
+                        >
+                          {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            const next = [...schema.roles];
+                            next.splice(idx, 1);
+                            updateRoles(next);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 space-y-3">
+                      {isEditing ? (
+                        <div className="space-y-3" data-interactive>
+                          <Input 
+                            value={role.description || ""} 
+                            placeholder="Role description"
+                            onChange={(e) => {
+                              const next = [...schema.roles];
+                              next[idx].description = e.target.value;
+                              updateRoles(next);
+                            }}
+                            className="h-7 text-xs bg-background"
+                          />
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-muted-foreground">Operations / Permissions</span>
+                            <div className="flex flex-wrap gap-1 border border-dashed rounded p-1.5 bg-muted/20">
+                              {role.actions.map((act, actIdx) => (
+                                <Badge key={actIdx} variant="secondary" className="text-[9px] flex items-center gap-1 select-none">
+                                  {act}
+                                  <Trash2 
+                                    className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive cursor-pointer" 
+                                    onClick={() => {
+                                      const next = [...schema.roles];
+                                      next[idx].actions.splice(actIdx, 1);
+                                      updateRoles(next);
+                                    }}
+                                  />
+                                </Badge>
+                              ))}
+                              {role.actions.length === 0 && (
+                                <span className="text-[9px] text-muted-foreground italic">No operations</span>
+                              )}
+                            </div>
+                          </div>
+                          <Input 
+                            placeholder="Add action + Enter" 
+                            className="h-7 text-xs px-2"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                                const next = [...schema.roles];
+                                next[idx].actions.push(e.currentTarget.value.trim());
+                                updateRoles(next);
+                                e.currentTarget.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-xs select-text">
+                          <p className="text-muted-foreground italic leading-relaxed">{role.description || "No description provided"}</p>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-muted-foreground select-none">Allowed Actions:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {role.actions.map((act, actIdx) => (
+                                <Badge key={actIdx} variant="secondary" className="text-[9px] select-none">
+                                  {act}
+                                </Badge>
+                              ))}
+                              {role.actions.length === 0 && (
+                                <span className="text-[10px] text-muted-foreground italic select-none">No operations allowed</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* COLUMN 5: BUSINESS RULES */}
+              {schema.businessRules.map((rule, idx) => {
+                const nodeId = `rule-${rule.title}`;
+                const pos = nodePositions[nodeId] || getInitialNodePosition(nodeId);
+                const isEditing = editingNodeId === nodeId;
+
+                return (
+                  <Card 
+                    key={idx} 
+                    className="absolute w-[300px] bg-card border border-border shadow-sm nodrag cursor-move select-none"
+                    style={{ left: pos.x, top: pos.y }}
+                    onMouseDown={(e) => handleNodeMouseDown(e, nodeId)}
+                  >
+                    <CardHeader className="p-3 border-b border-border flex flex-row items-center justify-between space-y-0 cursor-move">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <CheckCircle className="h-4 w-4 text-zinc-500 shrink-0" />
+                        {isEditing ? (
+                          <Input 
+                            value={rule.title} 
+                            onChange={(e) => handleRenameRule(idx, e.target.value)}
+                            className="h-6 w-full font-bold bg-transparent border-none focus-visible:ring-0 p-0 text-sm"
+                            data-interactive
+                          />
+                        ) : (
+                          <span className="font-bold text-sm truncate text-foreground select-none">{rule.title}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0" data-interactive>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingNodeId(isEditing ? null : nodeId)}
+                        >
+                          {isEditing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            const next = [...schema.businessRules];
+                            next.splice(idx, 1);
+                            updateRules(next);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 select-text">
+                      {isEditing ? (
+                        <Textarea 
+                          value={rule.description} 
+                          placeholder="Describe constraints..."
+                          onChange={(e) => {
+                            const next = [...schema.businessRules];
+                            next[idx].description = e.target.value;
+                            updateRules(next);
+                          }}
+                          className="min-h-[100px] text-xs bg-background resize-none leading-relaxed"
+                          data-interactive
+                        />
+                      ) : (
+                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {rule.description || "No rule descriptions defined"}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Floating Canvas controls */}
+          <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-background/90 backdrop-blur border border-border rounded-lg p-1 shadow-sm z-10 pointer-events-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleZoomIn}
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleReset}
+              title="Reset View"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            <Separator orientation="vertical" className="h-4 mx-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Mode"}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+            <span className="text-[10px] text-muted-foreground font-mono px-2 min-w-[36px] text-center select-none">
+              {Math.round(scale * 100)}%
+            </span>
+          </div>
+
+          {/* Floating Panel: Manage Relationships */}
+          {showAddRelation && (
+            <Card className="absolute top-4 left-4 w-80 bg-background/95 backdrop-blur border border-border shadow-lg z-20 pointer-events-auto flex flex-col max-h-[calc(100%-32px)]">
+              <CardHeader className="p-3 border-b flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-xs font-bold flex items-center gap-1">
+                  <GitBranch className="h-3.5 w-3.5 text-violet-500" /> Entity Relationships
+                </CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowAddRelation(false)}
+                >
+                  Close
+                </Button>
+              </CardHeader>
+              <CardContent className="p-3 flex-1 overflow-y-auto space-y-4">
+                {/* Create form */}
+                <div className="space-y-2.5 border-b pb-3">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">New Link</div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">Source Table</span>
+                    <select
+                      value={newRelFrom}
+                      onChange={(e) => setNewRelFrom(e.target.value)}
+                      className="w-full h-8 text-xs border rounded bg-background px-2"
+                    >
+                      {schema.entities.map((e, idx) => (
+                        <option key={idx} value={e.name}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">Relationship Type</span>
+                    <select
+                      value={newRelType}
+                      onChange={(e) => setNewRelType(e.target.value as any)}
+                      className="w-full h-8 text-xs border rounded bg-background px-2"
+                    >
+                      <option value="one-to-one">1 : 1 (One to One)</option>
+                      <option value="one-to-many">1 : N (One to Many)</option>
+                      <option value="many-to-many">N : M (Many to Many)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">Target Table</span>
+                    <select
+                      value={newRelTo}
+                      onChange={(e) => setNewRelTo(e.target.value)}
+                      className="w-full h-8 text-xs border rounded bg-background px-2"
+                    >
+                      {schema.entities.map((e, idx) => (
+                        <option key={idx} value={e.name}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground">Label / Description</span>
+                    <Input 
+                      value={newRelDesc}
+                      placeholder="e.g. owns, references"
+                      onChange={(e) => setNewRelDesc(e.target.value)}
+                      className="h-8 text-xs px-2"
+                    />
+                  </div>
+
+                  <Button 
+                    onClick={() => {
+                      if (!newRelFrom || !newRelTo) return;
+                      const next = [...schema.relationships];
+                      next.push({
+                        fromEntity: newRelFrom,
+                        toEntity: newRelTo,
+                        type: newRelType,
+                        description: newRelDesc.trim() || "references",
+                      });
+                      updateRelationships(next);
+                      setNewRelDesc("");
+                      toast({
+                        title: "Relationship Added",
+                        description: `Link established between ${newRelFrom} and ${newRelTo}.`,
+                      });
+                    }}
+                    className="w-full h-8 text-xs"
+                  >
+                    Create Relationship Link
+                  </Button>
+                </div>
+
+                {/* List active */}
+                <div className="space-y-2">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Active Links ({schema.relationships.length})</div>
+                  <div className="space-y-1.5">
+                    {schema.relationships.map((rel, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-muted/40 border border-border/80 rounded p-1.5 text-xs">
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-semibold text-foreground truncate">{rel.fromEntity} → {rel.toEntity}</span>
+                          <span className="text-[10px] text-muted-foreground italic truncate">
+                            {rel.type} {rel.description ? `(${rel.description})` : ""}
+                          </span>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             const next = [...schema.relationships];
                             next.splice(idx, 1);
                             updateRelationships(next);
                           }}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     ))}
-                    
-                    <Button 
-                      onClick={() => {
-                        if (schema.entities.length < 2) {
-                          toast({ title: "Operation Blocked", description: "Need at least 2 entities to create a relation.", variant: "warning" as any });
-                          return;
-                        }
-                        const next = [...schema.relationships];
-                        next.push({
-                          fromEntity: schema.entities[0].name,
-                          toEntity: schema.entities[1].name,
-                          type: "one-to-many",
-                          description: "has",
-                        });
-                        updateRelationships(next);
-                      }}
-                      className="w-full text-xs h-8 bg-background border border-dashed border-border hover:bg-accent/40 text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Relationship Link
-                    </Button>
+                    {schema.relationships.length === 0 && (
+                      <span className="text-[10px] text-muted-foreground italic">No active relationships</span>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* SECTION: MODULES */}
-              <div className="border-b border-border">
-                <button 
-                  onClick={() => toggleSection("modules")}
-                  className="w-full flex items-center justify-between p-4 font-semibold text-sm hover:bg-accent/40 text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Cpu className="h-4 w-4 text-purple-500" />
-                    Logical Modules ({schema.modules.length})
-                  </span>
-                  {expandedSections.modules ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-                
-                {expandedSections.modules && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {schema.modules.map((mod, idx) => (
-                      <div key={idx} className="bg-accent/20 border border-border/80 rounded-lg p-3 flex flex-col gap-2">
-                        <div className="flex justify-between items-center gap-2">
-                          <Input 
-                            value={mod.name} 
-                            onChange={(e) => {
-                              const next = [...schema.modules];
-                              next[idx].name = e.target.value;
-                              updateModules(next);
-                            }}
-                            className="h-7 w-48 font-semibold bg-background text-sm"
-                          />
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const next = [...schema.modules];
-                              next.splice(idx, 1);
-                              updateModules(next);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <Input 
-                          value={mod.description || ""} 
-                          placeholder="Module description"
-                          onChange={(e) => {
-                            const next = [...schema.modules];
-                            next[idx].description = e.target.value;
-                            updateModules(next);
-                          }}
-                          className="h-6 text-xs bg-background/50"
-                        />
-                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                          <span className="text-[10px] text-muted-foreground">Depends on:</span>
-                          {schema.modules.filter(m => m.name !== mod.name).map((m, mIdx) => {
-                            const isDep = mod.dependencies.includes(m.name);
-                            return (
-                              <Badge 
-                                key={mIdx} 
-                                variant={isDep ? "default" : "outline"}
-                                className="cursor-pointer text-[9px] h-4 px-1.5"
-                                onClick={() => {
-                                  const next = [...schema.modules];
-                                  if (isDep) {
-                                    next[idx].dependencies = next[idx].dependencies.filter(d => d !== m.name);
-                                  } else {
-                                    next[idx].dependencies.push(m.name);
-                                  }
-                                  updateModules(next);
-                                }}
-                              >
-                                {m.name}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                    <Button 
-                      onClick={() => {
-                        const next = [...schema.modules];
-                        next.push({
-                          name: `NewModule${next.length + 1}`,
-                          dependencies: [],
-                          description: "",
-                        });
-                        updateModules(next);
-                      }}
-                      className="w-full text-xs h-8 bg-background border border-dashed border-border hover:bg-accent/40 text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Logical Module
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION: ROLES */}
-              <div className="border-b border-border">
-                <button 
-                  onClick={() => toggleSection("roles")}
-                  className="w-full flex items-center justify-between p-4 font-semibold text-sm hover:bg-accent/40 text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-green-500" />
-                    User Roles & Actions ({schema.roles.length})
-                  </span>
-                  {expandedSections.roles ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-                
-                {expandedSections.roles && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {schema.roles.map((role, idx) => (
-                      <div key={idx} className="bg-accent/20 border border-border/80 rounded-lg p-3 flex flex-col gap-2">
-                        <div className="flex justify-between items-center gap-2">
-                          <Input 
-                            value={role.name} 
-                            onChange={(e) => {
-                              const next = [...schema.roles];
-                              next[idx].name = e.target.value;
-                              updateRoles(next);
-                            }}
-                            className="h-7 w-48 font-semibold bg-background text-sm"
-                          />
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const next = [...schema.roles];
-                              next.splice(idx, 1);
-                              updateRoles(next);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <Input 
-                          value={role.description || ""} 
-                          placeholder="Role description"
-                          onChange={(e) => {
-                            const next = [...schema.roles];
-                            next[idx].description = e.target.value;
-                            updateRoles(next);
-                          }}
-                          className="h-6 text-xs bg-background/50"
-                        />
-                        <div className="space-y-1.5 mt-2">
-                          <div className="text-[10px] font-bold uppercase text-muted-foreground">Actions & Operations</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {role.actions.map((act, actIdx) => (
-                              <Badge key={actIdx} variant="secondary" className="text-[9px] flex items-center gap-1">
-                                {act}
-                                <Trash2 
-                                  className="h-2.5 w-2.5 text-destructive cursor-pointer" 
-                                  onClick={() => {
-                                    const next = [...schema.roles];
-                                    next[idx].actions.splice(actIdx, 1);
-                                    updateRoles(next);
-                                  }}
-                                />
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="flex gap-2 mt-1">
-                            <Input 
-                              placeholder="Add action (e.g. create_post)" 
-                              className="h-6 text-xs px-2"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                                  const next = [...schema.roles];
-                                  next[idx].actions.push(e.currentTarget.value.trim());
-                                  updateRoles(next);
-                                  e.currentTarget.value = "";
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <Button 
-                      onClick={() => {
-                        const next = [...schema.roles];
-                        next.push({
-                          name: `NewRole${next.length + 1}`,
-                          actions: ["view_dashboard"],
-                          description: "",
-                        });
-                        updateRoles(next);
-                      }}
-                      className="w-full text-xs h-8 bg-background border border-dashed border-border hover:bg-accent/40 text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add User Role
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION: BUSINESS RULES */}
-              <div>
-                <button 
-                  onClick={() => toggleSection("businessRules")}
-                  className="w-full flex items-center justify-between p-4 font-semibold text-sm hover:bg-accent/40 text-foreground transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-amber-500" />
-                    Business Rules ({schema.businessRules.length})
-                  </span>
-                  {expandedSections.businessRules ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </button>
-                
-                {expandedSections.businessRules && (
-                  <div className="px-5 pb-4 space-y-3">
-                    {schema.businessRules.map((rule, idx) => (
-                      <div key={idx} className="bg-accent/20 border border-border/80 rounded-lg p-3 flex flex-col gap-2">
-                        <div className="flex justify-between items-center gap-2">
-                          <Input 
-                            value={rule.title} 
-                            onChange={(e) => {
-                              const next = [...schema.businessRules];
-                              next[idx].title = e.target.value;
-                              updateRules(next);
-                            }}
-                            className="h-7 font-semibold bg-background text-sm"
-                          />
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              const next = [...schema.businessRules];
-                              next.splice(idx, 1);
-                              updateRules(next);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <Textarea 
-                          value={rule.description} 
-                          placeholder="Describe the business rules constraint..."
-                          onChange={(e) => {
-                            const next = [...schema.businessRules];
-                            next[idx].description = e.target.value;
-                            updateRules(next);
-                          }}
-                          className="h-14 text-xs bg-background/50"
-                        />
-                      </div>
-                    ))}
-                    <Button 
-                      onClick={() => {
-                        const next = [...schema.businessRules];
-                        next.push({
-                          title: `New Business Rule ${next.length + 1}`,
-                          description: "",
-                          constraints: [],
-                        });
-                        updateRules(next);
-                      }}
-                      className="w-full text-xs h-8 bg-background border border-dashed border-border hover:bg-accent/40 text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Business Constraint
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-
+    </div>
   );
 }
