@@ -147,7 +147,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
     const renderInputBox = () => {
         const isInputEmpty = !inputValue.trim();
         const isDisabled = isSubmitting || (isAuthenticated && (isInputEmpty || (isNewMode && charCount < MIN_CHAR_COUNT)));
-        
+
         return (
             <div className="w-full max-w-2xl mx-auto flex flex-col gap-2.5">
                 {error && (
@@ -164,8 +164,8 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                         </button>
                     </div>
                 )}
-                
-                <div 
+
+                <div
                     className="group relative flex flex-col w-full rounded-2xl border border-border/80 bg-muted/20 dark:bg-muted/10 hover:border-border focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.15)] transition-all duration-300 ease-out cursor-text"
                     onClick={() => inputRef.current?.focus()}
                 >
@@ -184,7 +184,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                         className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm focus:outline-none placeholder:text-muted-foreground/45 min-h-[44px] max-h-[220px] overflow-y-auto custom-scrollbar"
                         style={{ lineHeight: "1.5" }}
                     />
-                    
+
                     <div className="flex items-center justify-between px-3.5 pb-2 pt-0.5 bg-transparent select-none">
                         {/* Helper text inside the box */}
                         <div className="text-[10px] tracking-wide text-muted-foreground/50 font-normal px-1">
@@ -195,14 +195,14 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                                     {charCount > 0 && charCount < MIN_CHAR_COUNT
                                         ? `${MIN_CHAR_COUNT - charCount} more characters required`
                                         : charCount > 0
-                                          ? `${charCount} characters`
-                                          : "Ctrl+Enter to submit"}
+                                            ? `${charCount} characters`
+                                            : "Ctrl+Enter to submit"}
                                 </span>
                             ) : (
                                 <span>Enter to send · Shift+Enter for newline</span>
                             )}
                         </div>
-                        
+
                         {/* Send Button */}
                         <Button
                             onClick={(e) => {
@@ -214,13 +214,12 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                             className={`group/btn h-8 rounded-full shrink-0 transition-all duration-300 flex items-center gap-0 cursor-pointer overflow-hidden
                                 ${isDisabled
                                     ? "w-8 justify-center pl-0 bg-muted text-muted-foreground/35 opacity-70 cursor-not-allowed"
-                                    : `w-8 justify-start pl-2 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-primary/20 ${
-                                        !isAuthenticated
-                                            ? "hover:w-[85px]"
-                                            : isNewMode
-                                              ? "hover:w-[82px]"
-                                              : "hover:w-[70px]"
-                                      }`
+                                    : `w-8 justify-start pl-2 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-primary/20 ${!isAuthenticated
+                                        ? "hover:w-[85px]"
+                                        : isNewMode
+                                            ? "hover:w-[82px]"
+                                            : "hover:w-[70px]"
+                                    }`
                                 }`}
                             aria-label={!isAuthenticated ? "Sign In" : isNewMode ? "Submit idea" : "Send message"}
                         >
@@ -253,8 +252,8 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
             <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
                 <div
                     className={`w-2 h-2 rounded-full ${error ? "bg-destructive animate-pulse" :
-                            (aiPhase !== "idle" || isCreating) ? "bg-violet-500 animate-pulse" :
-                                "bg-green-500 animate-pulse"
+                        (aiPhase !== "idle" || isCreating) ? "bg-violet-500 animate-pulse" :
+                            "bg-green-500 animate-pulse"
                         }`}
                 />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -310,34 +309,14 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                     </div>
                 ) : messages.length === 0 && !streamingText && aiPhase === "idle" ? (
                     /* ITERATION — No messages yet */
-                    <div className="flex flex-col items-center justify-center h-full text-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                            <MessageSquare className="h-6 w-6 text-violet-500" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-sm mb-1">
+                    <div className="flex flex-col items-center justify-center h-full text-center gap-6 px-4 max-w-sm mx-auto py-12 select-none">
+                        <div className="space-y-1">
+                            <h3 className="font-semibold text-sm text-foreground">
                                 Chat with PAD
                             </h3>
-                            <p className="text-xs text-muted-foreground max-w-xs">
-                                Ask questions about your project, request changes to
-                                documents, diagrams, features, or workflows.
+                            <p className="text-xs text-muted-foreground leading-normal max-w-xs mx-auto">
+                                Ask questions about your project: documents, diagrams, features, or workflows.
                             </p>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 justify-center mt-1">
-                            {[
-                                "Explain the architecture",
-                                "Why did you choose this tech stack?",
-                                "Add authentication feature",
-                                "Update the ERD",
-                            ].map((hint) => (
-                                <button
-                                    key={hint}
-                                    onClick={() => setInputValue(hint)}
-                                    className="text-[11px] px-2.5 py-1 rounded-full border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
-                                >
-                                    {hint}
-                                </button>
-                            ))}
                         </div>
                     </div>
                 ) : (
