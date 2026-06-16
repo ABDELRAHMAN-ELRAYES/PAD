@@ -85,7 +85,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-full shrink-0 border-r border-border bg-sidebar transition-[width] duration-300 ease-in-out overflow-hidden relative",
+        "flex flex-col h-full shrink-0 border-r border-border bg-slate-50 transition-[width] duration-300 ease-in-out overflow-hidden relative",
         isCollapsed ? "w-[60px]" : "w-[260px]",
       )}
     >
