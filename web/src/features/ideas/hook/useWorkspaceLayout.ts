@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useIdea } from "../api/ideasQueries";
 import { Idea } from "../types/models/idea";
 import { WorkspaceSection } from "@/types/workspace";
@@ -30,6 +30,57 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
 
     const loadIdea = useCallback(async (ideaId: string) => {
         setActiveIdeaId(ideaId);
+    }, []);
+
+    const handleSetSection = useCallback((section: WorkspaceSection) => {
+        setActiveSection(section);
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            if (section === "overview") {
+                params.delete("tab");
+            } else {
+                params.set("tab", section);
+            }
+            const queryString = params.toString();
+            const newUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+            window.history.pushState({}, "", newUrl);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get("tab") as WorkspaceSection | null;
+            const validSections: WorkspaceSection[] = ["overview", "documents", "diagrams", "features", "workflow", "ir"];
+            if (tab && validSections.includes(tab)) {
+                setActiveSection(tab);
+            } else {
+                setActiveSection("overview");
+            }
+
+            // Sync activeIdeaId from the URL pathname
+            const match = window.location.pathname.match(/\/ideas\/([^/?]+)/);
+            if (match) {
+                const ideaId = match[1];
+                if (ideaId === "new") {
+                    setActiveIdeaId(null);
+                } else {
+                    setActiveIdeaId(ideaId);
+                }
+            } else {
+                setActiveIdeaId(null);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        // Sync initial state from URL on mount
+        handlePopState();
+
+        return () => {
+            window.removeEventListener("popstate", handlePopState);
+        };
     }, []);
 
     const handleIdeaSelect = (ideaId: string) => {
@@ -71,7 +122,7 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
         activeSection,
         isSidebarCollapsed,
         refreshKey,
-        setActiveSection,
+        setActiveSection: handleSetSection,
         loadIdea,
         handleIdeaSelect,
         handleNewIdea,
