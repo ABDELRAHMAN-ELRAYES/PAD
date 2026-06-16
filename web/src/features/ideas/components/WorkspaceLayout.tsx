@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useEffect } from "react";
+import { FC, useEffect, useState } from "react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -17,12 +17,13 @@ import { StreamingProvider } from "@/components/providers/StreamingProvider";
 import { WorkspaceLayoutProps } from "../types/components/WorkspaceLayout.types";
 import { UnifiedChat } from "@/features/chat";
 import { useWorkspaceLayout } from "../hook/useWorkspaceLayout";
-import { useAuth } from "@/features/auth/hooks/use-auth";
+import { useMe } from "@/features/auth/api/authQueries";
 import { WorkflowPanel } from "@/features/workflow";
 
 export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   initialIdeaId = null,
 }) => {
+  const [mounted, setMounted] = useState(false);
   const {
     activeIdeaId,
     idea,
@@ -38,13 +39,26 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
     handleArtifactUpdated,
     toggleSidebar,
   } = useWorkspaceLayout(initialIdeaId);
-  const { isAuthenticated } = useAuth();
+  const { data: me, isLoading: isMeLoading } = useMe();
+  const isAuthenticated = !!me?.data?.user;
 
   useEffect(() => {
-    if (!isAuthenticated && activeIdeaId) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isMeLoading && !isAuthenticated && activeIdeaId) {
       handleNewIdea();
     }
-  }, [isAuthenticated, activeIdeaId, handleNewIdea]);
+  }, [mounted, isMeLoading, isAuthenticated, activeIdeaId, handleNewIdea]);
+
+  if (!mounted || isMeLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const renderContentPanel = () => {
     if (!activeIdeaId || !idea) return null;

@@ -64,7 +64,7 @@ export const ResearchProgressPanel: FC<ResearchProgressPanelProps> = ({
       
       {/* Animated Pixel Icon Area */}
       <div className="flex flex-col items-center text-center space-y-4">
-        <div className="relative p-6 rounded-full bg-linear-to-br from-primary/10 to-indigo-500/5 dark:from-primary/20 dark:to-indigo-500/10 border border-primary/20 shadow-md">
+        <div >
           <DeepResearchIcon className="w-20 h-20 text-primary animate-pulse" />
         </div>
         <div className="space-y-1">
