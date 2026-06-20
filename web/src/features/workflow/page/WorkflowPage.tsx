@@ -1,101 +1,56 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { WorkflowStepStatus, WorkflowStep, WorkflowStepDependency } from "../types/models/workflow";
+import { useIdea } from "@/features/ideas/api/ideasQueries";
+import { useHandoffByIdea } from "../api/workflowQueries";
+import { useHandoffStream } from "../hook/useHandoffStream";
+import { HandoffWorkspace } from "../components/HandoffWorkspace";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    AlertCircle,
     ArrowLeft,
     Bot,
-    CheckCircle2,
-    ChevronDown,
-    ChevronRight,
-    Circle,
-    Download,
     Loader2,
-    PlayCircle,
-    RefreshCw,
-    AlertTriangle,
+    Package,
+    FileText,
+    Database,
+    Code2,
+    MapPin,
+    AlertCircle,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useWorkflowPage } from "../hook/useWorkflowPage";
+import { useQueryClient } from "@tanstack/react-query";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 interface WorkflowPageProps {
     ideaId: string;
+    isEmbedded?: boolean;
 }
 
-export function WorkflowPage({ ideaId }: WorkflowPageProps) {
+const PACKAGE_CONTENTS = [
+    { icon: FileText, label: "Technical Specification", desc: "Stack, libraries, env vars" },
+    { icon: Database, label: "Database Specification", desc: "Schema, entities, relations" },
+    { icon: Code2, label: "API Specification", desc: "Routes, payloads, auth model" },
+    { icon: Code2, label: "Coding Standards", desc: "Patterns, naming, structure" },
+    { icon: MapPin, label: "Implementation Roadmap", desc: "Ordered, dependency-aware phases" },
+];
+
+export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) {
     const router = useRouter();
-    const {
-        idea,
-        workflow,
-        isLoading,
-        isGenerating,
-        error,
-        expandedStep,
-        editingStep,
-        editInstructions,
-        isSaving,
-        setExpandedStep,
-        setEditingStep,
-        setEditInstructions,
-        handleGenerate,
-        handleUpdateStepStatus,
-        handleSaveInstructions,
-        handleExport,
-    } = useWorkflowPage(ideaId);
+    const queryClient = useQueryClient();
 
-    const getStatusIcon = (status: WorkflowStepStatus) => {
-        switch (status) {
-            case "completed":
-                return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-            case "in_progress":
-                return <PlayCircle className="w-5 h-5 text-blue-500" />;
-            case "blocked":
-                return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-            case "failed":
-                return <AlertCircle className="w-5 h-5 text-red-500" />;
-            default:
-                return <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600" />;
-        }
-    };
+    const { data: idea, isLoading: isIdeaLoading } = useIdea(ideaId);
+    const { data: handoffPkg, isLoading: isPkgLoading } = useHandoffByIdea(ideaId);
 
-    const getStatusBadge = (status: WorkflowStepStatus) => {
-        switch (status) {
-            case "completed":
-                return (
-                    <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white">
-                        Completed
-                    </Badge>
-                );
-            case "in_progress":
-                return (
-                    <Badge
-                        variant="secondary"
-                        className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                    >
-                        In Progress
-                    </Badge>
-                );
-            case "blocked":
-                return (
-                    <Badge variant="outline" className="text-yellow-600 border-yellow-600">
-                        Blocked
-                    </Badge>
-                );
-            case "failed":
-                return <Badge variant="destructive">Failed</Badge>;
-            default:
-                return (
-                    <Badge variant="outline" className="text-slate-500">
-                        Pending
-                    </Badge>
-                );
-        }
+    const { isCompiling, progress, compileLogs, startCompile } = useHandoffStream();
+
+    const isLoading = isIdeaLoading || isPkgLoading;
+
+    const handleCompile = () => {
+        startCompile(ideaId, () => {
+            queryClient.invalidateQueries({ queryKey: ["handoff", "idea", ideaId] });
+        });
     };
 
     if (isLoading) {
@@ -108,14 +63,12 @@ export function WorkflowPage({ ideaId }: WorkflowPageProps) {
 
     if (!idea) {
         return (
-            <div className="container py-8 max-w-4xl space-y-6">
-                <Button
-                    variant="ghost"
-                    onClick={() => router.push("/ideas")}
-                    className="pl-0 text-muted-foreground hover:text-foreground"
-                >
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
-                </Button>
+            <div className={isEmbedded ? "p-4 space-y-4" : "container py-8 max-w-4xl space-y-6"}>
+                {!isEmbedded && (
+                    <Button variant="ghost" onClick={() => router.push("/ideas")} className="pl-0 text-muted-foreground">
+                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+                    </Button>
+                )}
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Error</AlertTitle>
@@ -126,252 +79,134 @@ export function WorkflowPage({ ideaId }: WorkflowPageProps) {
     }
 
     return (
-        <div className="container py-8 max-w-5xl space-y-6">
-            <div className="flex items-center justify-between">
+        <div className={isEmbedded ? "flex flex-col h-full space-y-4 p-4 min-h-0 overflow-hidden" : "container py-6 max-w-7xl space-y-6"}>
+            {/* Header */}
+            <div className="flex items-start justify-between shrink-0">
                 <div>
-                    <Button
-                        variant="ghost"
-                        onClick={() => router.push(`/ideas/${ideaId}`)}
-                        className="pl-0 text-muted-foreground hover:text-foreground mb-2"
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Idea
-                    </Button>
-                    <h1 className="text-3xl font-bold tracking-tight">AI Implementation Workflow</h1>
-                    <p className="text-muted-foreground mt-1 text-lg">
-                        Generate actionable, AI IDE instructions (Cursor/Copilot) based on your tasks.
+                    {!isEmbedded && (
+                        <Button
+                            variant="ghost"
+                            onClick={() => router.push(`/ideas/${ideaId}`)}
+                            className="pl-0 text-muted-foreground hover:text-foreground mb-2"
+                        >
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Idea
+                        </Button>
+                    )}
+                    <h1 className="text-lg font-bold tracking-tight">AI IDE Handoff Workspace</h1>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                        Compile a complete implementation package for AI coding assistants
                     </p>
                 </div>
-                {workflow && (
-                    <Button onClick={handleExport} variant="outline" className="gap-2">
-                        <Download className="w-4 h-4" />
-                        Export to IDE
-                    </Button>
+                {handoffPkg && (
+                    <div className="text-right text-xs text-muted-foreground mt-1 font-mono">
+                        v{handoffPkg.version} ({handoffPkg.status})
+                    </div>
                 )}
             </div>
 
-            {error && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            )}
-
-            {!workflow ? (
-                <Card className="border-primary/20 bg-primary/5 text-center py-12">
-                    <CardContent className="space-y-6 flex flex-col items-center">
-                        <div className="p-4 bg-primary/10 rounded-full">
-                            <Bot className="w-12 h-12 text-primary" />
-                        </div>
-                        <div className="space-y-2 max-w-md">
-                            <h2 className="text-xl font-semibold">Ready to code?</h2>
-                            <p className="text-muted-foreground">
-                                We will generate a step-by-step workflow customized for AI coding assistants. Each step
-                                includes exact instructions on what to write and where.
-                            </p>
-                            <p className="text-xs text-muted-foreground pt-2">
-                                * Requires features and tasks to be defined first
-                            </p>
-                        </div>
-                        <Button
-                            size="lg"
-                            onClick={handleGenerate}
-                            disabled={isGenerating || idea.status !== "confirmed"}
-                            className="w-full max-w-xs gap-2"
-                        >
-                            {isGenerating ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Generating Workflow...
-                                </>
-                            ) : (
-                                <>
-                                    <Bot className="w-4 h-4" />
-                                    Generate AI Workflow
-                                </>
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
+            {/* States */}
+            {handoffPkg ? (
+                // WORKSPACE STATE
+                <div className="flex-1 min-h-0" style={isEmbedded ? {} : { height: "calc(100vh - 200px)", minHeight: "500px" }}>
+                    <HandoffWorkspace
+                        pkg={handoffPkg}
+                        isCompiling={isCompiling}
+                        progress={progress}
+                        compileLogs={compileLogs}
+                        onRegenerate={handleCompile}
+                    />
+                </div>
             ) : (
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center text-sm font-medium text-muted-foreground px-2">
-                        <span className="w-20 hidden md:inline-block">Order</span>
-                        <span className="flex-1">Task & Title</span>
-                        <span className="w-32 text-right">Status</span>
-                    </div>
+                // INTAKE STATE
+                <ScrollArea className="flex-1 min-h-0">
+                    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5">
+                        <CardContent className="py-12">
+                            <div className="max-w-xl mx-auto space-y-8">
+                                <div className="text-center space-y-4">
+                                    <div className="inline-flex p-4 bg-primary/10 rounded-2xl">
+                                        <Package className="w-12 h-12 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-semibold">Compile AI Handoff Package</h2>
+                                        <p className="text-muted-foreground mt-1 text-sm max-w-md mx-auto">
+                                            PAD will gather all your project artifacts and generate a complete, structured implementation bundle for Cursor, Windsurf, or any AI coding assistant.
+                                        </p>
+                                    </div>
+                                </div>
 
-                    <div className="space-y-3">
-                        {workflow.steps?.map((step: WorkflowStep) => {
-                            const isExpanded = expandedStep === step.id;
-                            const isEditing = editingStep === step.id;
-
-                            return (
-                                <Card
-                                    key={step.id}
-                                    className={`transition-all duration-200 border-l-4 ${
-                                        step.status === "completed"
-                                            ? "border-l-green-500"
-                                            : step.status === "in_progress"
-                                            ? "border-l-blue-500 shadow-md"
-                                            : step.status === "blocked"
-                                            ? "border-l-yellow-500"
-                                            : step.status === "failed"
-                                            ? "border-l-red-500"
-                                            : "border-l-slate-300 dark:border-l-slate-700"
-                                    }`}
-                                >
-                                    <div
-                                        className="flex items-center p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50"
-                                        onClick={() => !isEditing && setExpandedStep(isExpanded ? null : step.id)}
-                                    >
-                                        <div className="w-8 shrink-0 hidden md:flex items-center justify-center text-muted-foreground font-mono">
-                                            {step.order}
+                                {/* What will be compiled */}
+                                <div className="grid gap-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center mb-1">
+                                        What gets compiled
+                                    </p>
+                                    {PACKAGE_CONTENTS.map(({ icon: Icon, label, desc }) => (
+                                        <div key={label} className="flex items-center gap-3 p-3 rounded-lg bg-background/60 border">
+                                            <Icon className="w-4 h-4 text-primary shrink-0" />
+                                            <div>
+                                                <p className="text-sm font-medium leading-tight">{label}</p>
+                                                <p className="text-xs text-muted-foreground">{desc}</p>
+                                            </div>
                                         </div>
-                                        <div className="shrink-0 mr-4">{getStatusIcon(step.status)}</div>
-                                        <div className="flex-1 min-w-0 pr-4">
-                                            <h3 className="font-semibold text-lg truncate">{step.title}</h3>
-                                            <p className="text-sm text-muted-foreground truncate">
-                                                {step.description}
-                                            </p>
-                                        </div>
-                                        <div className="shrink-0 flex items-center space-x-4">
-                                            <div className="hidden sm:block">{getStatusBadge(step.status)}</div>
-                                            {isExpanded ? (
-                                                <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                                            ) : (
-                                                <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                                            )}
+                                    ))}
+                                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/60 border">
+                                        <Bot className="w-4 h-4 text-primary shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium leading-tight">AI_IDE_START_HERE.md + .cursorrules</p>
+                                            <p className="text-xs text-muted-foreground">Master entry point and Cursor rules config</p>
                                         </div>
                                     </div>
-
-                                    {isExpanded && (
-                                        <div className="px-6 pb-6 pt-2 border-t">
-                                            <div className="flex items-center justify-between mb-4 mt-2">
-                                                <div className="flex items-center space-x-2">
-                                                    <span className="text-sm font-medium">Update Status:</span>
-                                                    <Select
-                                                        value={step.status}
-                                                        onValueChange={(val) =>
-                                                            handleUpdateStepStatus(step.id, val as WorkflowStepStatus)
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="w-[180px] h-8 text-xs">
-                                                            <SelectValue placeholder="Status" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="pending">Pending</SelectItem>
-                                                            <SelectItem value="in_progress">In Progress</SelectItem>
-                                                            <SelectItem value="completed">Completed</SelectItem>
-                                                            <SelectItem value="blocked">Blocked</SelectItem>
-                                                            <SelectItem value="failed">Failed</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                {!isEditing && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            setEditInstructions(step.instructions);
-                                                            setEditingStep(step.id);
-                                                        }}
-                                                    >
-                                                        Edit Instructions
-                                                    </Button>
-                                                )}
-                                            </div>
-
-                                            {step.dependencies && step.dependencies.length > 0 && (
-                                                <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-900/50">
-                                                    <div className="flex items-center text-amber-800 dark:text-amber-400 text-sm font-medium mb-1">
-                                                        <AlertTriangle className="w-4 h-4 mr-2" />
-                                                        Dependencies
-                                                    </div>
-                                                    <ul className="list-disc pl-8 text-sm text-amber-700 dark:text-amber-500">
-                                                        {step.dependencies.map((dep: WorkflowStepDependency) => (
-                                                            <li key={dep.id}>
-                                                                {dep.dependsOn?.title ||
-                                                                    `Step ID: ${dep.dependsOnStepId}`}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-2">
-                                                <h4 className="font-medium text-sm text-foreground flex items-center">
-                                                    <Bot className="w-4 h-4 mr-2 text-primary" />
-                                                    AI IDE Instructions
-                                                </h4>
-
-                                                {isEditing ? (
-                                                    <div className="space-y-3">
-                                                        <Textarea
-                                                            value={editInstructions}
-                                                            onChange={(e) => setEditInstructions(e.target.value)}
-                                                            className="min-h-[200px] font-mono text-sm leading-relaxed"
-                                                        />
-                                                        <div className="flex justify-end space-x-2">
-                                                            <Button
-                                                                variant="ghost"
-                                                                onClick={() => setEditingStep(null)}
-                                                                disabled={isSaving}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                            <Button
-                                                                onClick={() => handleSaveInstructions(step.id)}
-                                                                disabled={isSaving}
-                                                            >
-                                                                {isSaving && (
-                                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                                )}
-                                                                Save Changes
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="bg-slate-950 text-slate-50 p-4 rounded-md overflow-x-auto relative group">
-                                                        <pre className="text-sm font-mono whitespace-pre-wrap">
-                                                            {step.instructions}
-                                                        </pre>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="secondary"
-                                                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                await navigator.clipboard.writeText(step.instructions);
-                                                                alert("Copied to clipboard!");
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                                width="16"
-                                                                height="16"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            >
-                                                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                                                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                                                            </svg>
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/60 border text-muted-foreground">
+                                        <FileText className="w-4 h-4 shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium leading-tight">Research, Documents, Diagrams, Tasks</p>
+                                            <p className="text-xs">Packaged verbatim from Modules 1–4</p>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Compiler log during compile */}
+                                {isCompiling && (
+                                    <div className="rounded-lg bg-slate-950 p-4 space-y-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                                            <span className="text-xs text-green-400 font-mono font-semibold">COMPILING</span>
+                                            <span className="ml-auto text-xs text-slate-400 font-mono">{progress}%</span>
+                                        </div>
+                                        {compileLogs.slice(-5).map((log, i) => (
+                                            <p key={i} className="text-xs font-mono text-slate-300">{log}</p>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="text-center">
+                                    <Button
+                                        size="lg"
+                                        onClick={handleCompile}
+                                        disabled={isCompiling || idea.status !== "confirmed"}
+                                        className="gap-2 min-w-[220px]"
+                                    >
+                                        {isCompiling ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Compiling Package...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Package className="w-4 h-4" />
+                                                Compile Handoff Package
+                                            </>
+                                        )}
+                                    </Button>
+                                    {idea.status !== "confirmed" && (
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                            Idea must be confirmed before compiling
+                                        </p>
                                     )}
-                                </Card>
-                            );
-                        })}
-                    </div>
-                </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </ScrollArea>
             )}
         </div>
     );

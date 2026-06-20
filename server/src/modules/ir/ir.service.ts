@@ -201,8 +201,6 @@ class IRService {
     for (const diagType of selectedDiagrams) {
       try {
         const diagResult = await generateDiagramFromIR(diagType as any, schema, userId);
-        // Store the 3-tier Mermaid output structured as JSON in the database text field
-        const jsonMermaid = JSON.stringify(diagResult);
         const matchedDiag = existingDiagrams.find(d => d.type === diagType);
 
         if (matchedDiag) {
@@ -210,15 +208,23 @@ class IRService {
           await this.diagramRepository.createVersion(matchedDiag.id, matchedDiag.mermaidCode, "Recompiled from IR");
           const updatedDiag = await this.diagramRepository.updateDiagram(matchedDiag.id, {
             title: diagResult.title,
-            mermaidCode: jsonMermaid,
+            mermaidCode: diagResult.tier2,
+            tier1Code: diagResult.tier1,
+            tier2Code: diagResult.tier2,
+            tier3Code: diagResult.tier3,
+            activeTier: 2,
           });
           compiledDiagrams.push(updatedDiag);
         } else {
           const newDiag = await this.diagramRepository.createDiagram({
             ideaId,
-            type: diagType,
+            type: diagType as any,
             title: diagResult.title,
-            mermaidCode: jsonMermaid,
+            mermaidCode: diagResult.tier2,
+            tier1Code: diagResult.tier1,
+            tier2Code: diagResult.tier2,
+            tier3Code: diagResult.tier3,
+            activeTier: 2,
           });
           compiledDiagrams.push(newDiag);
         }

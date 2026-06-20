@@ -30,6 +30,11 @@ class DiagramRepository {
                     type: data.type,
                     title: data.title,
                     mermaidCode: data.mermaidCode,
+                    tier1Code: data.tier1Code || null,
+                    tier2Code: data.tier2Code || null,
+                    tier3Code: data.tier3Code || null,
+                    activeTier: data.activeTier || null,
+                    validationError: data.validationError || null,
                 } as Prisma.DiagramUncheckedCreateInput,
             });
         } catch (error) {

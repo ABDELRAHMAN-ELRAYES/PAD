@@ -51,3 +51,71 @@ export interface UpdateWorkflowStepInput {
 export interface WorkflowExportResponse {
     export: string;
 }
+
+// ============================================================
+// Handoff Package Types (Module 5 Redesign)
+// ============================================================
+
+export type HandoffPackageStatus = "draft" | "generating" | "ready" | "failed";
+export type HandoffArtifactFileType = "markdown" | "mermaid" | "json";
+
+export interface HandoffArtifact {
+    id: string;
+    packageId: string;
+    filePath: string;
+    title: string;
+    fileType: HandoffArtifactFileType;
+    createdAt: string;
+    updatedAt: string;
+    // content only present when fetched individually
+    content?: string;
+}
+
+export interface HandoffPackage {
+    id: string;
+    ideaId: string;
+    version: number;
+    status: HandoffPackageStatus;
+    zipPath?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    artifacts?: HandoffArtifact[];
+}
+
+export interface HandoffPackageResponse {
+    package: HandoffPackage | null;
+}
+
+export interface HandoffArtifactResponse {
+    artifact: HandoffArtifact & { content: string };
+}
+
+export interface UpdateArtifactInput {
+    content: string;
+    changelog?: string;
+}
+
+// SSE Event Types
+export interface HandoffProgressEvent {
+    step: string;
+    percent: number;
+}
+
+export interface HandoffLogEvent {
+    message: string;
+}
+
+export interface HandoffCompleteEvent {
+    packageId: string;
+    version: number;
+}
+
+export interface HandoffState {
+    activeFileId: string | null;
+    expandedNodes: Record<string, boolean>;
+    compileProgress: number;
+    compileLogs: string[];
+    isCompiling: boolean;
+    isEditing: boolean;
+    localFileContent: string;
+}

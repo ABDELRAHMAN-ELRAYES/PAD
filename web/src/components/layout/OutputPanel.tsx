@@ -9,7 +9,6 @@ import { OutputPanelProps, TabType } from "./OutputPanel.types"
 import Overview from "./tabs/overview"
 import Requirements from "./tabs/requirements"
 import Architecture from "./tabs/architecture"
-import Diagrams from "./tabs/diagrams"
 import TestPlan from "./tabs/test-plan"
 
 export default function OutputPanel({ data, isLoading }: OutputPanelProps) {
@@ -59,7 +58,11 @@ export default function OutputPanel({ data, isLoading }: OutputPanelProps) {
           {activeTab === "overview" && <Overview />}
           {activeTab === "requirements" && <Requirements data={data.requirements} />}
           {activeTab === "architecture" && <Architecture data={data.architecture} />}
-          {activeTab === "diagrams" && <Diagrams data={data.diagrams} />}
+          {activeTab === "diagrams" && (
+            <div className="text-center py-12 text-sm text-slate-500">
+              Please view compiled architecture diagrams in the dedicated Diagram Workspace.
+            </div>
+          )}
           {activeTab === "test-plan" && <TestPlan data={data.testPlan} />}
         </div>
       ) : null}

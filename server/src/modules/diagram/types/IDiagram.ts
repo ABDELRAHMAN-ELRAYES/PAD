@@ -1,6 +1,17 @@
 // Diagram types for ideas
-export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART" | "ARCHITECTURE";
-export type DiagramStatus = "draft" | "published";
+export type DiagramType =
+    | "SYSTEM_ARCHITECTURE"
+    | "DATABASE_ERD"
+    | "SEQUENCE"
+    | "COMPONENT"
+    | "DEPLOYMENT"
+    | "USER_FLOW"
+    | "CLASS"
+    | "STATE"
+    | "USE_CASE"
+    | "ACTIVITY";
+
+export type DiagramStatus = "draft" | "published" | "repair_failed";
 
 // Base diagram entity interface
 export interface IDiagram {
@@ -10,6 +21,11 @@ export interface IDiagram {
     title: string;
     mermaidCode: string;
     status: DiagramStatus;
+    tier1Code: string | null;
+    tier2Code: string | null;
+    tier3Code: string | null;
+    activeTier: number | null;
+    validationError: string | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -30,6 +46,11 @@ export interface ICreateDiagramData {
     type: DiagramType;
     title: string;
     mermaidCode: string;
+    tier1Code?: string | null;
+    tier2Code?: string | null;
+    tier3Code?: string | null;
+    activeTier?: number | null;
+    validationError?: string | null;
 }
 
 // Input for updating a diagram
@@ -38,6 +59,11 @@ export interface IUpdateDiagramData {
     mermaidCode?: string;
     status?: DiagramStatus;
     changelog?: string;
+    tier1Code?: string | null;
+    tier2Code?: string | null;
+    tier3Code?: string | null;
+    activeTier?: number | null;
+    validationError?: string | null;
 }
 
 // Repository-specific data
@@ -46,12 +72,22 @@ export interface ICreateDiagramRepositoryData {
     type: DiagramType;
     title: string;
     mermaidCode: string;
+    tier1Code?: string | null;
+    tier2Code?: string | null;
+    tier3Code?: string | null;
+    activeTier?: number | null;
+    validationError?: string | null;
 }
 
 export interface IUpdateDiagramRepositoryData {
     title?: string;
     mermaidCode?: string;
     status?: DiagramStatus;
+    tier1Code?: string | null;
+    tier2Code?: string | null;
+    tier3Code?: string | null;
+    activeTier?: number | null;
+    validationError?: string | null;
 }
 
 // Response types
@@ -62,6 +98,11 @@ export interface IDiagramResponse {
     title: string;
     mermaidCode: string;
     status: DiagramStatus;
+    tier1Code: string | null;
+    tier2Code: string | null;
+    tier3Code: string | null;
+    activeTier: number | null;
+    validationError: string | null;
     createdAt: Date;
     updatedAt: Date;
 }

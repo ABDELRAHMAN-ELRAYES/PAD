@@ -611,61 +611,66 @@ class AiService {
     }
 
     // Return fallback based on type
-    const fallbacks: Record<DiagramType, IGeneratedDiagram> = {
-      ERD: {
-        title: "Entity Relationship Diagram",
-        mermaidCode: `erDiagram
-    USER {
-        string id PK
-        string name
-        string email
-    }
-    NOTE: "AI generation failed - please edit manually"`,
+    const fallbacks: Record<string, IGeneratedDiagram> = {
+      SYSTEM_ARCHITECTURE: {
+        title: "System Architecture",
+        mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`
+      },
+      DATABASE_ERD: {
+        title: "Database ERD",
+        mermaidCode: `erDiagram\n    USER {\n        string id PK\n        string name\n        string email\n    }\n    USER ||--o{ POST : writes`
       },
       SEQUENCE: {
         title: "Sequence Diagram",
-        mermaidCode: `sequenceDiagram
-    participant User
-    participant System
-    User->>System: Request
-    System-->>User: Response
-    Note over User,System: AI generation failed - please edit manually`,
+        mermaidCode: `sequenceDiagram\n    participant User\n    participant Service\n    User->>Service: Request\n    Service-->>User: Response`
+      },
+      COMPONENT: {
+        title: "Component Diagram",
+        mermaidCode: `graph TD\n    A[Auth Service] --> B[API Gateway]\n    C[Billing Service] --> B`
+      },
+      DEPLOYMENT: {
+        title: "Deployment Diagram",
+        mermaidCode: `graph TB\n    subgraph Cloud\n        A[App Server]\n        B[DB Instance]\n    end\n    User --> A\n    A --> B`
+      },
+      USER_FLOW: {
+        title: "User Flow Diagram",
+        mermaidCode: `flowchart TD\n    A[Landing Page] --> B{Logged In?}\n    B -->|Yes| C[Dashboard]\n    B -->|No| D[Login Page]`
+      },
+      CLASS: {
+        title: "Class Diagram",
+        mermaidCode: `classDiagram\n    class User {\n        +String name\n        +String email\n        +login()\n    }`
+      },
+      STATE: {
+        title: "State Diagram",
+        mermaidCode: `stateDiagram-v2\n    [*] --> Draft\n    Draft --> Published\n    Published --> [*]`
+      },
+      USE_CASE: {
+        title: "Use Case Diagram",
+        mermaidCode: `graph LR\n    Actor[User] --> UseCase[Create Account]`
+      },
+      ACTIVITY: {
+        title: "Activity Diagram",
+        mermaidCode: `flowchart TD\n    Start --> Process1\n    Process1 --> End`
+      },
+      ERD: {
+        title: "Database ERD",
+        mermaidCode: `erDiagram\n    USER {\n        string id PK\n        string name\n        string email\n    }\n    USER ||--o{ POST : writes`
       },
       SCHEMA: {
         title: "System Architecture",
-        mermaidCode: `graph TB
-    subgraph Frontend
-        A[Client]
-    end
-    subgraph Backend
-        B[API]
-    end
-    A --> B
-    Note: AI generation failed - please edit manually`,
+        mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`
       },
       FLOWCHART: {
-        title: "Process Flowchart",
-        mermaidCode: `flowchart TD
-    A[Start] --> B[Process]
-    B --> C[End]
-    style A fill:#f9f
-    Note: AI generation failed - please edit manually`,
+        title: "User Flow Diagram",
+        mermaidCode: `flowchart TD\n    A[Landing Page] --> B{Logged In?}\n    B -->|Yes| C[Dashboard]\n    B -->|No| D[Login Page]`
       },
       ARCHITECTURE: {
         title: "System Architecture",
-        mermaidCode: `graph TB
-    subgraph Frontend
-        A[Client]
-    end
-    subgraph Backend
-        B[API]
-    end
-    A --> B
-    Note: AI generation failed - please edit manually`,
-      },
+        mermaidCode: `graph TB\n    subgraph Frontend\n        A[Web App]\n    end\n    subgraph Backend\n        B[API Server]\n        C[Database]\n    end\n    A --> B\n    B --> C`
+      }
     };
 
-    return fallbacks[type];
+    return fallbacks[type] || fallbacks.SYSTEM_ARCHITECTURE;
   }
   // Generate features (Streaming)
   static async *generateFeaturesStream(

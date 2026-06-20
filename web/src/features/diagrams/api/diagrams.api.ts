@@ -1,4 +1,4 @@
-import { apiClient, readNdJsonStream } from "@/api/client";
+import { apiClient } from "@/api/client";
 import {
     Diagram,
     DiagramWithVersions,
@@ -10,18 +10,129 @@ import {
 } from "@/features/diagrams/types/models/diagrams";
 import { ApiResponse } from "@/features/ideas/types/models/idea";
 
-// Diagram API functions
-export const diagramApi = {
-    // Generate diagrams for an idea (Streaming)
-    async generateStream(ideaId: string, onChunk: (data: any) => void): Promise<void> {
-        const response = await apiClient.post<Response>(`/diagrams/generate/${ideaId}`, undefined, {}, true);
-        await readNdJsonStream(response, onChunk);
-    },
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 
-    // Generate diagrams for an idea (Legacy/Sync)
+export const diagramApi = {
+    // Generate diagrams for an idea (initialize placeholders)
     async generate(ideaId: string): Promise<Diagram[]> {
         const response = await apiClient.post<ApiResponse<DiagramsListResponse>>(`/diagrams/generate/${ideaId}`);
         return response.data!.diagrams;
+    },
+
+    // Stream generation (SSE)
+    generateStream(
+        id: string,
+        onChunk: (chunk: string) => void,
+        onComplete: (data: { title: string; code: string; status: string; validationError: string | null }) => void,
+        onError: (err: any) => void
+    ): () => void {
+        const url = `${BASE_URL}/diagrams/${id}/generate-stream`;
+        const eventSource = new EventSource(url, { withCredentials: true });
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.chunk) {
+                    onChunk(data.chunk);
+                }
+            } catch (err) {
+                console.error("SSE parse error", err);
+            }
+        };
+
+        eventSource.addEventListener("complete", (event: any) => {
+            try {
+                const data = JSON.parse(event.data);
+                onComplete(data);
+                eventSource.close();
+            } catch (err) {
+                onError(err);
+                eventSource.close();
+            }
+        });
+
+        eventSource.addEventListener("error", (event: any) => {
+            let message = "Streaming failed";
+            if (event.data) {
+                try {
+                    const parsed = JSON.parse(event.data);
+                    message = parsed.message || message;
+                } catch (e) {}
+            }
+            onError(new Error(message));
+            eventSource.close();
+        });
+
+        return () => {
+            eventSource.close();
+        };
+    },
+
+    // Stream regeneration (SSE)
+    regenerateStream(
+        id: string,
+        onChunk: (chunk: string) => void,
+        onComplete: (data: { title: string; code: string; status: string; validationError: string | null }) => void,
+        onError: (err: any) => void
+    ): () => void {
+        const url = `${BASE_URL}/diagrams/${id}/regenerate-stream`;
+        const eventSource = new EventSource(url, { withCredentials: true });
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.chunk) {
+                    onChunk(data.chunk);
+                }
+            } catch (err) {
+                console.error("SSE parse error", err);
+            }
+        };
+
+        eventSource.addEventListener("complete", (event: any) => {
+            try {
+                const data = JSON.parse(event.data);
+                onComplete(data);
+                eventSource.close();
+            } catch (err) {
+                onError(err);
+                eventSource.close();
+            }
+        });
+
+        eventSource.addEventListener("error", (event: any) => {
+            let message = "Regeneration streaming failed";
+            if (event.data) {
+                try {
+                    const parsed = JSON.parse(event.data);
+                    message = parsed.message || message;
+                } catch (e) {}
+            }
+            onError(new Error(message));
+            eventSource.close();
+        });
+
+        return () => {
+            eventSource.close();
+        };
+    },
+
+    // Repair invalid Mermaid code
+    async repair(id: string, code: string, errorMessage: string): Promise<Diagram> {
+        const response = await apiClient.post<ApiResponse<DiagramResponse>>(`/diagrams/${id}/repair`, {
+            code,
+            errorMessage,
+        });
+        return response.data!.diagram;
+    },
+
+    // Import a diagram
+    async import(id: string, code: string, title?: string): Promise<Diagram> {
+        const response = await apiClient.post<ApiResponse<DiagramResponse>>(`/diagrams/${id}/import`, {
+            code,
+            title,
+        });
+        return response.data!.diagram;
     },
 
     // Get all diagrams for an idea
@@ -52,11 +163,5 @@ export const diagramApi = {
     async getVersions(id: string): Promise<DiagramVersion[]> {
         const response = await apiClient.get<ApiResponse<DiagramVersionsResponse>>(`/diagrams/${id}/versions`);
         return response.data!.versions;
-    },
-
-    // Regenerate a diagram
-    async regenerate(id: string): Promise<Diagram> {
-        const response = await apiClient.post<ApiResponse<DiagramResponse>>(`/diagrams/${id}/regenerate`);
-        return response.data!.diagram;
     },
 };

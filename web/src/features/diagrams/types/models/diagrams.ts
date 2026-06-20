@@ -2,8 +2,19 @@
 // Diagram Types (Module 3)
 // ============================================
 
-export type DiagramType = "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART";
-export type DiagramStatus = "draft" | "published";
+export type DiagramType =
+    | "SYSTEM_ARCHITECTURE"
+    | "DATABASE_ERD"
+    | "SEQUENCE"
+    | "COMPONENT"
+    | "DEPLOYMENT"
+    | "USER_FLOW"
+    | "CLASS"
+    | "STATE"
+    | "USE_CASE"
+    | "ACTIVITY";
+
+export type DiagramStatus = "draft" | "published" | "repair_failed";
 
 export interface Diagram {
     id: string;
@@ -12,6 +23,11 @@ export interface Diagram {
     title: string;
     mermaidCode: string;
     status: DiagramStatus;
+    tier1Code: string | null;
+    tier2Code: string | null;
+    tier3Code: string | null;
+    activeTier: number | null;
+    validationError: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -34,6 +50,11 @@ export interface UpdateDiagramInput {
     mermaidCode?: string;
     status?: DiagramStatus;
     changelog?: string;
+    tier1Code?: string | null;
+    tier2Code?: string | null;
+    tier3Code?: string | null;
+    activeTier?: number | null;
+    validationError?: string | null;
 }
 
 export interface DiagramResponse {

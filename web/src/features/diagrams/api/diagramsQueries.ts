@@ -67,19 +67,40 @@ export const useUpdateDiagram = () => {
   });
 };
 
-export const useRegenerateDiagram = () => {
+
+
+export const useRepairDiagram = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => diagramApi.regenerate(id),
+    mutationFn: ({ id, code, errorMessage }: { id: string; code: string; errorMessage: string }) =>
+      diagramApi.repair(id, code, errorMessage),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["diagrams", "detail", data.id] });
       queryClient.invalidateQueries({ queryKey: ["diagrams", "full", data.id] });
       queryClient.invalidateQueries({ queryKey: ["diagrams", "versions", data.id] });
       queryClient.invalidateQueries({ queryKey: ["diagrams", "idea", data.ideaId] });
-      toast.success("Diagram regenerated successfully");
+      toast.success("Diagram repaired successfully");
     },
     onError: (error: any) => {
-      toast.error(error?.message || "Failed to regenerate diagram");
+      toast.error(error?.message || "Failed to repair diagram");
+    },
+  });
+};
+
+export const useImportDiagram = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, code, title }: { id: string; code: string; title?: string }) =>
+      diagramApi.import(id, code, title),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["diagrams", "detail", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["diagrams", "full", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["diagrams", "versions", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["diagrams", "idea", data.ideaId] });
+      toast.success("Diagram imported successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to import diagram");
     },
   });
 };

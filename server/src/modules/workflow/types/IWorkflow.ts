@@ -71,3 +71,62 @@ export interface IGeneratedWorkflowStep {
     order: number;
     dependsOnTaskIds?: string[]; // Used during creation to map dependencies
 }
+
+// ============================================================
+// Handoff Package Types
+// ============================================================
+
+export type HandoffPackageStatus = "draft" | "generating" | "ready" | "failed";
+export type HandoffArtifactFileType = "markdown" | "mermaid" | "json";
+
+export interface IHandoffArtifact {
+    id: string;
+    packageId: string;
+    filePath: string;
+    title: string;
+    content: string;
+    fileType: HandoffArtifactFileType;
+    createdAt: Date;
+    updatedAt: Date;
+    versions?: IHandoffArtifactVersion[];
+}
+
+export interface IHandoffArtifactVersion {
+    id: string;
+    artifactId: string;
+    version: number;
+    content: string;
+    changelog?: string | null;
+    createdAt: Date;
+}
+
+export interface IHandoffPackage {
+    id: string;
+    ideaId: string;
+    version: number;
+    status: HandoffPackageStatus;
+    zipPath?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    artifacts?: IHandoffArtifact[];
+}
+
+// SSE event payload shapes
+export interface IHandoffProgressEvent {
+    step: string;
+    percent: number;
+}
+
+export interface IHandoffLogEvent {
+    message: string;
+}
+
+export interface IHandoffCompleteEvent {
+    packageId: string;
+    version: number;
+}
+
+export interface IUpdateArtifactData {
+    content: string;
+    changelog?: string;
+}

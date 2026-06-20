@@ -1,7 +1,7 @@
-import { workflowApi } from "./workflow.api";
+import { workflowApi, handoffApi } from "./workflow.api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { UpdateWorkflowStepInput } from "@/features/workflow/types/models/workflow";
+import { UpdateWorkflowStepInput, UpdateArtifactInput } from "@/features/workflow/types/models/workflow";
 
 export const useWorkflowByIdea = (ideaId?: string) => {
   return useQuery({
@@ -48,6 +48,52 @@ export const useExportWorkflow = () => {
     },
     onError: (error: any) => {
       toast.error(error?.message || "Export failed");
+    },
+  });
+};
+
+// ============================================================
+// Handoff Package Queries
+// ============================================================
+
+export const useHandoffByIdea = (ideaId?: string) => {
+  return useQuery({
+    queryKey: ["handoff", "idea", ideaId],
+    queryFn: () => handoffApi.getByIdea(ideaId!),
+    enabled: !!ideaId,
+    retry: false,
+  });
+};
+
+export const useArtifact = (artifactId?: string | null) => {
+  return useQuery({
+    queryKey: ["handoff", "artifact", artifactId],
+    queryFn: () => handoffApi.getArtifact(artifactId!),
+    enabled: !!artifactId,
+  });
+};
+
+export const useUpdateArtifact = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ artifactId, data }: { artifactId: string; data: UpdateArtifactInput }) =>
+      handoffApi.updateArtifact(artifactId, data),
+    onSuccess: (_, { artifactId }) => {
+      queryClient.invalidateQueries({ queryKey: ["handoff", "artifact", artifactId] });
+      queryClient.invalidateQueries({ queryKey: ["handoff"] });
+      toast.success("Artifact saved");
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to save artifact");
+    },
+  });
+};
+
+export const useGetMasterPrompt = () => {
+  return useMutation({
+    mutationFn: (packageId: string) => handoffApi.getMasterPrompt(packageId),
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to fetch master prompt");
     },
   });
 };

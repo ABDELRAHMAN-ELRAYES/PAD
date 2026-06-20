@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { useTheme } from "@/components/providers/ThemeProvider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,7 +111,6 @@ function AccountSettingsPane() {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setIsMounted(true);
@@ -216,25 +214,6 @@ function AccountSettingsPane() {
         </SettingRow>
       </SettingSection>
 
-      <Separator />
-
-      <SettingSection title="Appearance">
-        <SettingRow label="Theme">
-          <Select
-            value={isMounted ? (theme ?? "system") : "system"}
-            onValueChange={(value) => setTheme(value)}
-          >
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Select theme" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="system">System default</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dark">Dark</SelectItem>
-            </SelectContent>
-          </Select>
-        </SettingRow>
-      </SettingSection>
     </div>
   );
 }

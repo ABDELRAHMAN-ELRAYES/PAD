@@ -18,7 +18,7 @@ import { WorkspaceLayoutProps } from "../types/components/WorkspaceLayout.types"
 import { UnifiedChat } from "@/features/chat";
 import { useWorkspaceLayout } from "../hook/useWorkspaceLayout";
 import { useMe } from "@/features/auth/api/authQueries";
-import { WorkflowPanel } from "@/features/workflow";
+import { WorkflowPage } from "@/features/workflow";
 
 export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
   initialIdeaId = null,
@@ -89,7 +89,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
       case "features":
         return <FeaturesPanel key={refreshKey} ideaId={activeIdeaId} />;
       case "workflow":
-        return <WorkflowPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
+        return <WorkflowPage key={refreshKey} ideaId={activeIdeaId} isEmbedded />;
       case "ir":
         return <IREditor key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
       default:
@@ -148,7 +148,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
               minSize={35}
               className="flex flex-col"
             >
-              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
+              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" || activeSection === "workflow" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
                 {renderContentPanel()}
               </div>
             </ResizablePanel>

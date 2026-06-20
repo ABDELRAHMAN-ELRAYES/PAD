@@ -6,7 +6,7 @@ import mermaid from "mermaid";
 import { MermaidPreviewProps } from "./MermaidPreview.types";
 import { initMermaid } from "@/lib/utils/mermaid";
 
-export default function MermaidPreview({ code }: MermaidPreviewProps) {
+export default function MermaidPreview({ code, onError }: MermaidPreviewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [svgContent, setSvgContent] = useState<string>("");
@@ -27,10 +27,17 @@ export default function MermaidPreview({ code }: MermaidPreviewProps) {
                 const { svg } = await mermaid.render(id, code);
                 setSvgContent(svg);
                 setError(null);
+                if (onError) {
+                    onError(null);
+                }
             } catch (err) {
                 console.error("Mermaid render error:", err);
-                setError(err instanceof Error ? err.message : "Failed to render diagram");
+                const msg = err instanceof Error ? err.message : "Failed to render diagram";
+                setError(msg);
                 setSvgContent("");
+                if (onError) {
+                    onError(msg);
+                }
                 
                 // Clean up any temporary elements created by Mermaid that might have been left in the DOM
                 const tempEl = document.getElementById(id);

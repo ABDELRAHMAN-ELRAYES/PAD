@@ -67,6 +67,8 @@ model Idea {
     workflow               Workflow?
     iterationSession       IterationSession?
     projectIR              ProjectIR?
+    // Idea -> HandoffPackage (One -> Many, versioned)
+    handoffPackages        HandoffPackage[]
 
     @@map("ideas")
 }
@@ -131,10 +133,18 @@ model AdminPrivilege {
 model Diagram {
     id          String   @id @default(uuid())
     ideaId      String   @map("idea_id")
-    type        String // "ERD" | "SEQUENCE" | "SCHEMA" | "FLOWCHART"
+    type        String   // Matches DiagramType enum
     title       String
     mermaidCode String   @map("mermaid_code") @db.Text
     status      String   @default("draft") // draft | published
+
+    // Multi-Tier Fields for IR Compiler integration
+    tier1Code   String?  @map("tier1_code") @db.Text
+    tier2Code   String?  @map("tier2_code") @db.Text
+    tier3Code   String?  @map("tier3_code") @db.Text
+    activeTier      Int?     @map("active_tier")
+    validationError String?  @map("validation_error") @db.Text
+
     createdAt   DateTime @default(now()) @map("created_at")
     updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -537,3 +547,56 @@ model ResearchJob {
     @@map("research_jobs")
 }
 
+// ============================================
+// Module 5 Redesign: AI IDE Handoff Package
+// ============================================
+
+model HandoffPackage {
+    id        String            @id @default(uuid())
+    ideaId    String            @map("idea_id")
+    version   Int               @default(1)
+    status    String            @default("draft") // generating | ready | failed
+    zipPath   String?           @map("zip_path")
+    createdAt DateTime          @default(now()) @map("created_at")
+    updatedAt DateTime          @updatedAt @map("updated_at")
+
+    // Relations
+    idea      Idea              @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    artifacts HandoffArtifact[]
+
+    @@unique([ideaId, version])
+    @@map("handoff_packages")
+}
+
+model HandoffArtifact {
+    id        String   @id @default(uuid())
+    packageId String   @map("package_id")
+    filePath  String   @map("file_path")
+    title     String
+    content   String   @db.Text
+    fileType  String   // markdown | mermaid | json
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    // Relations
+    package  HandoffPackage          @relation(fields: [packageId], references: [id], onDelete: Cascade)
+    versions HandoffArtifactVersion[]
+
+    @@unique([packageId, filePath])
+    @@map("handoff_artifacts")
+}
+
+model HandoffArtifactVersion {
+    id         String   @id @default(uuid())
+    artifactId String   @map("artifact_id")
+    version    Int
+    content    String   @db.Text
+    changelog  String?  @db.Text
+    createdAt  DateTime @default(now()) @map("created_at")
+
+    // Relations
+    artifact HandoffArtifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+
+    @@unique([artifactId, version])
+    @@map("handoff_artifact_versions")
+}

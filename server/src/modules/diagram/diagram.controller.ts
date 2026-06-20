@@ -2,31 +2,98 @@ import { Request, Response, NextFunction } from "express";
 import DiagramService from "./diagram.service";
 import { IUpdateDiagramData } from "./types/IDiagram";
 
-// Generate diagrams for an idea
+// Initialize diagrams for an idea (creates placeholders if they don't exist)
 export const generateDiagrams = async (
     req: Request,
     res: Response,
     next: NextFunction
 ) => {
-    const targetIdeaId = Array.isArray(req.params.ideaId) ? req.params.ideaId[0] : req.params.ideaId as string;
-
-    // Set headers for streaming
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Transfer-Encoding", "chunked");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
+    const targetIdeaId = req.params.ideaId as string;
     try {
-        await DiagramService.generateDiagrams(targetIdeaId, next, (chunk) => {
-            res.write(JSON.stringify(chunk) + "\n");
+        const diagrams = await DiagramService.initializeDiagrams(targetIdeaId, next);
+        if (!diagrams) return;
+
+        res.status(200).json({
+            status: "success",
+            data: { diagrams },
         });
-        res.end();
     } catch (err) {
-        if (!res.headersSent) {
-            return next(err);
-        }
-        console.error("Diagram generation streaming error:", err);
-        res.end();
+        next(err);
+    }
+};
+
+// Stream diagram generation (SSE)
+export const generateDiagramStream = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    const id = req.params.id as string;
+    try {
+        await DiagramService.generateDiagramStream(id, res, next);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Stream diagram regeneration (SSE)
+export const regenerateDiagramStream = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    const id = req.params.id as string;
+    try {
+        await DiagramService.regenerateDiagramStream(id, res, next);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Repair invalid Mermaid diagram syntax
+export const repairDiagram = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    const id = req.params.id as string;
+    const { code, errorMessage } = req.body;
+    try {
+        const diagram = await DiagramService.repairDiagram(id, code, errorMessage, next);
+        if (!diagram) return;
+
+        res.status(200).json({
+            status: "success",
+            data: { diagram },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Import custom Mermaid code
+export const importDiagram = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    const id = req.params.id as string;
+    const { code, title } = req.body;
+    try {
+        const diagram = await DiagramService.updateDiagram(id, {
+            mermaidCode: code,
+            title: title || undefined,
+            activeTier: null, // Clear active tier on manual import/edit
+            changelog: "Imported Mermaid file",
+        }, next);
+        if (!diagram) return;
+
+        res.status(200).json({
+            status: "success",
+            data: { diagram },
+        });
+    } catch (err) {
+        next(err);
     }
 };
 
@@ -35,7 +102,7 @@ export const getDiagramsByIdea = async (
     req: Request,
     res: Response
 ) => {
-    const targetId = Array.isArray(req.params.ideaId) ? req.params.ideaId[0] : req.params.ideaId as string;
+    const targetId = req.params.ideaId as string;
     const diagrams = await DiagramService.getDiagramsByIdea(targetId);
 
     res.status(200).json({
@@ -53,7 +120,7 @@ export const getDiagram = async (
     res: Response,
     next: NextFunction
 ) => {
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = req.params.id as string;
     const diagram = await DiagramService.getDiagram(id, next);
     if (!diagram) return;
 
@@ -69,7 +136,7 @@ export const getDiagramWithVersions = async (
     res: Response,
     next: NextFunction
 ) => {
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = req.params.id as string;
     const diagram = await DiagramService.getDiagramWithVersions(id, next);
     if (!diagram) return;
 
@@ -85,7 +152,7 @@ export const updateDiagram = async (
     res: Response,
     next: NextFunction
 ) => {
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = req.params.id as string;
     const data: IUpdateDiagramData = req.body;
 
     const diagram = await DiagramService.updateDiagram(id, data, next);
@@ -102,7 +169,7 @@ export const getDiagramVersions = async (
     req: Request,
     res: Response
 ) => {
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = req.params.id as string;
     const versions = await DiagramService.getDiagramVersions(id);
 
     res.status(200).json({
@@ -111,21 +178,5 @@ export const getDiagramVersions = async (
             versions,
             count: versions.length,
         },
-    });
-};
-
-// Regenerate a diagram
-export const regenerateDiagram = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const diagram = await DiagramService.regenerateDiagram(id, next);
-    if (!diagram) return;
-
-    res.status(200).json({
-        status: "success",
-        data: { diagram },
     });
 };

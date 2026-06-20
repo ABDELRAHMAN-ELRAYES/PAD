@@ -3,21 +3,25 @@ import { ThemeProvider as NextThemesProvider, useTheme as useNextTheme, type The
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem storageKey="pad-theme" {...props}>
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="light"
+      forcedTheme="light"
+      enableSystem={false}
+      storageKey="pad-theme"
+      {...props}
+    >
       {children}
     </NextThemesProvider>
   )
 }
 
 export function useTheme() {
-  const { theme, setTheme, systemTheme } = useNextTheme()
-  const isDark = theme === "dark" || (theme === "system" && systemTheme === "dark")
-
   return {
-    isDark,
-    theme,
-    setTheme,
-    toggle: () => setTheme(isDark ? "light" : "dark"),
+    isDark: false,
+    theme: "light",
+    setTheme: () => {},
+    toggle: () => {},
   }
 }
 
