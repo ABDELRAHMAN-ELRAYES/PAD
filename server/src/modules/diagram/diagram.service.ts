@@ -266,7 +266,7 @@ class DiagramService {
 
         try {
             res.write(`event: status\ndata: ${JSON.stringify({ status: "generating" })}\n\n`);
-            const ideaText = idea.refinedText || idea.rawText;
+            const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
             const stream = AiService.generateDiagramStream(diagram.type as DiagramType, ideaText, idea.userId);
 
             for await (const chunk of stream) {
@@ -343,7 +343,7 @@ class DiagramService {
 
         try {
             res.write(`event: status\ndata: ${JSON.stringify({ status: "generating" })}\n\n`);
-            const ideaText = idea.refinedText || idea.rawText;
+            const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
             const stream = AiService.generateDiagramStream(diagram.type as DiagramType, ideaText, idea.userId);
 
             for await (const chunk of stream) {

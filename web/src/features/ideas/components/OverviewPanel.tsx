@@ -43,6 +43,11 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
+  // Business description streaming state
+  const [streamedDesc, setStreamedDesc] = useState<string>("");
+  const [isStreamingDesc, setIsStreamingDesc] = useState<boolean>(false);
+  const [streamingDescError, setStreamingDescError] = useState<string | null>(null);
+
   const handleResearchComplete = useCallback((updatedIdea: Idea) => {
     onIdeaUpdate(updatedIdea);
   }, [onIdeaUpdate]);
@@ -57,6 +62,41 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     error: researchError,
     startResearch,
   } = useResearchStream(ideaId, handleResearchComplete);
+
+  // Stream business description if missing and in draft status
+  useEffect(() => {
+    if (idea.businessDescription || idea.status !== "draft" || isStreamingDesc) return;
+
+    let active = true;
+    setIsStreamingDesc(true);
+    setStreamingDescError(null);
+    setStreamedDesc("");
+
+    ideaApi.streamBusinessDescription(ideaId, (data) => {
+      if (!active) return;
+      if (data.status === "error") {
+        setStreamingDescError(data.message || "Failed to generate business description.");
+        setIsStreamingDesc(false);
+      } else if (data.status === "final") {
+        setIsStreamingDesc(false);
+        if (data.idea) {
+          onIdeaUpdate(data.idea);
+        }
+      } else if (data.chunk) {
+        setStreamedDesc((prev) => prev + data.chunk);
+      }
+    }).catch((err) => {
+      console.error("Error streaming business description:", err);
+      if (active) {
+        setStreamingDescError(err.message || "Failed to stream business description.");
+        setIsStreamingDesc(false);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [idea.businessDescription, idea.status, ideaId, onIdeaUpdate]);
 
   // 1. Poll/Fetch discovery questionnaire when status is "draft"
   useEffect(() => {
@@ -310,17 +350,63 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     );
   };
 
+  const renderBusinessDescriptionCard = (description: string, isStreaming: boolean, error: string | null) => {
+    return (
+      <Card className="border-border/80 bg-card rounded-2xl overflow-hidden shadow-xs">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
+                <Lightbulb className="h-4.5 w-4.5" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">AI-Generated Business Concept</h3>
+            </div>
+            {isStreaming && (
+              <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 animate-pulse text-[10px] font-semibold">
+                <Loader2 className="mr-1 h-3 w-3 animate-spin shrink-0" />
+                Streaming...
+              </Badge>
+            )}
+          </div>
+
+          {error && (
+            <div className="p-3 text-xs rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-medium">
+              {error}
+            </div>
+          )}
+
+          <div className="prose prose-neutral dark:prose-invert max-w-none text-[11.5px] whitespace-pre-line leading-relaxed select-text">
+            {description ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+            ) : (
+              !error && (
+                <div className="py-8 flex flex-col items-center justify-center text-center space-y-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <p className="text-xs text-muted-foreground animate-pulse">Initializing business concept analysis...</p>
+                </div>
+              )
+            )}
+            {isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // --- Main Render Engine ---
   const renderFlow = () => {
     switch (idea.status) {
       case "draft":
+        if (isStreamingDesc || (streamedDesc && !idea.businessDescription)) {
+          return null; // Description is streaming, don't show the big loader
+        }
         return (
-          <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-muted/10 rounded-2xl text-center space-y-3">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <div className="space-y-1">
-              <h4 className="font-semibold text-sm">Analyzing Concept</h4>
-              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                We are generating a customized discovery questionnaire to identify scope details.
+              <h4 className="font-semibold text-xs">Generating Questionnaire</h4>
+              <p className="text-[10.5px] text-muted-foreground max-w-xs leading-relaxed">
+                Business concept analysis complete. We are now generating your customized discovery questionnaire...
               </p>
             </div>
           </div>
@@ -383,6 +469,9 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
       <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6 items-start">
         {/* Left Column: Interactive flow steps / Blueprint Accordion */}
         <div className="space-y-6 @4xl:col-span-2 @container">
+          {(idea.businessDescription || isStreamingDesc || streamedDesc) && (
+            renderBusinessDescriptionCard(idea.businessDescription || streamedDesc, isStreamingDesc, streamingDescError)
+          )}
           {renderFlow()}
         </div>
 

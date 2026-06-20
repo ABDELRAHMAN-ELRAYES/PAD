@@ -253,7 +253,7 @@ export class HandoffCompilerService {
             const { QdrantClient } = require("../../data-server-clients/qdrant");
             const guidelines = await QdrantClient.searchGuidelines(
                 idea.userId,
-                idea.refinedText || idea.rawText,
+                idea.businessDescription || idea.refinedText || idea.rawText,
                 6
             );
             if (guidelines.length > 0) {
@@ -265,8 +265,8 @@ export class HandoffCompilerService {
             // Guidelines optional
         }
 
-        const ideaName = (idea.refinedText || idea.rawText).split("\n")[0].slice(0, 80);
-        const ideaText = idea.refinedText || idea.rawText;
+        const ideaName = (idea.businessDescription || idea.refinedText || idea.rawText).split("\n")[0].slice(0, 80);
+        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
 
         const vars: IHandoffCompilerVariables = {
             ideaText,

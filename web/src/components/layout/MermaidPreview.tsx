@@ -38,7 +38,7 @@ export default function MermaidPreview({ code, onError }: MermaidPreviewProps) {
                 if (onError) {
                     onError(msg);
                 }
-                
+
                 // Clean up any temporary elements created by Mermaid that might have been left in the DOM
                 const tempEl = document.getElementById(id);
                 if (tempEl) tempEl.remove();

@@ -59,7 +59,7 @@ class IRService {
     }
 
     // Generate initial structured IR from raw/refined idea text
-    const ideaText = idea.refinedText || idea.rawText;
+    const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
     const prompt = buildAnalyzeToIRPrompt(ideaText);
     const systemPrompt = "You are a software architect compiler. You translate natural language software ideas into a precise, structured Intermediate Representation (IR) JSON payload.";
 

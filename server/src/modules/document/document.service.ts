@@ -88,7 +88,7 @@ class DocumentService {
             }
         }
 
-        const ideaText = idea.refinedText || idea.rawText;
+        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
         const analysisResult = idea.analysisResult;
 
         if (onChunk) {
@@ -316,7 +316,7 @@ class DocumentService {
             return next(new AppError(404, "Associated idea not found"));
         }
 
-        const ideaText = idea.refinedText || idea.rawText;
+        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
         const analysisResult = idea.analysisResult;
         const type = document.type as DocumentType;
 

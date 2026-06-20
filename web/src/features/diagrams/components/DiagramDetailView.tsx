@@ -1,5 +1,5 @@
 import { FC, useState, useEffect } from "react";
-import { Diagram, DiagramType } from "../types/models/diagrams";
+import { DiagramType } from "../types/models/diagrams";
 import { useDiagramsPage } from "../hook/useDiagramsPage";
 import { DiagramCanvas } from "./DiagramCanvas";
 import { DiagramEditorPanel } from "./DiagramEditorPanel";
@@ -7,7 +7,6 @@ import { ImportExportDialog } from "./ImportExportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ArrowLeft, Save, RefreshCw, Upload, Eye, Code as CodeIcon, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -102,8 +101,8 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
   const currentCode = isGenerating
     ? streamingCode[diagram.id] || ""
     : editedCode[diagram.id] !== undefined
-    ? editedCode[diagram.id]
-    : diagram.mermaidCode;
+      ? editedCode[diagram.id]
+      : diagram.mermaidCode;
 
   const currentTitle = editedTitles[diagram.id] !== undefined
     ? editedTitles[diagram.id]
@@ -116,9 +115,9 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
   const isPlaceholder = !currentCode || currentCode.trim() === "";
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-background space-y-4">
+    <div className="flex-1 flex flex-col min-h-0 bg-background">
       {/* Top Navigation & Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 px-6 py-4">
         <div className="flex items-center gap-3 min-w-0">
           {onBack ? (
             <button
@@ -204,6 +203,34 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
             </div>
           )}
 
+          {/* Mode Segmented Tab Switcher */}
+          <div className="flex items-center bg-muted/70 hover:bg-muted/90 border border-border p-0.5 rounded-lg mr-2 shrink-0 select-none">
+            <button
+              onClick={() => setActiveTab("preview")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
+                activeTab === "preview"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Eye className="h-3 w-3" />
+              Preview
+            </button>
+            <button
+              onClick={() => setActiveTab("code")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-md transition-all cursor-pointer",
+                activeTab === "code"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CodeIcon className="h-3 w-3" />
+              Code
+            </button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -242,38 +269,8 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Sub-header Tab selectors */}
-      <div className="flex items-center justify-between border-b border-border pb-px shrink-0">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab("preview")}
-            className={cn(
-              "px-4 py-2 text-xs font-bold border-b-2 -mb-px transition-all flex items-center gap-1.5",
-              activeTab === "preview"
-                ? "border-primary text-primary font-extrabold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Preview
-          </button>
-          <button
-            onClick={() => setActiveTab("code")}
-            className={cn(
-              "px-4 py-2 text-xs font-bold border-b-2 -mb-px transition-all flex items-center gap-1.5",
-              activeTab === "code"
-                ? "border-primary text-primary font-extrabold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <CodeIcon className="h-3.5 w-3.5" />
-            Source Code
-          </button>
-        </div>
-      </div>
-
       {/* Workspace Display Area */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 border-t border-border">
         {isPlaceholder && !isGenerating ? (
           <div className="flex-grow flex flex-col items-center justify-center border border-dashed border-border rounded-2xl p-12 text-center gap-4 bg-muted/10 min-h-[300px]">
             <div className="p-3.5 rounded-full bg-muted border border-border text-muted-foreground">

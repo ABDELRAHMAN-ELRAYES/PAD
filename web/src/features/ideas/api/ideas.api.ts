@@ -34,6 +34,12 @@ export const ideaApi = {
         await readNdJsonStream(response, onChunk);
     },
 
+    // Stream business description generation
+    async streamBusinessDescription(id: string, onChunk: (data: any) => void): Promise<void> {
+        const response = await apiClient.post<Response>(`/ideas/${id}/business-description/stream`, undefined, {}, true);
+        await readNdJsonStream(response, onChunk);
+    },
+
     // Analyze an idea with AI (Legacy/Sync)
     async analyze(id: string): Promise<Idea> {
         const response = await apiClient.post<ApiResponse<IdeaResponse>>(`/ideas/${id}/analyze`);

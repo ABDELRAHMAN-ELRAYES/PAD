@@ -29,6 +29,7 @@ export interface ProjectContext {
     idea: {
         rawText: string;
         refinedText: string | null;
+        businessDescription: string | null;
         status: string;
         analysisResult: any | null;
     };
@@ -235,6 +236,7 @@ export default class IterationContextBuilder {
             idea: {
                 rawText: isPlanner ? truncate(idea?.rawText || "", 100) : (idea?.rawText || ""),
                 refinedText: isPlanner ? truncate(idea?.refinedText || null, 100) : (idea?.refinedText || null),
+                businessDescription: isPlanner ? truncate(idea?.businessDescription || null, 100) : (idea?.businessDescription || null),
                 status: idea?.status || "unknown",
                 analysisResult: isPlanner ? null : (idea?.analysisResult || null),
             },
@@ -295,7 +297,7 @@ export default class IterationContextBuilder {
         // Idea
         parts.push("## Project Idea");
         parts.push(`Status: ${ctx.idea.status}`);
-        parts.push(`Description: ${ctx.idea.refinedText || ctx.idea.rawText}`);
+        parts.push(`Description: ${ctx.idea.businessDescription || ctx.idea.refinedText || ctx.idea.rawText}`);
         if (ctx.idea.analysisResult) {
             const analysis = typeof ctx.idea.analysisResult === "string"
                 ? ctx.idea.analysisResult

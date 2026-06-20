@@ -43,7 +43,7 @@ export default class FeatureService {
         }
 
         const context = {
-            rawText: idea.rawText,
+            rawText: idea.businessDescription || idea.rawText,
             refinedText: idea.refinedText,
             analysisResult: idea.analysisResult,
             researchResult: idea.researchResult,
@@ -375,7 +375,7 @@ export default class FeatureService {
         }
 
         const context = {
-            rawText: idea.rawText,
+            rawText: idea.businessDescription || idea.rawText,
             refinedText: idea.refinedText,
             analysisResult: idea.analysisResult,
             researchResult: idea.researchResult,

@@ -90,7 +90,7 @@ export default class ResearchOrchestrator {
         .join("\n\n");
     }
 
-    const searchQuery = `Idea: ${idea.rawText}\n\nAdditional Requirements:\n${questionnaireQAText}`;
+    const searchQuery = `Idea: ${idea.businessDescription || idea.rawText}\n\nAdditional Requirements:\n${questionnaireQAText}`;
 
     // Initialize/Reset Research Job status
     await prisma.idea.update({
@@ -253,7 +253,7 @@ You are tasked with compiling a comprehensive, high-fidelity project blueprint b
 
 User Idea:
 """
-${idea.rawText}
+${idea.businessDescription || idea.rawText}
 """
 
 Discovery Q&A:

@@ -38,12 +38,50 @@ class IdeaService {
             userId: data.userId,
         });
 
-        // Trigger discovery questionnaire generation in the background
-        DiscoveryService.generateQuestionnaire(idea.id).catch((err) => {
-            console.error("Failed to generate background questionnaire:", err);
-        });
-
         return idea as IIdea;
+    }
+
+    // Stream business description generation and trigger discovery questionnaire once finished
+    static async streamBusinessDescription(
+        ideaId: string,
+        next: NextFunction,
+        onChunk: (data: any) => void
+    ): Promise<void> {
+        const idea = await this.ideaRepository.getIdeaById(ideaId);
+        if (!idea) {
+            return next(new AppError(404, "Idea not found"));
+        }
+
+        let fullResponse = "";
+
+        try {
+            const stream = AiService.generateBusinessDescriptionStream(idea.rawText, idea.userId);
+
+            for await (const chunk of stream) {
+                fullResponse += chunk;
+                onChunk({
+                    chunk,
+                    fullText: fullResponse,
+                });
+            }
+
+            // After streaming is complete, save it to DB
+            const updatedIdea = await this.ideaRepository.updateIdea(ideaId, {
+                businessDescription: fullResponse,
+            });
+
+            // Trigger discovery questionnaire generation in the background using the generated business description
+            DiscoveryService.generateQuestionnaire(ideaId).catch((err) => {
+                console.error("Failed to generate background questionnaire from streamed business description:", err);
+            });
+
+            // Send final status message
+            onChunk({ status: "final", idea: updatedIdea });
+        } catch (error) {
+            console.error("AI business description generation error:", error);
+            const errorMessage = error instanceof Error ? error.message : "Generation failed";
+            onChunk({ status: "error", message: errorMessage });
+        }
     }
 
     // Get idea by ID

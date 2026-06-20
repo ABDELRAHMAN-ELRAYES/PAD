@@ -7,6 +7,7 @@ import {
     analyzeIdea,
     refineIdea,
     confirmIdea,
+    streamBusinessDescription,
 } from "./idea.controller";
 
 const IdeaRouter: Router = Router();
@@ -31,5 +32,8 @@ IdeaRouter.route("/:id/refine")
 
 IdeaRouter.route("/:id/confirm")
     .post(confirmIdea);
+
+IdeaRouter.route("/:id/business-description/stream")
+    .post(streamBusinessDescription);
 
 export default IdeaRouter;

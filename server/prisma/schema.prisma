@@ -40,16 +40,17 @@ model User {
 // ============================================
 
 model Idea {
-    id             String   @id @default(uuid())
-    userId         String   @map("user_id")
-    rawText        String   @map("raw_text") @db.Text
-    refinedText    String?  @map("refined_text") @db.Text
-    status         String   @default("draft") // draft | questionnaire_ready | questionnaire_complete | researching | research_complete | confirmed
-    analysisResult Json?    @map("analysis_result")
-    researchResult Json?    @map("research_result")
-    confirmedAt    DateTime? @map("confirmed_at")
-    createdAt      DateTime @default(now()) @map("created_at")
-    updatedAt      DateTime @updatedAt @map("updated_at")
+    id                  String    @id @default(uuid())
+    userId              String    @map("user_id")
+    rawText             String    @map("raw_text") @db.Text
+    refinedText         String?   @map("refined_text") @db.Text
+    businessDescription String?   @map("business_description") @db.Text
+    status              String    @default("draft") // draft | questionnaire_ready | questionnaire_complete | researching | research_complete | confirmed
+    analysisResult      Json?     @map("analysis_result")
+    researchResult      Json?     @map("research_result")
+    confirmedAt         DateTime? @map("confirmed_at")
+    createdAt           DateTime  @default(now()) @map("created_at")
+    updatedAt           DateTime  @updatedAt @map("updated_at")
 
     // Relations
     // Idea -> User (Many -> One)
@@ -131,22 +132,22 @@ model AdminPrivilege {
 // ============================================
 
 model Diagram {
-    id          String   @id @default(uuid())
-    ideaId      String   @map("idea_id")
-    type        String   // Matches DiagramType enum
+    id          String @id @default(uuid())
+    ideaId      String @map("idea_id")
+    type        String // Matches DiagramType enum
     title       String
-    mermaidCode String   @map("mermaid_code") @db.Text
-    status      String   @default("draft") // draft | published
+    mermaidCode String @map("mermaid_code") @db.Text
+    status      String @default("draft") // draft | published
 
     // Multi-Tier Fields for IR Compiler integration
-    tier1Code   String?  @map("tier1_code") @db.Text
-    tier2Code   String?  @map("tier2_code") @db.Text
-    tier3Code   String?  @map("tier3_code") @db.Text
-    activeTier      Int?     @map("active_tier")
-    validationError String?  @map("validation_error") @db.Text
+    tier1Code       String? @map("tier1_code") @db.Text
+    tier2Code       String? @map("tier2_code") @db.Text
+    tier3Code       String? @map("tier3_code") @db.Text
+    activeTier      Int?    @map("active_tier")
+    validationError String? @map("validation_error") @db.Text
 
-    createdAt   DateTime @default(now()) @map("created_at")
-    updatedAt   DateTime @updatedAt @map("updated_at")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
     // Diagram -> Idea (Many -> One)
@@ -191,7 +192,7 @@ model Feature {
     status             String   @default("active") // active | archived
     priority           String   @default("medium") // low | medium | high | critical
     complexity         String   @default("medium") // low | medium | high
-    dependencies       Json?    // Array of strings (feature titles or ids)
+    dependencies       Json? // Array of strings (feature titles or ids)
     technicalScope     String?  @map("technical_scope") @db.Text
     suggestedTaskCount Int      @default(0) @map("suggested_task_count")
     createdAt          DateTime @default(now()) @map("created_at")
@@ -420,13 +421,13 @@ model IterationMessage {
 }
 
 model IterationSuggestion {
-    id                 String   @id @default(uuid())
-    messageId          String   @unique @map("message_id")
-    title              String
-    summary            String   @db.Text
-    status             String   @default("pending") // pending | approved | rejected | applied | partial | failed
-    createdAt          DateTime @default(now()) @map("created_at")
-    updatedAt          DateTime @updatedAt @map("updated_at")
+    id        String   @id @default(uuid())
+    messageId String   @unique @map("message_id")
+    title     String
+    summary   String   @db.Text
+    status    String   @default("pending") // pending | approved | rejected | applied | partial | failed
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
     // IterationSuggestion -> IterationMessage (One -> One)
@@ -453,8 +454,6 @@ model IterationSuggestionAction {
     @@map("iteration_suggestion_actions")
 }
 
-
-
 model File {
     id           String   @id @default(uuid())
     userId       String   @map("user_id")
@@ -466,8 +465,8 @@ model File {
     createdAt    DateTime @default(now()) @map("created_at")
     updatedAt    DateTime @updatedAt @map("updated_at")
 
-    user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-    guideline    Guideline?
+    user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+    guideline Guideline?
 
     @@map("files")
 }
@@ -481,23 +480,23 @@ model Guideline {
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    file      File?    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+    user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    file File? @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
     @@map("guidelines")
 }
 
 model ProjectIR {
-    id          String   @id @default(uuid())
-    ideaId      String   @unique @map("idea_id")
-    version     Int      @default(1)
-    schemaData  Json     @map("schema_data")
-    createdAt   DateTime @default(now()) @map("created_at")
-    updatedAt   DateTime @updatedAt @map("updated_at")
+    id         String   @id @default(uuid())
+    ideaId     String   @unique @map("idea_id")
+    version    Int      @default(1)
+    schemaData Json     @map("schema_data")
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
 
     // Relations
-    idea        Idea              @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-    versions    ProjectIRVersion[]
+    idea     Idea               @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    versions ProjectIRVersion[]
 
     @@map("project_ir")
 }
@@ -511,7 +510,7 @@ model ProjectIRVersion {
     createdAt   DateTime @default(now()) @map("created_at")
 
     // Relations
-    projectIR   ProjectIR @relation(fields: [projectIRId], references: [id], onDelete: Cascade)
+    projectIR ProjectIR @relation(fields: [projectIRId], references: [id], onDelete: Cascade)
 
     @@unique([projectIRId, version])
     @@map("project_ir_versions")
@@ -524,11 +523,11 @@ model ProjectIRVersion {
 model DiscoveryQuestionnaire {
     id          String   @id @default(uuid())
     ideaId      String   @unique @map("idea_id")
-    questions   Json     // Stored as JSON array of IDiscoveryQuestion
+    questions   Json // Stored as JSON array of IDiscoveryQuestion
     generatedAt DateTime @default(now()) @map("generated_at")
 
     // Relations
-    idea        Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
 
     @@map("discovery_questionnaires")
 }
@@ -536,11 +535,11 @@ model DiscoveryQuestionnaire {
 model QuestionnaireResponse {
     id          String   @id @default(uuid())
     ideaId      String   @unique @map("idea_id")
-    responses   Json     // Stored as JSON array of response values (questionId, value)
+    responses   Json // Stored as JSON array of response values (questionId, value)
     submittedAt DateTime @default(now()) @map("submitted_at")
 
     // Relations
-    idea        Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
 
     @@map("questionnaire_responses")
 }
@@ -551,13 +550,13 @@ model ResearchJob {
     status       String   @default("pending") // pending | running | completed | failed
     currentPhase String?  @map("current_phase") // understanding | competitors | market | architecture | scope | risks | summary
     progress     Int      @default(0) // 0 to 100
-    logs         Json?    // Array of phase completion logs / statuses
+    logs         Json? // Array of phase completion logs / statuses
     error        String?  @db.Text
     createdAt    DateTime @default(now()) @map("created_at")
     updatedAt    DateTime @updatedAt @map("updated_at")
 
     // Relations
-    idea         Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
 
     @@map("research_jobs")
 }
@@ -567,13 +566,13 @@ model ResearchJob {
 // ============================================
 
 model HandoffPackage {
-    id        String            @id @default(uuid())
-    ideaId    String            @map("idea_id")
-    version   Int               @default(1)
-    status    String            @default("draft") // generating | ready | failed
-    zipPath   String?           @map("zip_path")
-    createdAt DateTime          @default(now()) @map("created_at")
-    updatedAt DateTime          @updatedAt @map("updated_at")
+    id        String   @id @default(uuid())
+    ideaId    String   @map("idea_id")
+    version   Int      @default(1)
+    status    String   @default("draft") // generating | ready | failed
+    zipPath   String?  @map("zip_path")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
     idea      Idea              @relation(fields: [ideaId], references: [id], onDelete: Cascade)
@@ -589,12 +588,12 @@ model HandoffArtifact {
     filePath  String   @map("file_path")
     title     String
     content   String   @db.Text
-    fileType  String   // markdown | mermaid | json
+    fileType  String // markdown | mermaid | json
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
     // Relations
-    package  HandoffPackage          @relation(fields: [packageId], references: [id], onDelete: Cascade)
+    package  HandoffPackage           @relation(fields: [packageId], references: [id], onDelete: Cascade)
     versions HandoffArtifactVersion[]
 
     @@unique([packageId, filePath])

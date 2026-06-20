@@ -141,3 +141,37 @@ export const confirmIdea = catchAsync(
         });
     }
 );
+
+// Stream business description generation
+export const streamBusinessDescription = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const ideaId = request.params.id as string;
+        const currentUser = request.user as IUser;
+
+        const idea = await IdeaService.getIdea(ideaId, next);
+        if (!idea) return;
+
+        if (idea.userId !== currentUser.id) {
+            return next(new AppError(403, "غير مصرح لك بالوصول لهذه الفكرة."));
+        }
+
+        // Set headers for streaming
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Transfer-Encoding", "chunked");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+
+        try {
+            await IdeaService.streamBusinessDescription(ideaId, next, (chunk) => {
+                response.write(JSON.stringify(chunk) + "\n");
+            });
+            response.end();
+        } catch (err) {
+            if (!response.headersSent) {
+                return next(err);
+            }
+            console.error("Business description streaming error:", err);
+            response.end();
+        }
+    }
+);

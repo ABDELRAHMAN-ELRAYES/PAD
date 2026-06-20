@@ -9,6 +9,7 @@ export interface IIdea {
     userId: string;
     rawText: string;
     refinedText: string | null;
+    businessDescription: string | null;
     status: IdeaStatus;
     analysisResult: IIdeaAnalysisResult | null;
     createdAt: Date;
@@ -41,6 +42,7 @@ export interface ICreateIdeaRepositoryData {
 
 export interface IUpdateIdeaRepositoryData {
     refinedText?: string;
+    businessDescription?: string;
     analysisResult?: IIdeaAnalysisResult;
     status?: IdeaStatus;
 }
@@ -50,6 +52,7 @@ export interface IIdeaResponse {
     id: string;
     rawText: string;
     refinedText: string | null;
+    businessDescription: string | null;
     status: IdeaStatus;
     analysisResult: IIdeaAnalysisResult | null;
     createdAt: Date;

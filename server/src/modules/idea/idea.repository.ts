@@ -66,6 +66,7 @@ class IdeaRepository {
                 where: { id: ideaId },
                 data: {
                     refinedText: data.refinedText,
+                    businessDescription: data.businessDescription,
                     analysisResult: data.analysisResult as object | undefined,
                     status: data.status,
                 },

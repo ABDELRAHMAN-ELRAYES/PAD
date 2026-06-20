@@ -66,7 +66,7 @@ export class WorkflowService {
     ) {
         const ideaRepo = IdeaRepository.getInstance();
         const idea = await ideaRepo.getIdeaById(ideaId);
-        const ideaText = idea?.refinedText || idea?.rawText || "Implement the features below.";
+        const ideaText = idea?.businessDescription || idea?.refinedText || idea?.rawText || "Implement the features below.";
         
         let fullResponse = "";
 

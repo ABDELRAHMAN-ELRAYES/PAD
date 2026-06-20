@@ -20,6 +20,7 @@ export interface Idea {
     id: string;
     rawText: string;
     refinedText: string | null;
+    businessDescription: string | null;
     status: IdeaStatus;
     analysisResult: IIdeaAnalysisResult | null;
     researchResult: any | null;

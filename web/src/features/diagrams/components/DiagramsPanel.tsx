@@ -51,7 +51,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
 
   if (activeType !== null) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 bg-background p-4 rounded-xl border">
+      <div className="flex-grow flex flex-col min-h-0 bg-background">
         <DiagramDetailView
           ideaId={ideaId}
           diagramType={activeType}

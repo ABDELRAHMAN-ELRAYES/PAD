@@ -6,6 +6,7 @@ import {
   buildReanalyzeWithAnswersPrompt,
   IQuestionAnswerInput,
 } from "./prompts/analyze-idea.prompt";
+import { buildGenerateBusinessDescriptionPrompt } from "./prompts/generate-business-description.prompt";
 import { buildGeneratePRDPrompt } from "./prompts/generate-prd.prompt";
 import { buildGenerateBRDPrompt } from "./prompts/generate-brd.prompt";
 import {
@@ -271,6 +272,12 @@ class AiService {
   // Analyze a software idea (Streaming)
   static async *analyzeIdeaStream(ideaText: string, userId?: string): AsyncGenerator<string> {
     const prompt = buildAnalyzeIdeaPrompt(ideaText);
+    yield* this.callLLMStream(prompt, undefined, userId);
+  }
+
+  // Generate business description (Streaming)
+  static async *generateBusinessDescriptionStream(ideaText: string, userId?: string): AsyncGenerator<string> {
+    const prompt = buildGenerateBusinessDescriptionPrompt(ideaText);
     yield* this.callLLMStream(prompt, undefined, userId);
   }
 

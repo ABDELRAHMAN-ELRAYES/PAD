@@ -217,7 +217,7 @@ export const DiagramCanvas: FC<DiagramCanvasProps> = ({ code, diagram, onError }
   return (
     <div
       ref={canvasRef}
-      className="relative w-full h-full flex-grow overflow-hidden select-none cursor-grab active:cursor-grabbing border border-border rounded-xl bg-card"
+      className="relative w-full h-full flex-grow overflow-hidden select-none cursor-grab active:cursor-grabbing rounded-none border-none bg-card"
       style={{
         backgroundImage: "radial-gradient(circle, var(--grid-color, rgba(148, 163, 184, 0.15)) 1px, transparent 1px)",
         backgroundSize: `${20 * scale}px ${20 * scale}px`,
@@ -228,11 +228,12 @@ export const DiagramCanvas: FC<DiagramCanvasProps> = ({ code, diagram, onError }
       onMouseUp={handleMouseUpOrLeave}
       onMouseLeave={handleMouseUpOrLeave}
     >
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         :root { --grid-color: rgba(148, 163, 184, 0.12); }
         .dark { --grid-color: rgba(51, 65, 85, 0.2); }
       `}} />
-      
+
       {/* Zoomable & Pannable Container */}
       <div
         className="w-full h-full flex items-center justify-center pointer-events-none"

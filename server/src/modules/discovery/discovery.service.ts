@@ -18,7 +18,7 @@ export default class DiscoveryService {
     });
 
     try {
-      const prompt = buildQuestionnairePrompt(idea.rawText);
+      const prompt = buildQuestionnairePrompt(idea.businessDescription || idea.rawText);
       const response = await AiService.callLLM(prompt, true, QUESTIONNAIRE_SYSTEM_PROMPT, idea.userId);
       const parsed = AiService.robustJSONParse<any>(response);
 
