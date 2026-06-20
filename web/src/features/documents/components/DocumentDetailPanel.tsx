@@ -289,6 +289,12 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                    {regenerating && (
+                        <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 animate-pulse text-[10px] font-semibold shrink-0">
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin shrink-0" />
+                            PAD is writing...
+                        </Badge>
+                    )}
                     <Badge variant="outline" className="mr-1 capitalize text-[10px] font-semibold shrink-0">
                         {docData.type}
                     </Badge>
@@ -458,22 +464,7 @@ export const DocumentDetailPanel: FC<DocumentDetailPanelProps> = ({
                     />
                 </div>
 
-                {/* AI Generation Full-Page Overlay */}
-                {regenerating && (
-                    <div className="absolute inset-0 bg-background/75 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300 select-none">
-                        <div className="flex flex-col items-center gap-3.5 max-w-sm text-center px-6 py-8 rounded-2xl border bg-card/90 shadow-lg border-border/60">
-                            <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center animate-pulse">
-                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <h4 className="font-semibold text-sm">PAD is writing...</h4>
-                                <p className="text-xs text-muted-foreground leading-relaxed">
-                                    AI is generating specification details and updating version records. Please wait.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* Content streams directly to editor */}
             </div>
 
             {/* Version History Sheet */}
