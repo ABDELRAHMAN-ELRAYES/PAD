@@ -20,7 +20,7 @@ export interface UseDiagramsPageReturn {
     activeTab: DiagramType;
     streamingCode: Record<string, string>;
     setActiveTab: (tab: DiagramType) => void;
-    handleInitialize: () => Promise<void>;
+    handleInitialize: (type?: DiagramType) => Promise<void>;
     handleSave: (diagram: Diagram) => Promise<void>;
     handleGenerateSingle: (diagram: Diagram) => Promise<void>;
     handleRegenerateSingle: (diagram: Diagram) => Promise<void>;
@@ -104,14 +104,14 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
     }));
 
     // Initialize/Create diagram placeholders
-    const handleInitialize = async () => {
+    const handleInitialize = async (type?: DiagramType) => {
         setIsInitializing(true);
-        addLog("info", "Initializing diagram workspace placeholders...");
+        addLog("info", type ? `Initializing diagram placeholder for ${type}...` : "Initializing diagram workspace placeholders...");
         try {
-            await diagramApi.generate(ideaId);
+            await diagramApi.generate(ideaId, type);
             await refetchDiagrams();
-            addLog("success", "Diagram workspace initialized successfully. All 10 catalog diagrams ready.");
-            toast.success("Diagram catalog initialized.");
+            addLog("success", type ? `Diagram ${type} initialized successfully.` : "Diagram workspace initialized successfully. All 10 catalog diagrams ready.");
+            toast.success(type ? `Diagram ${type} initialized.` : "Diagram catalog initialized.");
         } catch (err: any) {
             addLog("error", `Initialization failed: ${err.message || err}`);
             toast.error(err.message || "Failed to initialize diagrams");

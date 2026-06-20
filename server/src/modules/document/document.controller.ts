@@ -2,16 +2,27 @@ import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../../utils/catch-async";
 import AppError from "../../utils/app-error";
 import DocumentService from "./document.service";
-import { IUpdateDocumentWithChangelogData } from "./types/IDocument";
+import { IUpdateDocumentWithChangelogData, DocumentType } from "./types/IDocument";
 
 // Generate documents for an idea (creates placeholder and returns it)
 export const generateDocuments = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
-        const type = request.query.type as "PRD" | "BRD";
+        const type = request.query.type as DocumentType;
+        const supportedTypes: DocumentType[] = [
+            "BRD",
+            "PRD",
+            "SRS",
+            "FRS",
+            "SYSTEM_ARCH",
+            "API_SPEC",
+            "TEST_PLAN",
+            "USER_MANUAL",
+            "SECURITY_PLAN"
+        ];
 
-        if (!type || !["PRD", "BRD"].includes(type)) {
-            return next(new AppError(400, "Valid document type (PRD or BRD) is required"));
+        if (!type || !supportedTypes.includes(type)) {
+            return next(new AppError(400, `Valid document type (${supportedTypes.join(", ")}) is required`));
         }
 
         const document = await DocumentService.createPlaceholder(ideaId, type, next);

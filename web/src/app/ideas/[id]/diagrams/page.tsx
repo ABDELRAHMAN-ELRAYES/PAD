@@ -59,7 +59,7 @@ export default function StandaloneDiagramsPage() {
               No diagrams generated for this idea. Click below to initialize and compile the 10-diagram suite.
             </p>
           </div>
-          <Button onClick={handleInitialize} className="h-9 px-6 font-semibold">
+          <Button onClick={() => handleInitialize()} className="h-9 px-6 font-semibold">
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Initialize Catalog Suite
           </Button>
@@ -71,6 +71,7 @@ export default function StandaloneDiagramsPage() {
           isGeneratingMap={isGeneratingMap}
           onSelect={(type) => router.push(`/ideas/${ideaId}/diagrams/${type}`)}
           onGenerate={(diagram) => handleRegenerateSingle(diagram)}
+          onAdd={handleInitialize}
         />
       )}
     </div>

@@ -131,7 +131,10 @@ export const confirmIdea = catchAsync(
             return next(new AppError(403, "غير مصرح لك بالوصول لهذه الفكرة."));
         }
 
-        const confirmedIdea = await IdeaService.confirmIdea(ideaId, next);
+        const selectedDocuments = request.body.selectedDocuments || ["BRD", "PRD", "SRS"];
+        const selectedDiagrams = request.body.selectedDiagrams || ["SYSTEM_ARCHITECTURE", "DATABASE_ERD", "USER_FLOW"];
+
+        const confirmedIdea = await IdeaService.confirmIdea(ideaId, selectedDocuments, selectedDiagrams, next);
         if (!confirmedIdea) return;
 
         response.status(200).json({

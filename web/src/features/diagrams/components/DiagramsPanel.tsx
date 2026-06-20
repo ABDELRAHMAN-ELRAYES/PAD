@@ -41,7 +41,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
             Generate and initialize the 10-diagram architecture catalog (system architecture, ERDs, sequence diagrams) for this software idea.
           </p>
         </div>
-        <Button onClick={handleInitialize} size="sm" className="h-9 px-5 font-semibold">
+        <Button onClick={() => handleInitialize()} size="sm" className="h-9 px-5 font-semibold">
           <Play className="h-3.5 w-3.5 mr-1.5" />
           Initialize Diagrams Catalog
         </Button>
@@ -79,6 +79,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
           generationStatusMap={generationStatusMap}
           onSelect={(type) => setActiveType(type)}
           onGenerate={(diagram) => handleRegenerateSingle(diagram)}
+          onAdd={handleInitialize}
         />
       </div>
     </div>

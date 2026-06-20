@@ -1,6 +1,7 @@
 import { apiClient, readNdJsonStream } from "@/api/client";
 import {
     Document,
+    DocumentType,
     DocumentWithVersions,
     DocumentVersion,
     UpdateDocumentInput,
@@ -14,8 +15,8 @@ import { ApiResponse } from "@/features/ideas/types/models/idea";
 // Document API functions
 export const documentApi = {
     // Create a placeholder document for an idea
-    async createPlaceholder(ideaId: string, type: "PRD" | "BRD"): Promise<Document> {
-        const response = await apiClient.post<ApiResponse<{ document: Document }>>(`/documents/generate/${ideaId}`, undefined, { params: { type } });
+    async createPlaceholder(ideaId: string, type: DocumentType): Promise<Document> {
+        const response = await apiClient.post<ApiResponse<{ document: Document }>>(`/documents/generate/${ideaId}`, undefined, { params: { type: type as string } });
         return response.data!.document;
     },
 

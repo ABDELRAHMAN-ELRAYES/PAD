@@ -10,6 +10,8 @@ import {
 } from "./types/IIdea";
 import SocketService from "../../services/socket.service";
 import DiscoveryService from "../discovery/discovery.service";
+import DocumentService from "../document/document.service";
+import DiagramService from "../diagram/diagram.service";
 
 class IdeaService {
     private static ideaRepository: IdeaRepository = IdeaRepository.getInstance();
@@ -239,6 +241,8 @@ class IdeaService {
     // Confirm an idea
     static async confirmIdea(
         ideaId: string,
+        selectedDocuments: string[],
+        selectedDiagrams: string[],
         next: NextFunction
     ): Promise<IIdea | void> {
         const idea = await this.ideaRepository.getIdeaById(ideaId);
@@ -257,6 +261,13 @@ class IdeaService {
                 new AppError(400, "Deep research must be completed before confirmation")
             );
         }
+
+        // Initialize chosen documents and diagrams
+        const docs = await DocumentService.initializeSelectedDocuments(ideaId, selectedDocuments, next);
+        if (!docs) return;
+
+        const diags = await DiagramService.initializeSelectedDiagrams(ideaId, selectedDiagrams, next);
+        if (!diags) return;
 
         // Confirm the idea
         const confirmedIdea = await this.ideaRepository.confirmIdea(ideaId);

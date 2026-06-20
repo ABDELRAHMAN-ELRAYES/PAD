@@ -53,8 +53,8 @@ export const ideaApi = {
     },
 
     // Confirm an idea
-    async confirm(id: string): Promise<Idea> {
-        const response = await apiClient.post<ApiResponse<IdeaResponse>>(`/ideas/${id}/confirm`);
+    async confirm(id: string, selections?: { selectedDocuments: string[]; selectedDiagrams: string[] }): Promise<Idea> {
+        const response = await apiClient.post<ApiResponse<IdeaResponse>>(`/ideas/${id}/confirm`, selections);
         return response.data!.idea;
     },
 

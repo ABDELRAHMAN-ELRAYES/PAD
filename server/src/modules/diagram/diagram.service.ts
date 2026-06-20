@@ -157,6 +157,40 @@ class DiagramService {
         return created;
     }
 
+    // Initialize selected diagrams as draft if they do not exist
+    static async initializeSelectedDiagrams(
+        ideaId: string,
+        selectedTypes: string[],
+        next: NextFunction
+    ): Promise<IDiagram[] | void> {
+        const idea = await this.ideaRepository.getIdeaById(ideaId);
+        if (!idea) {
+            return next(new AppError(404, "Idea not found"));
+        }
+
+        const existing = await this.diagramRepository.getDiagramsByIdeaId(ideaId);
+        const created: IDiagram[] = [];
+
+        for (const typeStr of selectedTypes) {
+            const type = typeStr as DiagramType;
+            const match = existing.find((d) => d.type === type);
+            if (!match) {
+                const label = DIAGRAM_LABELS[type] || type;
+                const newDiag = await this.diagramRepository.createDiagram({
+                    ideaId,
+                    type,
+                    title: label,
+                    mermaidCode: "",
+                });
+                created.push(newDiag as IDiagram);
+            } else {
+                created.push(match as IDiagram);
+            }
+        }
+
+        return created;
+    }
+
     // Get diagram by ID
     static async getDiagram(diagramId: string, next: NextFunction): Promise<IDiagram | void> {
         const diagram = await this.diagramRepository.getDiagramById(diagramId);

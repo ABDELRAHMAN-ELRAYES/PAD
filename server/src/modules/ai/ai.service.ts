@@ -9,6 +9,7 @@ import {
 import { buildGenerateBusinessDescriptionPrompt } from "./prompts/generate-business-description.prompt";
 import { buildGeneratePRDPrompt } from "./prompts/generate-prd.prompt";
 import { buildGenerateBRDPrompt } from "./prompts/generate-brd.prompt";
+import { buildDocumentPrompt } from "./prompts/generate-document.prompt";
 import {
   buildDiagramPrompt,
   DiagramType,
@@ -478,6 +479,17 @@ class AiService {
     userId?: string,
   ): AsyncGenerator<string> {
     const prompt = buildGenerateBRDPrompt(ideaText, analysisResult);
+    yield* this.callLLMStream(prompt, undefined, userId);
+  }
+
+  // Generate any document type (Streaming)
+  static async *generateDocumentStream(
+    type: string,
+    ideaText: string,
+    analysisResult: unknown,
+    userId?: string,
+  ): AsyncGenerator<string> {
+    const prompt = buildDocumentPrompt(type, ideaText, analysisResult);
     yield* this.callLLMStream(prompt, undefined, userId);
   }
 

@@ -1,8 +1,13 @@
-// ============================================
-// Document Types (Module 2)
-// ============================================
-
-export type DocumentType = "PRD" | "BRD";
+export type DocumentType =
+    | "BRD"
+    | "PRD"
+    | "SRS"
+    | "FRS"
+    | "SYSTEM_ARCH"
+    | "API_SPEC"
+    | "TEST_PLAN"
+    | "USER_MANUAL"
+    | "SECURITY_PLAN";
 export type DocumentStatus = "draft" | "published";
 
 export interface Document {

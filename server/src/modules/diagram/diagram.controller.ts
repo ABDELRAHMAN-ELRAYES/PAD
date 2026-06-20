@@ -9,8 +9,14 @@ export const generateDiagrams = async (
     next: NextFunction
 ) => {
     const targetIdeaId = req.params.ideaId as string;
+    const type = req.query.type as string | undefined;
     try {
-        const diagrams = await DiagramService.initializeDiagrams(targetIdeaId, next);
+        let diagrams;
+        if (type) {
+            diagrams = await DiagramService.initializeSelectedDiagrams(targetIdeaId, [type], next);
+        } else {
+            diagrams = await DiagramService.initializeDiagrams(targetIdeaId, next);
+        }
         if (!diagrams) return;
 
         res.status(200).json({

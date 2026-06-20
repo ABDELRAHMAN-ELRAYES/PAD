@@ -1,6 +1,7 @@
 import { apiClient } from "@/api/client";
 import {
     Diagram,
+    DiagramType,
     DiagramWithVersions,
     DiagramVersion,
     UpdateDiagramInput,
@@ -14,8 +15,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v
 
 export const diagramApi = {
     // Generate diagrams for an idea (initialize placeholders)
-    async generate(ideaId: string): Promise<Diagram[]> {
-        const response = await apiClient.post<ApiResponse<DiagramsListResponse>>(`/diagrams/generate/${ideaId}`);
+    async generate(ideaId: string, type?: DiagramType): Promise<Diagram[]> {
+        const response = await apiClient.post<ApiResponse<DiagramsListResponse>>(`/diagrams/generate/${ideaId}`, undefined, {
+            params: type ? { type } : undefined
+        });
         return response.data!.diagrams;
     },
 

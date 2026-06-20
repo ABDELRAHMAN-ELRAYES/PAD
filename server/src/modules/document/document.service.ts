@@ -16,10 +16,62 @@ class DocumentService {
     private static documentRepo: DocumentRepository = DocumentRepository.getInstance();
     private static ideaRepo = IdeaRepository.getInstance();
 
+    // Helper to get friendly titles for types
+    static getFriendlyDocumentTitle(type: string): string {
+        switch (type) {
+            case "BRD":
+                return "Business Requirements Document (BRD)";
+            case "PRD":
+                return "Product Requirements Document (PRD)";
+            case "SRS":
+                return "Software Requirements Specification (SRS)";
+            case "FRS":
+                return "Functional Requirements Specification (FRS)";
+            case "SYSTEM_ARCH":
+                return "System Architecture Document (SAD)";
+            case "API_SPEC":
+                return "API Specification (API Spec)";
+            case "TEST_PLAN":
+                return "QA & Test Plan";
+            case "USER_MANUAL":
+                return "User Guide & Manual";
+            case "SECURITY_PLAN":
+                return "Security & Compliance Plan";
+            default:
+                return `${type} Specification`;
+        }
+    }
+
+    // Initialize selected documents
+    static async initializeSelectedDocuments(
+        ideaId: string,
+        selectedTypes: string[],
+        next: NextFunction
+    ): Promise<IDocument[] | void> {
+        const idea = await this.ideaRepo.getIdeaById(ideaId);
+        if (!idea) {
+            return next(new AppError(404, "Idea not found"));
+        }
+
+        const created: IDocument[] = [];
+        for (const type of selectedTypes) {
+            const title = this.getFriendlyDocumentTitle(type);
+            const document = await this.documentRepo.createDocument({
+                ideaId,
+                type: type as DocumentType,
+                title,
+                content: "",
+            });
+            await this.documentRepo.createVersion(document.id, 1, "", "Placeholder created");
+            created.push(document);
+        }
+        return created;
+    }
+
     // Create placeholder document for a confirmed idea
     static async createPlaceholder(
         ideaId: string,
-        type: "PRD" | "BRD",
+        type: DocumentType,
         next: NextFunction
     ): Promise<IDocument | void> {
         // Get the idea
@@ -40,9 +92,7 @@ class DocumentService {
             return next(new AppError(400, `${type} document already exists for this idea.`));
         }
 
-        const title = type === "PRD" 
-            ? "Product Requirements Document (PRD)" 
-            : "Business Requirements Document (BRD)";
+        const title = this.getFriendlyDocumentTitle(type);
 
         const document = await this.documentRepo.createDocument({
             ideaId,
@@ -57,10 +107,10 @@ class DocumentService {
         return document;
     }
 
-    // Generate PRD and/or BRD documents for a confirmed idea
+    // Generate documents for a confirmed idea
     static async generateDocuments(
         ideaId: string,
-        type: "PRD" | "BRD" | undefined,
+        type: DocumentType | undefined,
         next: NextFunction,
         onChunk?: (data: any) => void
     ): Promise<IDocument[] | void> {
@@ -106,7 +156,7 @@ class DocumentService {
         ideaId: string,
         ideaText: string,
         analysisResult: any,
-        type: "PRD" | "BRD" | undefined,
+        type: DocumentType | undefined,
         onChunk?: (data: any) => void
     ) {
         try {
@@ -114,59 +164,34 @@ class DocumentService {
             const idea = await this.ideaRepo.getIdeaById(ideaId);
             const userId = idea?.userId;
 
-            // 1. Generate PRD
-            if (!type || type === "PRD") {
-                let prdFullResponse = "";
-                const prdStream = AiService.generatePRDStream(ideaText, analysisResult, userId);
-                for await (const chunk of prdStream) {
-                    prdFullResponse += chunk;
-                    const chunkData = {
-                        type: "PRD",
-                        chunk,
-                        fullText: prdFullResponse,
-                    };
-                    if (onChunk) {
-                        onChunk(chunkData);
-                    }
-                }
-                const prdResult = AiService.parseDocumentResult(prdFullResponse);
-                if (prdResult) {
-                    const prdDoc = await this.documentRepo.createDocument({
-                        ideaId,
-                        type: "PRD",
-                        title: prdResult.title,
-                        content: prdResult.content,
-                    });
-                    await this.documentRepo.createVersion(prdDoc.id, 1, prdResult.content, "Initial generation");
-                    docsCreated.push(prdDoc);
-                }
-            }
+            const typesToGenerate: DocumentType[] = type
+                ? [type]
+                : ["BRD", "PRD", "SRS", "FRS", "SYSTEM_ARCH", "API_SPEC", "TEST_PLAN", "USER_MANUAL", "SECURITY_PLAN"];
 
-            // 2. Generate BRD
-            if (!type || type === "BRD") {
-                let brdFullResponse = "";
-                const brdStream = AiService.generateBRDStream(ideaText, analysisResult, userId);
-                for await (const chunk of brdStream) {
-                    brdFullResponse += chunk;
+            for (const docType of typesToGenerate) {
+                let fullResponse = "";
+                const stream = AiService.generateDocumentStream(docType, ideaText, analysisResult, userId);
+                for await (const chunk of stream) {
+                    fullResponse += chunk;
                     const chunkData = {
-                        type: "BRD",
+                        type: docType,
                         chunk,
-                        fullText: brdFullResponse,
+                        fullText: fullResponse,
                     };
                     if (onChunk) {
                         onChunk(chunkData);
                     }
                 }
-                const brdResult = AiService.parseDocumentResult(brdFullResponse);
-                if (brdResult) {
-                    const brdDoc = await this.documentRepo.createDocument({
+                const result = AiService.parseDocumentResult(fullResponse);
+                if (result) {
+                    const doc = await this.documentRepo.createDocument({
                         ideaId,
-                        type: "BRD",
-                        title: brdResult.title,
-                        content: brdResult.content,
+                        type: docType,
+                        title: result.title,
+                        content: result.content,
                     });
-                    await this.documentRepo.createVersion(brdDoc.id, 1, brdResult.content, "Initial generation");
-                    docsCreated.push(brdDoc);
+                    await this.documentRepo.createVersion(doc.id, 1, result.content, "Initial generation");
+                    docsCreated.push(doc);
                 }
             }
 
@@ -322,9 +347,7 @@ class DocumentService {
 
         try {
             let fullResponse = "";
-            const stream = type === "PRD" 
-                ? AiService.generatePRDStream(ideaText, analysisResult, idea.userId)
-                : AiService.generateBRDStream(ideaText, analysisResult, idea.userId);
+            const stream = AiService.generateDocumentStream(type, ideaText, analysisResult, idea.userId);
 
             for await (const chunk of stream) {
                 fullResponse += chunk;

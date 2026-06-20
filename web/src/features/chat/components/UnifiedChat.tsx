@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, MessageSquare, ArrowUp, LogIn } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowUp, LogIn, CheckCircle, ChevronDown, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ideaApi } from "@/features/ideas/api/ideas.api";
 import { ChatMessage } from "./ChatMessage";
@@ -10,6 +10,8 @@ import { useIterationChat } from "../hooks/use-iteration-chat";
 import { AiStatusIndicator } from "./AiStatusIndicator";
 import { Logo } from "./Logo";
 import { IterationMessage } from "../types/models/chat";
+import { useQueryClient } from "@tanstack/react-query";
+import { useIdea } from "@/features/ideas/api/ideasQueries";
 
 import { UnifiedChatProps } from "../types/components/UnifiedChat.types";
 import { MIN_CHAR_COUNT } from "@/config/chat";
@@ -23,6 +25,14 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
     const [inputValue, setInputValue] = useState("");
     const [localError, setLocalError] = useState<string | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    const queryClient = useQueryClient();
+    const { data: idea } = useIdea(ideaId ?? undefined);
+
+    const [streamedDesc, setStreamedDesc] = useState<string>("");
+    const [isStreamingDesc, setIsStreamingDesc] = useState<boolean>(false);
+    const [isDescExpanded, setIsDescExpanded] = useState<boolean>(false);
+    const [streamingDescError, setStreamingDescError] = useState<string | null>(null);
 
     // New idea mode state
     const [isCreating, setIsCreating] = useState(false);
@@ -38,6 +48,85 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
         sendMessage,
         clearError,
     } = useIterationChat(ideaId, onArtifactUpdated);
+
+    // Sync already existing businessDescription
+    useEffect(() => {
+        if (idea?.businessDescription && !streamedDesc) {
+            setStreamedDesc(idea.businessDescription);
+        }
+    }, [idea?.businessDescription, streamedDesc]);
+
+    // Stream business description if missing and status is draft
+    useEffect(() => {
+        if (!ideaId || !idea || idea.businessDescription || idea.status !== "draft" || isStreamingDesc) return;
+
+        let active = true;
+        setIsStreamingDesc(true);
+        setStreamingDescError(null);
+        setStreamedDesc("");
+
+        ideaApi.streamBusinessDescription(ideaId, (data) => {
+            if (!active) return;
+            if (data.status === "error") {
+                setStreamingDescError(data.message || "Failed to generate business description.");
+                setIsStreamingDesc(false);
+            } else if (data.status === "final") {
+                setIsStreamingDesc(false);
+                queryClient.invalidateQueries({ queryKey: ["ideas", ideaId] });
+                queryClient.invalidateQueries({ queryKey: ["documents", "idea", ideaId] });
+            } else if (data.chunk) {
+                setStreamedDesc((prev) => prev + data.chunk);
+            }
+        }).catch((err) => {
+            console.error("Error streaming business description in chat:", err);
+            if (active) {
+                setStreamingDescError(err.message || "Failed to stream business description.");
+                setIsStreamingDesc(false);
+            }
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [ideaId, idea, isStreamingDesc, queryClient]);
+
+    const renderBusinessDescriptionStreaming = () => {
+        if (!isStreamingDesc && !streamedDesc) return null;
+
+        return (
+            <div className="w-full max-w-2xl mx-auto mt-2.5 p-3.5 rounded-2xl border border-indigo-500/10 bg-linear-to-b from-indigo-500/5 via-violet-500/5 to-transparent space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div 
+                    onClick={() => setIsDescExpanded(!isDescExpanded)}
+                    className="flex items-center justify-between cursor-pointer group select-none px-1"
+                >
+                    <div className="flex items-center gap-2">
+                        {isStreamingDesc ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                        ) : (
+                            <CheckCircle className="h-4 w-4 text-emerald-500" />
+                        )}
+                        <span className="text-[11px] font-semibold text-foreground tracking-tight flex items-center gap-1.5">
+                            {isStreamingDesc ? "PAD is refining business concept..." : "Business concept refined"}
+                        </span>
+                    </div>
+                    <div className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                        {isDescExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                        ) : (
+                            <Lightbulb className="h-4.5 w-4.5 text-indigo-500 animate-pulse" />
+                        )}
+                    </div>
+                </div>
+
+                {isDescExpanded && (
+                    <div className="border-t border-border/40 pt-3 text-xs leading-relaxed text-muted-foreground select-text max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                        <ChatMarkdown content={streamedDesc} />
+                        {isStreamingDesc && <span className="inline-block w-1.5 h-3.5 ml-1 bg-primary/70 animate-pulse align-middle" />}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -279,6 +368,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                         {/* Centered Input Box */}
                         <div className="w-full">
                             {renderInputBox()}
+                            {renderBusinessDescriptionStreaming()}
                         </div>
 
                         {/* Suggestions */}
@@ -358,6 +448,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
             {/* Iteration Mode Input area (Fixed at bottom) */}
             {!isNewMode && (
                 <div className="border-t bg-background px-3 py-2.5 shrink-0">
+                    {renderBusinessDescriptionStreaming()}
                     {renderInputBox()}
                 </div>
             )}

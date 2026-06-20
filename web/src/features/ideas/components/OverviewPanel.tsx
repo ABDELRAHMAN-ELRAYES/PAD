@@ -42,11 +42,10 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>(["BRD", "PRD", "SRS"]);
+  const [selectedDiags, setSelectedDiags] = useState<string[]>(["SYSTEM_ARCHITECTURE", "DATABASE_ERD", "USER_FLOW"]);
 
-  // Business description streaming state
-  const [streamedDesc, setStreamedDesc] = useState<string>("");
-  const [isStreamingDesc, setIsStreamingDesc] = useState<boolean>(false);
-  const [streamingDescError, setStreamingDescError] = useState<string | null>(null);
+  // Selection states
 
   const handleResearchComplete = useCallback((updatedIdea: Idea) => {
     onIdeaUpdate(updatedIdea);
@@ -63,40 +62,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     startResearch,
   } = useResearchStream(ideaId, handleResearchComplete);
 
-  // Stream business description if missing and in draft status
-  useEffect(() => {
-    if (idea.businessDescription || idea.status !== "draft" || isStreamingDesc) return;
 
-    let active = true;
-    setIsStreamingDesc(true);
-    setStreamingDescError(null);
-    setStreamedDesc("");
-
-    ideaApi.streamBusinessDescription(ideaId, (data) => {
-      if (!active) return;
-      if (data.status === "error") {
-        setStreamingDescError(data.message || "Failed to generate business description.");
-        setIsStreamingDesc(false);
-      } else if (data.status === "final") {
-        setIsStreamingDesc(false);
-        if (data.idea) {
-          onIdeaUpdate(data.idea);
-        }
-      } else if (data.chunk) {
-        setStreamedDesc((prev) => prev + data.chunk);
-      }
-    }).catch((err) => {
-      console.error("Error streaming business description:", err);
-      if (active) {
-        setStreamingDescError(err.message || "Failed to stream business description.");
-        setIsStreamingDesc(false);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [idea.businessDescription, idea.status, ideaId, onIdeaUpdate]);
 
   // 1. Poll/Fetch discovery questionnaire when status is "draft"
   useEffect(() => {
@@ -172,7 +138,10 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     setIsConfirming(true);
     setConfirmError(null);
     try {
-      const confirmedIdea = await ideaApi.confirm(ideaId);
+      const confirmedIdea = await ideaApi.confirm(ideaId, {
+        selectedDocuments: selectedDocs,
+        selectedDiagrams: selectedDiags
+      });
       onIdeaUpdate(confirmedIdea);
     } catch (err: any) {
       setConfirmError(err?.message || "Failed to confirm project scope.");
@@ -213,6 +182,133 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
           </Badge>
         );
     }
+  };
+
+  const renderScopeConfiguration = () => {
+    if (idea.status !== "research_complete") return null;
+    
+    const documentsList = [
+      { type: "BRD", name: "Business Requirements (BRD)", desc: "Core business goals and targets" },
+      { type: "PRD", name: "Product Requirements (PRD)", desc: "Functional specifications and user stories" },
+      { type: "SRS", name: "Software Requirements (SRS)", desc: "Technical system specifications" },
+      { type: "FRS", name: "Functional Requirements (FRS)", desc: "Detailed behavioral and flow rules" },
+      { type: "SYSTEM_ARCH", name: "System Architecture (SAD)", desc: "High-level modular blueprint" },
+      { type: "API_SPEC", name: "API Specification", desc: "Endpoint and integration contracts" },
+      { type: "TEST_PLAN", name: "QA & Test Plan", desc: "Strategy and validation test cases" },
+      { type: "USER_MANUAL", name: "User Guide & Manual", desc: "End-user guide and documentation" },
+      { type: "SECURITY_PLAN", name: "Security & Compliance", desc: "Threat modeling and policy audit" }
+    ];
+
+    const diagramsList = [
+      { type: "SYSTEM_ARCHITECTURE", name: "System Architecture", desc: "Core backend/frontend mapping" },
+      { type: "DATABASE_ERD", name: "Database ERD", desc: "Database tables and relationships" },
+      { type: "USER_FLOW", name: "User Flow", desc: "Visual navigation pathways" },
+      { type: "SEQUENCE", name: "Sequence", desc: "Step-by-step transaction logic" },
+      { type: "COMPONENT", name: "Component", desc: "Modular architecture boundaries" },
+      { type: "DEPLOYMENT", name: "Deployment", desc: "Docker & cloud node layouts" },
+      { type: "CLASS", name: "Class Diagram", desc: "Object-oriented code structure" },
+      { type: "STATE", name: "State Machine", desc: "Entity status transition paths" },
+      { type: "USE_CASE", name: "Use Case", desc: "Actor-system relationships" },
+      { type: "ACTIVITY", name: "Activity Flow", desc: "Logical execution paths" }
+    ];
+
+    const toggleDocument = (type: string) => {
+      setSelectedDocs(prev => 
+        prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+      );
+    };
+
+    const toggleDiagram = (type: string) => {
+      setSelectedDiags(prev => 
+        prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+      );
+    };
+
+    return (
+      <Card className="rounded-2xl border border-indigo-500/10 bg-linear-to-b from-card to-background shadow-xs overflow-hidden">
+        <div className="p-6 border-b border-border/60">
+          <h3 className="text-sm font-bold text-foreground">Customize Project Scope</h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Select which document specifications and architectural diagrams you need for this project.
+          </p>
+        </div>
+        <CardContent className="p-6 space-y-6">
+          {/* Documents Selection */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold text-primary/80 uppercase tracking-wider">1. Document Specifications</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {documentsList.map((doc) => {
+                const isChecked = selectedDocs.includes(doc.type);
+                return (
+                  <div
+                    key={doc.type}
+                    onClick={() => toggleDocument(doc.type)}
+                    className={`group relative flex items-start gap-3 p-3.5 rounded-xl border transition-all duration-305 cursor-pointer select-none
+                      ${isChecked 
+                        ? "border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" 
+                        : "border-border/60 bg-muted/10 hover:border-indigo-500/20 hover:bg-muted/20"
+                      }
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      readOnly
+                      className="mt-1 h-3.5 w-3.5 rounded-sm border-muted-foreground/30 accent-indigo-600 cursor-pointer"
+                    />
+                    <div className="space-y-0.5">
+                      <p className={`text-[11px] font-semibold transition-colors ${isChecked ? "text-indigo-600 dark:text-indigo-400" : "text-foreground"}`}>
+                        {doc.name}
+                      </p>
+                      <p className="text-[9.5px] text-muted-foreground leading-relaxed">
+                        {doc.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Diagrams Selection */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-semibold text-primary/80 uppercase tracking-wider">2. System Diagrams</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {diagramsList.map((diag) => {
+                const isChecked = selectedDiags.includes(diag.type);
+                return (
+                  <div
+                    key={diag.type}
+                    onClick={() => toggleDiagram(diag.type)}
+                    className={`group relative flex items-start gap-3 p-3.5 rounded-xl border transition-all duration-305 cursor-pointer select-none
+                      ${isChecked 
+                        ? "border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10" 
+                        : "border-border/60 bg-muted/10 hover:border-violet-500/20 hover:bg-muted/20"
+                      }
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      readOnly
+                      className="mt-1 h-3.5 w-3.5 rounded-sm border-muted-foreground/30 accent-violet-600 cursor-pointer"
+                    />
+                    <div className="space-y-0.5">
+                      <p className={`text-[11px] font-semibold transition-colors ${isChecked ? "text-violet-600 dark:text-violet-400" : "text-foreground"}`}>
+                        {diag.name}
+                      </p>
+                      <p className="text-[9.5px] text-muted-foreground leading-relaxed">
+                        {diag.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   // --- Sub-rendering: Render Blueprint results panel ---
@@ -276,6 +372,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
 
     return (
       <div className="space-y-6">
+        {renderScopeConfiguration()}
         <div className="space-y-1">
           <h3 className="text-md font-bold tracking-tight text-foreground">Deep Research Project Blueprint</h3>
           <p className="text-xs text-muted-foreground">
@@ -350,56 +447,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     );
   };
 
-  const renderBusinessDescriptionCard = (description: string, isStreaming: boolean, error: string | null) => {
-    return (
-      <Card className="border-border/80 bg-card rounded-2xl overflow-hidden shadow-xs">
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
-                <Lightbulb className="h-4.5 w-4.5" />
-              </div>
-              <h3 className="text-sm font-bold text-foreground">AI-Generated Business Concept</h3>
-            </div>
-            {isStreaming && (
-              <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 animate-pulse text-[10px] font-semibold">
-                <Loader2 className="mr-1 h-3 w-3 animate-spin shrink-0" />
-                Streaming...
-              </Badge>
-            )}
-          </div>
 
-          {error && (
-            <div className="p-3 text-xs rounded-xl bg-destructive/10 border border-destructive/20 text-destructive font-medium">
-              {error}
-            </div>
-          )}
-
-          <div className="prose prose-neutral dark:prose-invert max-w-none text-[11.5px] whitespace-pre-line leading-relaxed select-text">
-            {description ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
-            ) : (
-              !error && (
-                <div className="py-8 flex flex-col items-center justify-center text-center space-y-2">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <p className="text-xs text-muted-foreground animate-pulse">Initializing business concept analysis...</p>
-                </div>
-              )
-            )}
-            {isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-primary/70 animate-pulse align-middle" />}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
 
   // --- Main Render Engine ---
   const renderFlow = () => {
     switch (idea.status) {
       case "draft":
-        if (isStreamingDesc || (streamedDesc && !idea.businessDescription)) {
-          return null; // Description is streaming, don't show the big loader
-        }
         return (
           <div className="flex flex-col items-center justify-center p-8 border border-border/60 bg-muted/10 rounded-2xl text-center space-y-3">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -469,9 +522,6 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
       <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6 items-start">
         {/* Left Column: Interactive flow steps / Blueprint Accordion */}
         <div className="space-y-6 @4xl:col-span-2 @container">
-          {(idea.businessDescription || isStreamingDesc || streamedDesc) && (
-            renderBusinessDescriptionCard(idea.businessDescription || streamedDesc, isStreamingDesc, streamingDescError)
-          )}
           {renderFlow()}
         </div>
 
