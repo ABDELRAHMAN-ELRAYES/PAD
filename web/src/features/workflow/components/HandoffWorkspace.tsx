@@ -13,6 +13,7 @@ interface HandoffWorkspaceProps {
     progress: number;
     compileLogs: string[];
     onRegenerate: () => void;
+    isEmbedded?: boolean;
 }
 
 export function HandoffWorkspace({
@@ -21,6 +22,7 @@ export function HandoffWorkspace({
     progress,
     compileLogs,
     onRegenerate,
+    isEmbedded = false,
 }: HandoffWorkspaceProps) {
     const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
@@ -28,13 +30,13 @@ export function HandoffWorkspace({
     const activeArtifactMeta = artifacts.find((a) => a.id === activeFileId);
 
     return (
-        <div className="flex flex-col h-full border rounded-xl overflow-hidden bg-background">
+        <div className={isEmbedded ? "flex flex-col h-full overflow-hidden bg-background" : "flex flex-col h-full border rounded-xl overflow-hidden bg-background"}>
             {/* 3-panel layout */}
             <div className="flex flex-1 overflow-hidden min-h-0">
                 {/* LEFT: File Tree */}
                 <div className="w-56 border-r bg-slate-950/5 dark:bg-slate-900/30 flex flex-col shrink-0">
                     <div className="px-3 py-2 border-b">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-300">
                             📦 handoff-package
                         </p>
                     </div>

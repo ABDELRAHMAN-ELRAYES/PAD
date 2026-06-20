@@ -22,6 +22,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 
 interface WorkflowPageProps {
@@ -92,9 +93,9 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
     }
 
     return (
-        <div className={isEmbedded ? "flex flex-col h-full space-y-4 p-4 min-h-0 overflow-hidden" : "container py-6 max-w-7xl space-y-6"}>
+        <div className={isEmbedded ? "flex flex-col h-full min-h-0 overflow-hidden" : "container py-6 max-w-7xl space-y-6"}>
             {/* Header */}
-            <div className="flex items-start justify-between shrink-0">
+            <div className={cn("flex items-start justify-between shrink-0", isEmbedded ? "px-6 py-4 border-b bg-background" : "mb-2")}>
                 <div>
                     {!isEmbedded && (
                         <Button
@@ -127,11 +128,13 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
                         progress={progress}
                         compileLogs={compileLogs}
                         onRegenerate={handleCompile}
+                        isEmbedded={isEmbedded}
                     />
                 </div>
             ) : (
                 // INTAKE STATE
                 <ScrollArea className="flex-1 min-h-0">
+                    <div className={isEmbedded ? "p-6" : ""}>
                     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-purple-500/5">
                         <CardContent className="py-12">
                             <div className="max-w-xl mx-auto space-y-8">
@@ -236,6 +239,7 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
                             </div>
                         </CardContent>
                     </Card>
+                    </div>
                 </ScrollArea>
             )}
         </div>

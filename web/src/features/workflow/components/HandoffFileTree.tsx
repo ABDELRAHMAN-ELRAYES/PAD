@@ -73,18 +73,18 @@ function TreeNodeView({ node, depth, activeFileId, onFileSelect, expanded, onTog
             <div>
                 <button
                     onClick={() => onToggle(node.path)}
-                    className="flex items-center gap-1.5 min-w-max whitespace-nowrap px-2 py-1 text-left text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded transition-colors"
+                    className="flex items-center gap-1.5 min-w-max whitespace-nowrap px-2 py-1 text-left text-xs font-semibold text-slate-900 dark:text-slate-200 hover:text-black dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-slate-800/50 rounded transition-colors"
                     style={{ paddingLeft: `${8 + depth * 16}px` }}
                 >
                     {isExpanded ? (
-                        <ChevronDown className="w-3 h-3 shrink-0" />
+                        <ChevronDown className="w-3 h-3 shrink-0 text-slate-500 dark:text-slate-400" />
                     ) : (
-                        <ChevronRight className="w-3 h-3 shrink-0" />
+                        <ChevronRight className="w-3 h-3 shrink-0 text-slate-500 dark:text-slate-400" />
                     )}
                     {isExpanded ? (
-                        <FolderOpen className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                        <FolderOpen className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
                     ) : (
-                        <Folder className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                        <Folder className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
                     )}
                     <span>{node.name}</span>
                 </button>
@@ -106,17 +106,17 @@ function TreeNodeView({ node, depth, activeFileId, onFileSelect, expanded, onTog
             </div>
         );
     }
-
+ 
     const isActive = node.artifact?.id === activeFileId;
-
+ 
     return (
         <button
             onClick={() => node.artifact && onFileSelect(node.artifact.id)}
             className={cn(
                 "flex items-center gap-1.5 min-w-max whitespace-nowrap px-2 py-1 text-left text-xs rounded transition-colors",
                 isActive
-                    ? "bg-primary/20 text-primary font-medium"
-                    : "text-slate-300 hover:text-slate-100 hover:bg-slate-800/50"
+                    ? "bg-primary/20 text-primary font-bold"
+                    : "text-black font-medium dark:text-slate-100 hover:text-black dark:hover:text-white hover:bg-black/[0.06] dark:hover:bg-slate-800/50"
             )}
             style={{ paddingLeft: `${8 + depth * 16}px` }}
         >
