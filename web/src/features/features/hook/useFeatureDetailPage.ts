@@ -5,6 +5,7 @@ import {
     useSuggestTasks,
     useUpdateTaskStatus,
     useDeleteTask,
+    useRegenerateFeature,
 } from "../api/featuresQueries";
 import { Feature, Task } from "../types/models/features";
 
@@ -13,10 +14,12 @@ export interface UseFeatureDetailPageReturn {
     tasks: Task[];
     isLoading: boolean;
     isSuggesting: boolean;
+    isRegenerating: boolean;
     error: string | null;
     setError: (error: string | null) => void;
     loadFeatureAndTasks: () => Promise<void>;
     handleSuggestTasks: () => Promise<void>;
+    handleRegenerateFeature: () => Promise<void>;
     handleUpdateTaskStatus: (taskId: string, status: string) => Promise<void>;
     handleDeleteTask: (taskId: string) => Promise<void>;
 }
@@ -30,6 +33,7 @@ export function useFeatureDetailPage(featureId: string): UseFeatureDetailPageRet
     const suggestTasksMutation = useSuggestTasks();
     const updateTaskStatusMutation = useUpdateTaskStatus();
     const deleteTaskMutation = useDeleteTask();
+    const regenerateFeatureMutation = useRegenerateFeature();
 
     const tasks = tasksData || [];
     const isLoading = isFeatureLoading || isTasksLoading;
@@ -47,6 +51,19 @@ export function useFeatureDetailPage(featureId: string): UseFeatureDetailPageRet
             },
             onError: (err: any) => {
                 setError(err?.message || "Failed to suggest tasks");
+            }
+        });
+    };
+
+    const handleRegenerateFeature = async () => {
+        if (!confirm("Are you sure you want to regenerate this feature using AI? This will update feature details and archive the current version.")) return;
+        setError(null);
+        regenerateFeatureMutation.mutate(featureId, {
+            onSuccess: () => {
+                refetchFeature();
+            },
+            onError: (err: any) => {
+                setError(err?.message || "Failed to regenerate feature");
             }
         });
     };
@@ -87,10 +104,12 @@ export function useFeatureDetailPage(featureId: string): UseFeatureDetailPageRet
         tasks,
         isLoading,
         isSuggesting: suggestTasksMutation.isPending,
-        error: error || (suggestTasksMutation.error as Error)?.message || (updateTaskStatusMutation.error as Error)?.message || (deleteTaskMutation.error as Error)?.message || null,
+        isRegenerating: regenerateFeatureMutation.isPending,
+        error: error || (suggestTasksMutation.error as Error)?.message || (updateTaskStatusMutation.error as Error)?.message || (deleteTaskMutation.error as Error)?.message || (regenerateFeatureMutation.error as Error)?.message || null,
         setError,
         loadFeatureAndTasks,
         handleSuggestTasks,
+        handleRegenerateFeature,
         handleUpdateTaskStatus,
         handleDeleteTask,
     };

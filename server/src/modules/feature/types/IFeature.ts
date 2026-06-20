@@ -9,9 +9,16 @@ export interface IFeature {
     ideaId: string;
     title: string;
     description: string;
+    businessValue: string | null;
+    userValue: string | null;
+    acceptanceCriteria: string[] | any;
     source: FeatureSource;
     status: FeatureStatus;
     priority: Priority;
+    complexity: string;
+    dependencies: string[] | any;
+    technicalScope: string | null;
+    suggestedTaskCount: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -23,6 +30,14 @@ export interface IFeatureVersion {
     version: number;
     title: string;
     description: string;
+    businessValue: string | null;
+    userValue: string | null;
+    acceptanceCriteria: string[] | any;
+    priority: Priority;
+    complexity: string;
+    dependencies: string[] | any;
+    technicalScope: string | null;
+    suggestedTaskCount: number;
     changelog: string | null;
     createdAt: Date;
 }
@@ -31,15 +46,29 @@ export interface IFeatureVersion {
 export interface ICreateFeatureData {
     title: string;
     description: string;
+    businessValue?: string;
+    userValue?: string;
+    acceptanceCriteria?: string[];
     source?: FeatureSource;
     priority?: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string;
+    suggestedTaskCount?: number;
 }
 
 // Input for updating a feature
 export interface IUpdateFeatureData {
     title?: string;
     description?: string;
+    businessValue?: string;
+    userValue?: string;
+    acceptanceCriteria?: string[];
     priority?: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string;
+    suggestedTaskCount?: number;
     status?: FeatureStatus;
     changelog?: string;
 }
@@ -49,14 +78,28 @@ export interface ICreateFeatureRepositoryData {
     ideaId: string;
     title: string;
     description: string;
+    businessValue?: string | null;
+    userValue?: string | null;
+    acceptanceCriteria?: string[] | any;
     source: FeatureSource;
     priority: Priority;
+    complexity?: string;
+    dependencies?: string[] | any;
+    technicalScope?: string | null;
+    suggestedTaskCount?: number;
 }
 
 export interface IUpdateFeatureRepositoryData {
     title?: string;
     description?: string;
+    businessValue?: string | null;
+    userValue?: string | null;
+    acceptanceCriteria?: string[] | any;
     priority?: Priority;
+    complexity?: string;
+    dependencies?: string[] | any;
+    technicalScope?: string | null;
+    suggestedTaskCount?: number;
     status?: FeatureStatus;
 }
 

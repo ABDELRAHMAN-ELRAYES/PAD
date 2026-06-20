@@ -35,8 +35,10 @@ export function FeatureDetailPage({ ideaId, featureId }: FeatureDetailPageProps)
         tasks,
         isLoading,
         isSuggesting,
+        isRegenerating,
         error,
         handleSuggestTasks,
+        handleRegenerateFeature,
         handleUpdateTaskStatus,
         handleDeleteTask,
     } = useFeatureDetailPage(featureId);
@@ -84,22 +86,97 @@ export function FeatureDetailPage({ ideaId, featureId }: FeatureDetailPageProps)
             )}
 
             {/* Feature Details */}
-            <Card className="mb-6">
-                <CardHeader>
-                    <div className="flex items-start justify-between">
+            <Card className="mb-6 shadow-sm border">
+                <CardHeader className="pb-4 border-b">
+                    <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                            <CardTitle className="text-2xl mb-2">{feature.title}</CardTitle>
-                            <div className="flex items-center gap-2">
+                            <CardTitle className="text-2xl font-bold mb-2">{feature.title}</CardTitle>
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <PriorityBadge priority={feature.priority} />
-                                <span className="text-xs text-muted-foreground capitalize">
-                                    {feature.source.replace('_', ' ')}
+                                {feature.complexity && (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 capitalize">
+                                        Complexity: {feature.complexity}
+                                    </span>
+                                )}
+                                <span className="text-xs text-muted-foreground capitalize bg-muted px-2 py-0.5 rounded">
+                                    Source: {feature.source.replace('_', ' ')}
                                 </span>
                             </div>
                         </div>
+                        <Button
+                            onClick={handleRegenerateFeature}
+                            disabled={isRegenerating}
+                            variant="outline"
+                            className="shrink-0"
+                        >
+                            {isRegenerating ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Regenerating...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="mr-2 h-4 w-4 text-amber-500 animate-pulse" />
+                                    Regenerate Feature with AI
+                                </>
+                            )}
+                        </Button>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{feature.description}</p>
+                <CardContent className="pt-6 space-y-6">
+                    {/* Description */}
+                    <div>
+                        <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1.5">Description</h4>
+                        <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed text-sm">{feature.description}</p>
+                    </div>
+
+                    {/* Business Value & User Value Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                        <div>
+                            <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1.5">Business Value</h4>
+                            <p className="text-muted-foreground text-sm leading-relaxed">{feature.businessValue || "No business value specification provided."}</p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1.5">User Value</h4>
+                            <p className="text-muted-foreground text-sm leading-relaxed">{feature.userValue || "No user value specification provided."}</p>
+                        </div>
+                    </div>
+
+                    {/* Acceptance Criteria */}
+                    {feature.acceptanceCriteria && Array.isArray(feature.acceptanceCriteria) && feature.acceptanceCriteria.length > 0 && (
+                        <div className="pt-4 border-t">
+                            <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-2">Acceptance Criteria</h4>
+                            <ul className="list-disc pl-5 space-y-1.5 text-sm text-muted-foreground">
+                                {feature.acceptanceCriteria.map((criteria: string, idx: number) => (
+                                    <li key={idx} className="leading-relaxed">{criteria}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* Technical Scope */}
+                    {feature.technicalScope && (
+                        <div className="pt-4 border-t">
+                            <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-2">Suggested Technical Scope</h4>
+                            <div className="bg-muted/50 p-3.5 rounded-lg border text-xs font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                                {feature.technicalScope}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Dependencies */}
+                    {feature.dependencies && Array.isArray(feature.dependencies) && feature.dependencies.length > 0 && (
+                        <div className="pt-4 border-t">
+                            <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-2">Depends On</h4>
+                            <div className="flex flex-wrap gap-1.5">
+                                {feature.dependencies.map((dep: string, idx: number) => (
+                                    <span key={idx} className="text-xs px-2 py-1 bg-secondary text-secondary-foreground rounded border">
+                                        {dep}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

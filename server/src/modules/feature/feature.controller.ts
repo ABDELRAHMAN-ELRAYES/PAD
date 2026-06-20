@@ -32,12 +32,20 @@ export const extractFeatures = catchAsync(
 // Create a new feature
 export const createFeature = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
-        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
+        const ideaId = request.body.ideaId || (Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId);
+        
         const data: ICreateFeatureData = {
             title: request.body.title,
             description: request.body.description,
+            businessValue: request.body.businessValue,
+            userValue: request.body.userValue,
+            acceptanceCriteria: request.body.acceptanceCriteria,
             source: request.body.source,
             priority: request.body.priority,
+            complexity: request.body.complexity,
+            dependencies: request.body.dependencies,
+            technicalScope: request.body.technicalScope,
+            suggestedTaskCount: request.body.suggestedTaskCount,
         };
 
         const feature = await FeatureService.createFeature(ideaId, data, next);
@@ -100,10 +108,18 @@ export const getFeatureWithTasks = catchAsync(
 export const updateFeature = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {
         const featureId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+        
         const data: IUpdateFeatureData = {
             title: request.body.title,
             description: request.body.description,
+            businessValue: request.body.businessValue,
+            userValue: request.body.userValue,
+            acceptanceCriteria: request.body.acceptanceCriteria,
             priority: request.body.priority,
+            complexity: request.body.complexity,
+            dependencies: request.body.dependencies,
+            technicalScope: request.body.technicalScope,
+            suggestedTaskCount: request.body.suggestedTaskCount,
             status: request.body.status,
             changelog: request.body.changelog,
         };
@@ -115,6 +131,56 @@ export const updateFeature = catchAsync(
             status: "success",
             message: "Feature updated successfully",
             data: { feature },
+        });
+    }
+);
+
+// Regenerate a single feature
+export const regenerateFeature = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const featureId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+
+        const feature = await FeatureService.regenerateSingleFeature(featureId, next);
+        if (!feature) return;
+
+        response.status(200).json({
+            status: "success",
+            message: "Feature regenerated successfully using AI",
+            data: { feature },
+        });
+    }
+);
+
+// Merge multiple features together
+export const mergeFeatures = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
+        const { featureIds } = request.body;
+
+        const feature = await FeatureService.mergeFeatures(ideaId, featureIds, next);
+        if (!feature) return;
+
+        response.status(200).json({
+            status: "success",
+            message: "Features merged successfully",
+            data: { feature },
+        });
+    }
+);
+
+// Split a feature
+export const splitFeature = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const featureId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+        const { splits } = request.body;
+
+        const features = await FeatureService.splitFeature(featureId, splits, next);
+        if (!features) return;
+
+        response.status(200).json({
+            status: "success",
+            message: "Feature split successfully",
+            data: { features },
         });
     }
 );

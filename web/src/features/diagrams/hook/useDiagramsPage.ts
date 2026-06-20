@@ -12,6 +12,7 @@ export interface UseDiagramsPageReturn {
     diagrams: Diagram[];
     isLoading: boolean;
     isGeneratingMap: Record<string, boolean>;
+    generationStatusMap: Record<string, string>;
     isSaving: Record<string, boolean>;
     logs: ActivityLog[];
     editedCode: Record<string, string>;
@@ -23,7 +24,6 @@ export interface UseDiagramsPageReturn {
     handleSave: (diagram: Diagram) => Promise<void>;
     handleGenerateSingle: (diagram: Diagram) => Promise<void>;
     handleRegenerateSingle: (diagram: Diagram) => Promise<void>;
-    handleRepairSingle: (diagram: Diagram, errorMessage: string) => Promise<void>;
     handleImport: (diagram: Diagram, code: string, title?: string) => Promise<void>;
     handleTierSelect: (diagram: Diagram, tier: number) => Promise<void>;
     handleCodeChange: (diagramId: string, code: string) => void;
@@ -37,6 +37,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
 
     const [isInitializing, setIsInitializing] = useState(false);
     const [isGeneratingMap, setIsGeneratingMap] = useState<Record<string, boolean>>({});
+    const [generationStatusMap, setGenerationStatusMap] = useState<Record<string, string>>({});
     const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
     const [editedCode, setEditedCode] = useState<Record<string, string>>({});
     const [editedTitles, setEditedTitles] = useState<Record<string, string>>({});
@@ -161,6 +162,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
     const handleGenerateSingle = async (diagram: Diagram) => {
         const id = diagram.id;
         setIsGeneratingMap((prev) => ({ ...prev, [id]: true }));
+        setGenerationStatusMap((prev) => ({ ...prev, [id]: "generating" }));
         setStreamingCode((prev) => ({ ...prev, [id]: "" }));
         addLog("info", `Connecting to streaming channel for ${diagram.title}...`);
 
@@ -174,6 +176,11 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
             },
             (data) => {
                 setIsGeneratingMap((prev) => ({ ...prev, [id]: false }));
+                setGenerationStatusMap((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
                 setStreamingCode((prev) => {
                     const next = { ...prev };
                     delete next[id];
@@ -193,6 +200,11 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
             },
             (err) => {
                 setIsGeneratingMap((prev) => ({ ...prev, [id]: false }));
+                setGenerationStatusMap((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
                 setStreamingCode((prev) => {
                     const next = { ...prev };
                     delete next[id];
@@ -200,6 +212,10 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
                 });
                 addLog("error", `Streaming error for ${diagram.title}: ${err.message || err}`);
                 toast.error("Streaming connection error.");
+            },
+            (status) => {
+                setGenerationStatusMap((prev) => ({ ...prev, [id]: status }));
+                addLog("info", `Diagram compiler step: ${status}...`);
             }
         );
     };
@@ -208,6 +224,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
     const handleRegenerateSingle = async (diagram: Diagram) => {
         const id = diagram.id;
         setIsGeneratingMap((prev) => ({ ...prev, [id]: true }));
+        setGenerationStatusMap((prev) => ({ ...prev, [id]: "generating" }));
         setStreamingCode((prev) => ({ ...prev, [id]: "" }));
         addLog("info", `Cloning current snapshot. Initiating regeneration stream for ${diagram.title}...`);
 
@@ -221,6 +238,11 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
             },
             (data) => {
                 setIsGeneratingMap((prev) => ({ ...prev, [id]: false }));
+                setGenerationStatusMap((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
                 setStreamingCode((prev) => {
                     const next = { ...prev };
                     delete next[id];
@@ -240,6 +262,11 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
             },
             (err) => {
                 setIsGeneratingMap((prev) => ({ ...prev, [id]: false }));
+                setGenerationStatusMap((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
                 setStreamingCode((prev) => {
                     const next = { ...prev };
                     delete next[id];
@@ -247,37 +274,12 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
                 });
                 addLog("error", `Regeneration streaming failed for ${diagram.title}: ${err.message || err}`);
                 toast.error("Regeneration failed.");
+            },
+            (status) => {
+                setGenerationStatusMap((prev) => ({ ...prev, [id]: status }));
+                addLog("info", `Diagram compiler step: ${status}...`);
             }
         );
-    };
-
-    // Auto-repair specific diagram code using error message feedback
-    const handleRepairSingle = async (diagram: Diagram, errorMessage: string) => {
-        const id = diagram.id;
-        const codeToRepair = editedCode[id] !== undefined ? editedCode[id] : diagram.mermaidCode;
-        setIsSaving((prev) => ({ ...prev, [id]: true }));
-        addLog("info", `Sending code to LLM for target repair based on syntax error...`);
-
-        repairMutation.mutate({
-            id,
-            code: codeToRepair,
-            errorMessage,
-        }, {
-            onSuccess: (data) => {
-                setEditedCode((prev) => ({ ...prev, [id]: data.mermaidCode }));
-                setEditedTitles((prev) => ({ ...prev, [id]: data.title }));
-                addLog("success", `AI successfully corrected syntax error for ${diagram.title}.`);
-                toast.success("Syntax corrected by AI.");
-                refetchDiagrams();
-            },
-            onError: (err: any) => {
-                addLog("error", `AI Repair failed: ${err.message || err}`);
-                toast.error(err.message || "Failed to repair diagram");
-            },
-            onSettled: () => {
-                setIsSaving((prev) => ({ ...prev, [id]: false }));
-            }
-        });
     };
 
     // Import diagram code
@@ -333,6 +335,7 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
         diagrams,
         isLoading,
         isGeneratingMap,
+        generationStatusMap,
         isSaving,
         logs,
         editedCode,
@@ -344,7 +347,6 @@ export function useDiagramsPage(ideaId: string): UseDiagramsPageReturn {
         handleSave,
         handleGenerateSingle,
         handleRegenerateSingle,
-        handleRepairSingle,
         handleImport,
         handleTierSelect,
         handleCodeChange,

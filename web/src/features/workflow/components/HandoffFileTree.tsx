@@ -73,7 +73,7 @@ function TreeNodeView({ node, depth, activeFileId, onFileSelect, expanded, onTog
             <div>
                 <button
                     onClick={() => onToggle(node.path)}
-                    className="flex items-center gap-1.5 w-full px-2 py-1 text-left text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded transition-colors"
+                    className="flex items-center gap-1.5 min-w-max whitespace-nowrap px-2 py-1 text-left text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded transition-colors"
                     style={{ paddingLeft: `${8 + depth * 16}px` }}
                 >
                     {isExpanded ? (
@@ -113,7 +113,7 @@ function TreeNodeView({ node, depth, activeFileId, onFileSelect, expanded, onTog
         <button
             onClick={() => node.artifact && onFileSelect(node.artifact.id)}
             className={cn(
-                "flex items-center gap-1.5 w-full px-2 py-1 text-left text-xs rounded transition-colors",
+                "flex items-center gap-1.5 min-w-max whitespace-nowrap px-2 py-1 text-left text-xs rounded transition-colors",
                 isActive
                     ? "bg-primary/20 text-primary font-medium"
                     : "text-slate-300 hover:text-slate-100 hover:bg-slate-800/50"
@@ -122,7 +122,7 @@ function TreeNodeView({ node, depth, activeFileId, onFileSelect, expanded, onTog
         >
             <span className="w-3 shrink-0" />
             {getFileIcon(node.artifact?.fileType, node.name)}
-            <span className="truncate">{node.name}</span>
+            <span>{node.name}</span>
         </button>
     );
 }

@@ -6,8 +6,9 @@ import { DiagramEditorPanel } from "./DiagramEditorPanel";
 import { ImportExportDialog } from "./ImportExportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Save, RefreshCw, Upload, Eye, Code as CodeIcon, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Upload, Eye, Code as CodeIcon, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,21 @@ interface DiagramDetailViewProps {
   diagramType: DiagramType;
   onBack?: () => void;
 }
+
+const getFriendlyStatus = (status: string) => {
+  switch (status) {
+    case "generating":
+      return "Generating...";
+    case "validating":
+      return "Validating code...";
+    case "repairing":
+      return "Repairing errors...";
+    case "retrying":
+      return "Retrying repair...";
+    default:
+      return "Processing...";
+  }
+};
 
 export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
   ideaId,
@@ -26,6 +42,7 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
     diagrams,
     isLoading,
     isGeneratingMap,
+    generationStatusMap,
     isSaving,
     logs,
     editedCode,
@@ -33,7 +50,6 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
     streamingCode,
     handleSave,
     handleRegenerateSingle,
-    handleRepairSingle,
     handleImport,
     handleTierSelect,
     handleCodeChange,
@@ -122,14 +138,28 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
             </Link>
           )}
 
-          <div className="min-w-0 flex-grow">
+          <div className="min-w-0 flex-grow flex items-center gap-2">
             <Input
               value={currentTitle}
               onChange={(e) => handleTitleChange(diagram.id, e.target.value)}
               placeholder="Diagram Title"
               disabled={isGenerating}
-              className="bg-transparent border-transparent hover:border-border focus-visible:ring-1 focus-visible:ring-ring text-base font-bold text-foreground h-9 px-2 rounded-lg max-w-[280px] truncate"
+              className="bg-transparent border-transparent hover:border-border focus-visible:ring-1 focus-visible:ring-ring text-base font-bold text-foreground h-9 px-2 rounded-lg max-w-[240px] truncate"
             />
+            {isGenerating ? (
+              <Badge variant="outline" className="animate-pulse bg-primary/10 text-primary border-primary/20 text-[10px] px-2 py-0.5 font-medium shrink-0">
+                {getFriendlyStatus(generationStatusMap[diagram.id] || "generating")}
+              </Badge>
+            ) : !isPlaceholder ? (
+              <Badge variant="secondary" className="bg-success/10 text-success border-success/20 text-[10px] px-2 py-0.5 flex items-center gap-1 font-medium shrink-0">
+                <CheckCircle2 className="h-3 w-3 text-success" />
+                Ready
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground border-muted/30 text-[10px] px-2 py-0.5 font-medium shrink-0">
+                Empty
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -211,39 +241,6 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
           </Button>
         </div>
       </div>
-
-      {/* Warning Alert Banner for repair_failed or render error states */}
-      {(diagram.status === "repair_failed" || localRenderError) && (diagram.validationError || localRenderError) && (
-        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive rounded-xl p-4">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full pl-2">
-            <div>
-              <AlertTitle className="text-xs font-bold tracking-tight">Mermaid Code Validation Exception</AlertTitle>
-              <AlertDescription className="text-[11px] leading-relaxed mt-0.5 font-mono">
-                {localRenderError || diagram.validationError}
-              </AlertDescription>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleRepairSingle(diagram, localRenderError || diagram.validationError || "")}
-                className="text-xs font-semibold border-destructive/30 hover:bg-destructive/10 text-destructive bg-transparent shrink-0"
-              >
-                Fix with AI
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleRegenerateSingle(diagram)}
-                className="text-xs font-semibold bg-destructive hover:bg-destructive/90 text-white shrink-0"
-              >
-                Force Regenerate
-              </Button>
-            </div>
-          </div>
-        </Alert>
-      )}
 
       {/* Sub-header Tab selectors */}
       <div className="flex items-center justify-between border-b border-border pb-px shrink-0">

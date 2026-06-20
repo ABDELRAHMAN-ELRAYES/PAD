@@ -10,7 +10,7 @@ interface UseHandoffStreamReturn {
     isCompiling: boolean;
     progress: number;
     compileLogs: string[];
-    startCompile: (ideaId: string, onComplete: () => void) => void;
+    startCompile: (ideaId: string, onComplete: () => void, onError?: (msg: string) => void) => void;
     stopCompile: () => void;
 }
 
@@ -29,7 +29,7 @@ export function useHandoffStream(): UseHandoffStreamReturn {
         setIsCompiling(false);
     };
 
-    const startCompile = (ideaId: string, onComplete: () => void) => {
+    const startCompile = (ideaId: string, onComplete: () => void, onError?: (msg: string) => void) => {
         if (esRef.current) {
             esRef.current.close();
         }
@@ -75,6 +75,9 @@ export function useHandoffStream(): UseHandoffStreamReturn {
             es.close();
             esRef.current = null;
             toast.error(msg);
+            if (onError) {
+                onError(msg);
+            }
         });
 
         es.onerror = () => {

@@ -75,7 +75,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
       case "overview":
         return (
           <OverviewPanel
-            key={refreshKey}
+            key={`${activeIdeaId}-${refreshKey}`}
             idea={idea}
             ideaId={activeIdeaId}
             onIdeaUpdate={handleIdeaUpdate}
@@ -83,15 +83,15 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
           />
         );
       case "documents":
-        return <DocumentsPanel key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
+        return <DocumentsPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} idea={idea} />;
       case "diagrams":
-        return <DiagramsPanel key={refreshKey} ideaId={activeIdeaId} />;
+        return <DiagramsPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} />;
       case "features":
-        return <FeaturesPanel key={refreshKey} ideaId={activeIdeaId} />;
+        return <FeaturesPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} />;
       case "workflow":
-        return <WorkflowPage key={refreshKey} ideaId={activeIdeaId} isEmbedded />;
+        return <WorkflowPage key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} isEmbedded />;
       case "ir":
-        return <IREditor key={refreshKey} ideaId={activeIdeaId} idea={idea} />;
+        return <IREditor key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} idea={idea} />;
       default:
         return null;
     }

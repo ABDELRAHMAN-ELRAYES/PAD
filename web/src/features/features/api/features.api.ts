@@ -73,6 +73,24 @@ export const featureApi = {
     async unlinkDiagram(featureId: string, diagramId: string): Promise<void> {
         await apiClient.delete(`/features/${featureId}/diagrams/${diagramId}`);
     },
+
+    // Regenerate a single feature using AI
+    async regenerate(id: string): Promise<Feature> {
+        const response = await apiClient.post<ApiResponse<FeatureResponse>>(`/features/regenerate/${id}`);
+        return response.data!.feature;
+    },
+
+    // Merge multiple features
+    async merge(ideaId: string, featureIds: string[]): Promise<Feature> {
+        const response = await apiClient.post<ApiResponse<FeatureResponse>>(`/features/idea/${ideaId}/merge`, { featureIds });
+        return response.data!.feature;
+    },
+
+    // Split a feature
+    async split(id: string, splits: any[]): Promise<Feature[]> {
+        const response = await apiClient.post<ApiResponse<{ features: Feature[] }>>(`/features/${id}/split`, { splits });
+        return response.data!.features;
+    },
 };
 
 // Task API functions

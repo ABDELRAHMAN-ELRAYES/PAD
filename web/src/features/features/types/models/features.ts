@@ -12,9 +12,16 @@ export interface Feature {
     ideaId: string;
     title: string;
     description: string;
+    businessValue?: string | null;
+    userValue?: string | null;
+    acceptanceCriteria?: string[];
     source: FeatureSource;
     status: FeatureStatus;
     priority: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string | null;
+    suggestedTaskCount?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -25,6 +32,14 @@ export interface FeatureVersion {
     version: number;
     title: string;
     description: string;
+    businessValue?: string | null;
+    userValue?: string | null;
+    acceptanceCriteria?: string[];
+    priority: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string | null;
+    suggestedTaskCount?: number;
     changelog: string | null;
     createdAt: string;
 }
@@ -65,14 +80,28 @@ export interface CreateFeatureInput {
     ideaId: string;
     title: string;
     description: string;
+    businessValue?: string;
+    userValue?: string;
+    acceptanceCriteria?: string[];
     source?: FeatureSource;
     priority?: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string;
+    suggestedTaskCount?: number;
 }
 
 export interface UpdateFeatureInput {
     title?: string;
     description?: string;
+    businessValue?: string;
+    userValue?: string;
+    acceptanceCriteria?: string[];
     priority?: Priority;
+    complexity?: string;
+    dependencies?: string[];
+    technicalScope?: string;
+    suggestedTaskCount?: number;
     status?: FeatureStatus;
     changelog?: string;
 }

@@ -24,7 +24,8 @@ export const diagramApi = {
         id: string,
         onChunk: (chunk: string) => void,
         onComplete: (data: { title: string; code: string; status: string; validationError: string | null }) => void,
-        onError: (err: any) => void
+        onError: (err: any) => void,
+        onStatus?: (status: string) => void
     ): () => void {
         const url = `${BASE_URL}/diagrams/${id}/generate-stream`;
         const eventSource = new EventSource(url, { withCredentials: true });
@@ -39,6 +40,17 @@ export const diagramApi = {
                 console.error("SSE parse error", err);
             }
         };
+
+        eventSource.addEventListener("status", (event: any) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.status && onStatus) {
+                    onStatus(data.status);
+                }
+            } catch (err) {
+                console.error("SSE parse status error", err);
+            }
+        });
 
         eventSource.addEventListener("complete", (event: any) => {
             try {
@@ -73,7 +85,8 @@ export const diagramApi = {
         id: string,
         onChunk: (chunk: string) => void,
         onComplete: (data: { title: string; code: string; status: string; validationError: string | null }) => void,
-        onError: (err: any) => void
+        onError: (err: any) => void,
+        onStatus?: (status: string) => void
     ): () => void {
         const url = `${BASE_URL}/diagrams/${id}/regenerate-stream`;
         const eventSource = new EventSource(url, { withCredentials: true });
@@ -88,6 +101,17 @@ export const diagramApi = {
                 console.error("SSE parse error", err);
             }
         };
+
+        eventSource.addEventListener("status", (event: any) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.status && onStatus) {
+                    onStatus(data.status);
+                }
+            } catch (err) {
+                console.error("SSE parse status error", err);
+            }
+        });
 
         eventSource.addEventListener("complete", (event: any) => {
             try {

@@ -31,11 +31,19 @@ export default class FeatureRepository {
                     ideaId: data.ideaId,
                     title: data.title,
                     description: data.description,
+                    businessValue: data.businessValue,
+                    userValue: data.userValue,
+                    acceptanceCriteria: data.acceptanceCriteria,
                     source: data.source,
                     priority: data.priority,
+                    complexity: data.complexity || "medium",
+                    dependencies: data.dependencies,
+                    technicalScope: data.technicalScope,
+                    suggestedTaskCount: data.suggestedTaskCount || 0,
                 },
             }) as IFeature;
         } catch (error) {
+            console.error("Prisma createFeature error:", error);
             throw new AppError(500, "Failed to create feature");
         }
     }
@@ -95,6 +103,7 @@ export default class FeatureRepository {
                 data,
             }) as IFeature;
         } catch (error) {
+            console.error("Prisma updateFeature error:", error);
             throw new AppError(500, "Failed to update feature");
         }
     }
@@ -127,16 +136,29 @@ export default class FeatureRepository {
 
             const nextVersion = maxVersion ? maxVersion.version + 1 : 1;
 
+            const existingFeature = await this.prisma.feature.findUnique({
+                where: { id: featureId }
+            });
+
             return await this.prisma.featureVersion.create({
                 data: {
                     featureId,
                     version: nextVersion,
                     title,
                     description,
+                    businessValue: existingFeature?.businessValue || null,
+                    userValue: existingFeature?.userValue || null,
+                    acceptanceCriteria: existingFeature?.acceptanceCriteria ?? undefined,
+                    priority: existingFeature?.priority || "medium",
+                    complexity: existingFeature?.complexity || "medium",
+                    dependencies: existingFeature?.dependencies ?? undefined,
+                    technicalScope: existingFeature?.technicalScope || null,
+                    suggestedTaskCount: existingFeature?.suggestedTaskCount || 0,
                     changelog,
                 },
-            });
+            }) as unknown as IFeatureVersion;
         } catch (error) {
+            console.error("Prisma createVersion error:", error);
             throw new AppError(500, "Failed to create feature version");
         }
     }
@@ -147,7 +169,7 @@ export default class FeatureRepository {
             return await this.prisma.featureVersion.findMany({
                 where: { featureId },
                 orderBy: { version: "desc" },
-            });
+            }) as unknown as IFeatureVersion[];
         } catch (error) {
             throw new AppError(500, "Failed to fetch version history");
         }
@@ -178,6 +200,17 @@ export default class FeatureRepository {
             });
         } catch (error) {
             throw new AppError(500, "Failed to unlink diagram");
+        }
+    }
+
+    // Delete all features for an idea
+    async deleteFeaturesByIdeaId(ideaId: string): Promise<void> {
+        try {
+            await this.prisma.feature.deleteMany({
+                where: { ideaId },
+            });
+        } catch (error) {
+            throw new AppError(500, "Failed to delete features for the idea");
         }
     }
 }

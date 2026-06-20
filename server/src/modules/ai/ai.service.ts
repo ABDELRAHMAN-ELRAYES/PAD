@@ -14,6 +14,7 @@ import {
   IGeneratedDiagram,
 } from "./prompts/generate-diagram.prompt";
 import { buildGenerateWorkflowPrompt } from "./prompts/generate-workflow.prompt";
+import { buildExtractFeaturesPrompt, IProjectContextForFeatures, buildRegenerateSingleFeaturePrompt } from "./prompts/feature-task.prompt";
 import { IGeneratedWorkflowStep } from "../workflow/types/IWorkflow";
 import { IFeature } from "../feature/types/IFeature";
 import { ITask } from "../task/types/ITask";
@@ -674,23 +675,28 @@ class AiService {
   }
   // Generate features (Streaming)
   static async *generateFeaturesStream(
-    combinedContent: string,
+    context: IProjectContextForFeatures,
     userId?: string,
   ): AsyncGenerator<string> {
-    const prompt = `Analyze the following software requirements documents and extract the main features that need to be implemented. For each feature, provide a title and detailed description.
-
-${combinedContent}
-
-Extract features in JSON format:
-[
-  {
-    "title": "Feature Title",
-    "description": "Detailed description of what this feature should do"
-  }
-]
-
-Focus on extracting distinct, implementable features. Each feature should be a logical grouping of functionality.`;
+    const prompt = buildExtractFeaturesPrompt(context);
     yield* this.callLLMStream(prompt, undefined, userId);
+  }
+
+  // Regenerate a single feature using AI
+  static async regenerateSingleFeature(
+    featureTitle: string,
+    featureDescription: string,
+    existingFeatures: any[],
+    context: IProjectContextForFeatures,
+    userId?: string
+  ): Promise<string> {
+    const prompt = buildRegenerateSingleFeaturePrompt(
+      featureTitle,
+      featureDescription,
+      existingFeatures,
+      context
+    );
+    return await this.callLLM(prompt, true, undefined, userId);
   }
 
   // Generate workflow (Streaming)

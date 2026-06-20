@@ -3,7 +3,6 @@ import AppError from "../../utils/app-error";
 import DiagramRepository from "./diagram.repository";
 import IdeaRepository from "../idea/idea.repository";
 import AiService from "../ai/ai.service";
-import { DiagramValidatorService } from "./diagram-validator.service";
 import {
     IDiagram,
     IUpdateDiagramData,
@@ -100,59 +99,20 @@ class DiagramService {
     private static diagramRepository: DiagramRepository = DiagramRepository.getInstance();
     private static ideaRepository: IdeaRepository = IdeaRepository.getInstance();
 
-    // Helper method to perform the synchronous validation and repair loop (up to 3 attempts)
+    // Helper method to perform the synchronous validation and repair loop (up to 3 attempts) - Reverted/Disabled
     private static async validateAndRepairLoop(
-        diagramId: string,
+        _diagramId: string,
         title: string,
         code: string,
-        type: string,
-        userId?: string
+        _type: string,
+        _userId?: string,
+        _onStatusUpdate?: (status: string) => void
     ): Promise<{ code: string; title: string; status: DiagramStatus; validationError: string | null }> {
-        let currentCode = code;
-        let currentTitle = title;
-        let validation = DiagramValidatorService.validateMermaidSyntax(currentCode, type);
-
-        if (!validation.valid) {
-            console.log(`Initial validation failed for diagram ${diagramId}: ${validation.error}. Repairing...`);
-            let workingCode = currentCode;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    const repaired = await DiagramValidatorService.repairDiagram(workingCode, validation.error || "Syntax Error", userId);
-                    const extracted = extractTitleAndCode(repaired, currentTitle);
-                    
-                    const nextValidation = DiagramValidatorService.validateMermaidSyntax(extracted.code, type);
-                    if (nextValidation.valid) {
-                        console.log(`LLM repair attempt ${attempt}/3 succeeded for diagram ${diagramId}.`);
-                        currentCode = extracted.code;
-                        currentTitle = extracted.title;
-                        validation = nextValidation;
-                        break;
-                    } else {
-                        console.warn(`LLM repair attempt ${attempt}/3 failed: ${nextValidation.error}`);
-                        workingCode = extracted.code;
-                        validation = nextValidation;
-                    }
-                } catch (repairErr) {
-                    console.error(`LLM repair attempt ${attempt}/3 encountered error:`, repairErr);
-                }
-            }
-
-            // If repair failed, do not overwrite with tiny garbage code or '{}'
-            if (!validation.valid) {
-                if (workingCode && workingCode.trim().length > 5 && workingCode.trim() !== "{}") {
-                    currentCode = workingCode;
-                }
-            }
-        }
-
-        const status: DiagramStatus = validation.valid ? "draft" : "repair_failed";
-        const validationError = validation.valid ? null : (validation.error || "Syntax validation failed");
-
         return {
-            code: currentCode,
-            title: currentTitle,
-            status,
-            validationError,
+            code,
+            title,
+            status: "draft",
+            validationError: null,
         };
     }
 
@@ -223,8 +183,8 @@ class DiagramService {
             return next(new AppError(404, "Diagram not found"));
         }
 
-        let finalStatus = data.status;
-        let validationError = data.validationError;
+        let finalStatus: DiagramStatus = "draft";
+        let validationError = null;
 
         if (data.mermaidCode && data.mermaidCode !== existing.mermaidCode) {
             await this.diagramRepository.createVersion(
@@ -232,11 +192,6 @@ class DiagramService {
                 existing.mermaidCode,
                 data.changelog || "Manual edit"
             );
-
-            // Run syntax validation check on user manual updates
-            const validation = DiagramValidatorService.validateMermaidSyntax(data.mermaidCode, existing.type);
-            finalStatus = validation.valid ? "draft" : "repair_failed";
-            validationError = validation.valid ? null : (validation.error || "Manual validation failed");
         }
 
         const updated = await this.diagramRepository.updateDiagram(diagramId, {
@@ -267,11 +222,11 @@ class DiagramService {
         return await this.diagramRepository.getVersionsByDiagramId(diagramId);
     }
 
-    // Manual/Auxiliary Repair route
+    // Manual/Auxiliary Repair route - Reverted/Disabled
     static async repairDiagram(
         diagramId: string,
         code: string,
-        errorMessage: string,
+        _errorMessage: string,
         next: NextFunction
     ): Promise<IDiagram | void> {
         const existing = await this.diagramRepository.getDiagramById(diagramId);
@@ -279,28 +234,13 @@ class DiagramService {
             return next(new AppError(404, "Diagram not found"));
         }
 
-        try {
-            const repaired = await DiagramValidatorService.repairDiagram(code, errorMessage);
-            const { title, code: finalCode } = extractTitleAndCode(repaired, existing.title);
-
-            const validation = DiagramValidatorService.validateMermaidSyntax(finalCode, existing.type);
-            const status = validation.valid ? "draft" : "repair_failed";
-            const validationError = validation.valid ? null : (validation.error || "Manual repair failed");
-
-            // Avoid saving empty or '{}' strings
-            const codeToSave = (finalCode && finalCode.trim().length > 5 && finalCode.trim() !== "{}") ? finalCode : code;
-
-            const updated = await this.diagramRepository.updateDiagram(diagramId, {
-                title,
-                mermaidCode: codeToSave,
-                status,
-                validationError,
-            });
-            return updated as IDiagram;
-        } catch (error) {
-            console.error("Auto-repair failed:", error);
-            return next(new AppError(500, "Failed to auto-repair diagram syntax"));
-        }
+        const updated = await this.diagramRepository.updateDiagram(diagramId, {
+            title: existing.title,
+            mermaidCode: code,
+            status: "draft",
+            validationError: null,
+        });
+        return updated as IDiagram;
     }
 
     // Stream generation via SSE
@@ -325,6 +265,7 @@ class DiagramService {
         let currentTitle = diagram.title;
 
         try {
+            res.write(`event: status\ndata: ${JSON.stringify({ status: "generating" })}\n\n`);
             const ideaText = idea.refinedText || idea.rawText;
             const stream = AiService.generateDiagramStream(diagram.type as DiagramType, ideaText, idea.userId);
 
@@ -344,7 +285,16 @@ class DiagramService {
             }
 
             // Validate and execute the auto-repair loop
-            const result = await this.validateAndRepairLoop(diagramId, title, code, diagram.type, idea.userId);
+            const result = await this.validateAndRepairLoop(
+                diagramId,
+                title,
+                code,
+                diagram.type,
+                idea.userId,
+                (status) => {
+                    res.write(`event: status\ndata: ${JSON.stringify({ status })}\n\n`);
+                }
+            );
 
             await this.diagramRepository.updateDiagram(diagramId, {
                 title: result.title,
@@ -392,6 +342,7 @@ class DiagramService {
         let currentTitle = diagram.title;
 
         try {
+            res.write(`event: status\ndata: ${JSON.stringify({ status: "generating" })}\n\n`);
             const ideaText = idea.refinedText || idea.rawText;
             const stream = AiService.generateDiagramStream(diagram.type as DiagramType, ideaText, idea.userId);
 
@@ -411,7 +362,16 @@ class DiagramService {
             }
 
             // Validate and execute the auto-repair loop
-            const result = await this.validateAndRepairLoop(diagramId, title, code, diagram.type, idea.userId);
+            const result = await this.validateAndRepairLoop(
+                diagramId,
+                title,
+                code,
+                diagram.type,
+                idea.userId,
+                (status) => {
+                    res.write(`event: status\ndata: ${JSON.stringify({ status })}\n\n`);
+                }
+            );
 
             await this.diagramRepository.updateDiagram(diagramId, {
                 title: result.title,

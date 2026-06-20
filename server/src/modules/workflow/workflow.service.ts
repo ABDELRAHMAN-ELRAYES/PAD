@@ -145,6 +145,13 @@ export class WorkflowService {
                 if (onChunk) {
                     onChunk({ status: "final", workflow: completeWorkflow });
                 }
+            } else {
+                if (onChunk) {
+                    onChunk({
+                        status: "error",
+                        message: "Failed to generate workflow steps. Please review features and tasks.",
+                    });
+                }
             }
         } catch (error) {
             console.error("AI workflow generation error:", error);

@@ -5,8 +5,7 @@ import { HandoffPackage, HandoffArtifact } from "../types/models/workflow";
 import { HandoffFileTree } from "./HandoffFileTree";
 import { HandoffPreviewCanvas } from "./HandoffPreviewCanvas";
 import { HandoffSidebar } from "./HandoffSidebar";
-import { HandoffProgressLog } from "./HandoffProgressLog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface HandoffWorkspaceProps {
     pkg: HandoffPackage;
@@ -45,6 +44,7 @@ export function HandoffWorkspace({
                             activeFileId={activeFileId}
                             onFileSelect={setActiveFileId}
                         />
+                        <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                 </div>
 
@@ -65,15 +65,6 @@ export function HandoffWorkspace({
                     />
                 </div>
             </div>
-
-            {/* BOTTOM: Compiler Log */}
-            {(isCompiling || compileLogs.length > 0) && (
-                <HandoffProgressLog
-                    logs={compileLogs}
-                    progress={progress}
-                    isCompiling={isCompiling}
-                />
-            )}
         </div>
     );
 }

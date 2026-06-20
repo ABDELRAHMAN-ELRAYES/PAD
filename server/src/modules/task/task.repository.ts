@@ -216,4 +216,15 @@ export default class TaskRepository {
             throw new AppError(500, "Failed to fetch version history");
         }
     }
+
+    // Delete all tasks for a feature
+    async deleteTasksByFeatureId(featureId: string): Promise<void> {
+        try {
+            await this.prisma.task.deleteMany({
+                where: { featureId },
+            });
+        } catch (error) {
+            throw new AppError(500, "Failed to delete tasks for the feature");
+        }
+    }
 }

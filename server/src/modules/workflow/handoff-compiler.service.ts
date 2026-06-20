@@ -14,6 +14,7 @@ import { IHandoffCompilerVariables } from "./prompts/handoff-variables";
 import { IFeature } from "../feature/types/IFeature";
 import { ITask } from "../task/types/ITask";
 import AppError from "../../utils/app-error";
+import PrismaClientSingleton from "../../data-server-clients/prisma-client";
 
 // ---------------------------------------------------------------
 // SSE writer helper
@@ -224,15 +225,20 @@ export class HandoffCompilerService {
         }
 
         // Fetch documents (PRD/BRD)
-        const { PrismaClient } = require("@prisma/client");
-        const prisma = new PrismaClient();
+        const prisma = PrismaClientSingleton.getPrismaClient();
 
         const documents = await prisma.document.findMany({ where: { ideaId } });
         const prd = documents.find((d: any) => d.type === "PRD");
         const brd = documents.find((d: any) => d.type === "BRD");
 
         // Fetch diagrams
-        const diagrams = await prisma.diagram.findMany({ where: { ideaId } });
+        const diagrams = await prisma.diagram.findMany({
+            where: {
+                ideaId,
+                mermaidCode: { not: "" },
+                status: { not: "repair_failed" },
+            },
+        });
 
         // Fetch research
         const researchSummary =
@@ -351,8 +357,6 @@ export class HandoffCompilerService {
 
         sse.progress("Package ready!", 100);
         sse.complete(pkg.id, version);
-
-        await prisma.$disconnect();
     }
 
     // Compile all artifacts into a single clipboard-ready string

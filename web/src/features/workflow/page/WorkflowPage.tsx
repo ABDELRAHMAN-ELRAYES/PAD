@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIdea } from "@/features/ideas/api/ideasQueries";
 import { useHandoffByIdea } from "../api/workflowQueries";
@@ -43,14 +44,26 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
     const { data: idea, isLoading: isIdeaLoading } = useIdea(ideaId);
     const { data: handoffPkg, isLoading: isPkgLoading } = useHandoffByIdea(ideaId);
 
+    const [isRegenerating, setIsRegenerating] = useState(false);
+    const [hasCompileFailed, setHasCompileFailed] = useState(false);
+
     const { isCompiling, progress, compileLogs, startCompile } = useHandoffStream();
 
     const isLoading = isIdeaLoading || isPkgLoading;
 
     const handleCompile = () => {
-        startCompile(ideaId, () => {
-            queryClient.invalidateQueries({ queryKey: ["handoff", "idea", ideaId] });
-        });
+        setIsRegenerating(true);
+        setHasCompileFailed(false);
+        startCompile(
+            ideaId,
+            () => {
+                queryClient.invalidateQueries({ queryKey: ["handoff", "idea", ideaId] });
+                setIsRegenerating(false);
+            },
+            () => {
+                setHasCompileFailed(true);
+            }
+        );
     };
 
     if (isLoading) {
@@ -65,7 +78,7 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
         return (
             <div className={isEmbedded ? "p-4 space-y-4" : "container py-8 max-w-4xl space-y-6"}>
                 {!isEmbedded && (
-                    <Button variant="ghost" onClick={() => router.push("/ideas")} className="pl-0 text-muted-foreground">
+                     <Button variant="ghost" onClick={() => router.push("/ideas")} className="pl-0 text-muted-foreground">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
                     </Button>
                 )}
@@ -105,7 +118,7 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
             </div>
 
             {/* States */}
-            {handoffPkg ? (
+            {handoffPkg && !isRegenerating ? (
                 // WORKSPACE STATE
                 <div className="flex-1 min-h-0" style={isEmbedded ? {} : { height: "calc(100vh - 200px)", minHeight: "500px" }}>
                     <HandoffWorkspace
@@ -165,11 +178,13 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
                                 </div>
 
                                 {/* Compiler log during compile */}
-                                {isCompiling && (
+                                {(isCompiling || hasCompileFailed) && (
                                     <div className="rounded-lg bg-slate-950 p-4 space-y-1">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                                            <span className="text-xs text-green-400 font-mono font-semibold">COMPILING</span>
+                                            <div className={`w-2 h-2 rounded-full ${hasCompileFailed ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
+                                            <span className={`text-xs font-mono font-semibold ${hasCompileFailed ? 'text-red-500' : 'text-green-400'}`}>
+                                                {hasCompileFailed ? 'FAILED' : 'COMPILING'}
+                                            </span>
                                             <span className="ml-auto text-xs text-slate-400 font-mono">{progress}%</span>
                                         </div>
                                         {compileLogs.slice(-5).map((log, i) => (
@@ -179,24 +194,39 @@ export function WorkflowPage({ ideaId, isEmbedded = false }: WorkflowPageProps) 
                                 )}
 
                                 <div className="text-center">
-                                    <Button
-                                        size="lg"
-                                        onClick={handleCompile}
-                                        disabled={isCompiling || idea.status !== "confirmed"}
-                                        className="gap-2 min-w-[220px]"
-                                    >
-                                        {isCompiling ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                Compiling Package...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Package className="w-4 h-4" />
-                                                Compile Handoff Package
-                                            </>
+                                    <div className="flex items-center justify-center gap-2">
+                                        {hasCompileFailed && handoffPkg && (
+                                            <Button
+                                                variant="outline"
+                                                size="lg"
+                                                onClick={() => {
+                                                    setIsRegenerating(false);
+                                                    setHasCompileFailed(false);
+                                                }}
+                                                className="gap-2 min-w-[200px]"
+                                            >
+                                                Back to Package View
+                                            </Button>
                                         )}
-                                    </Button>
+                                        <Button
+                                            size="lg"
+                                            onClick={handleCompile}
+                                            disabled={isCompiling || idea.status !== "confirmed"}
+                                            className="gap-2 min-w-[220px]"
+                                        >
+                                            {isCompiling ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Compiling Package...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Package className="w-4 h-4" />
+                                                    {handoffPkg ? "Recompile Package" : "Compile Handoff Package"}
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
                                     {idea.status !== "confirmed" && (
                                         <p className="text-xs text-muted-foreground mt-2">
                                             Idea must be confirmed before compiling

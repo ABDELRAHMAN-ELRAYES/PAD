@@ -26,6 +26,13 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     activeColor: "text-primary",
   },
   {
+    id: "ir",
+    label: "IR Engine",
+    icon: <Cpu className="h-5 w-5" />,
+    color: "text-muted-foreground",
+    activeColor: "text-red-500",
+  },
+  {
     id: "documents",
     label: "Documents",
     icon: <FileText className="h-5 w-5" />,
@@ -53,13 +60,6 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     color: "text-muted-foreground",
     activeColor: "text-purple-500",
   },
-  {
-    id: "ir",
-    label: "IR Engine",
-    icon: <Cpu className="h-5 w-5" />,
-    color: "text-muted-foreground",
-    activeColor: "text-red-500",
-  },
 ];
 
 export const SECTION_ITEMS: SidebarItem[] = [
@@ -69,6 +69,13 @@ export const SECTION_ITEMS: SidebarItem[] = [
     icon: <Brain className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-primary",
+  },
+  {
+    id: "ir",
+    label: "IR Engine",
+    icon: <Cpu className="h-4 w-4" />,
+    color: "text-muted-foreground",
+    activeColor: "text-red-500",
   },
   {
     id: "documents",
@@ -97,12 +104,5 @@ export const SECTION_ITEMS: SidebarItem[] = [
     icon: <Bot className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-purple-500",
-  },
-  {
-    id: "ir",
-    label: "IR Engine",
-    icon: <Cpu className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-red-500",
   },
 ];

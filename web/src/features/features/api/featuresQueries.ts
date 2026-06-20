@@ -125,6 +125,54 @@ export const useUnlinkDiagram = () => {
   });
 };
 
+export const useRegenerateFeature = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => featureApi.regenerate(id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["features", "detail", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["features", "versions", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["features", "idea", data.ideaId] });
+      toast.success("Feature regenerated successfully using AI");
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to regenerate feature");
+    },
+  });
+};
+
+export const useMergeFeatures = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ideaId, featureIds }: { ideaId: string; featureIds: string[] }) =>
+      featureApi.merge(ideaId, featureIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["features", "idea", data.ideaId] });
+      toast.success("Features merged successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to merge features");
+    },
+  });
+};
+
+export const useSplitFeature = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, splits }: { id: string; splits: any[] }) =>
+      featureApi.split(id, splits),
+    onSuccess: (data) => {
+      if (data && data.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["features", "idea", data[0].ideaId] });
+      }
+      toast.success("Feature split successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "Failed to split feature");
+    },
+  });
+};
+
 // ============================================
 // Task Queries & Mutations
 // ============================================

@@ -10,6 +10,7 @@ interface DiagramCatalogGridProps {
   ideaId: string;
   diagrams: Diagram[];
   isGeneratingMap: Record<string, boolean>;
+  generationStatusMap?: Record<string, string>;
   onSelect: (type: DiagramType) => void;
   onGenerate: (diagram: Diagram) => void;
 }
@@ -27,10 +28,26 @@ const DIAGRAM_DESCRIPTIONS: Record<DiagramType, string> = {
   ACTIVITY: "Control flow logic mapping sequential steps, decisions, and joins.",
 };
 
+const getFriendlyStatus = (status: string) => {
+  switch (status) {
+    case "generating":
+      return "Generating...";
+    case "validating":
+      return "Validating code...";
+    case "repairing":
+      return "Repairing errors...";
+    case "retrying":
+      return "Retrying repair...";
+    default:
+      return "Processing...";
+  }
+};
+
 export const DiagramCatalogGrid: FC<DiagramCatalogGridProps> = ({
   ideaId,
   diagrams,
   isGeneratingMap,
+  generationStatusMap = {},
   onSelect,
   onGenerate,
 }) => {
@@ -47,28 +64,22 @@ export const DiagramCatalogGrid: FC<DiagramCatalogGridProps> = ({
         // Determine status display
         let statusBadge = null;
         if (isGenerating) {
+          const currentStatus = diagram ? generationStatusMap[diagram.id] || "generating" : "generating";
           statusBadge = (
-            <Badge variant="outline" className="animate-pulse bg-primary/10 text-primary border-primary/20 text-xs px-2.5 py-0.5">
-              Generating...
-            </Badge>
-          );
-        } else if (diagram?.status === "repair_failed") {
-          statusBadge = (
-            <Badge variant="destructive" className="bg-destructive/15 hover:bg-destructive/15 text-destructive border-destructive/20 text-xs px-2.5 py-0.5 flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Repair Failed
+            <Badge variant="outline" className="animate-pulse bg-primary/10 text-primary border-primary/20 text-[11px] px-2 py-0.5 font-medium">
+              {getFriendlyStatus(currentStatus)}
             </Badge>
           );
         } else if (hasCode) {
           statusBadge = (
-            <Badge variant="secondary" className="bg-success/10 text-success border-success/20 text-xs px-2.5 py-0.5 flex items-center gap-1">
+            <Badge variant="secondary" className="bg-success/10 text-success border-success/20 text-[11px] px-2 py-0.5 flex items-center gap-1 font-medium">
               <CheckCircle2 className="h-3 w-3 text-success" />
               Ready
             </Badge>
           );
         } else {
           statusBadge = (
-            <Badge variant="outline" className="text-muted-foreground border-muted/30 text-xs px-2.5 py-0.5">
+            <Badge variant="outline" className="text-muted-foreground border-muted/30 text-[11px] px-2 py-0.5 font-medium">
               Empty
             </Badge>
           );
@@ -91,12 +102,6 @@ export const DiagramCatalogGrid: FC<DiagramCatalogGridProps> = ({
               </p>
             </CardHeader>
             <CardContent className="pb-4 pt-0">
-              {diagram?.validationError && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-[11px] p-2.5 rounded-md leading-relaxed flex items-start gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span className="line-clamp-2">{diagram.validationError}</span>
-                </div>
-              )}
               {diagram?.activeTier && (
                 <div className="text-[11px] text-muted-foreground flex items-center gap-1 bg-accent/40 px-2.5 py-1 border border-accent/30 rounded-md w-fit mt-2">
                   <span className="font-medium text-foreground">Compiler:</span> Tier {diagram.activeTier} (IR Active)

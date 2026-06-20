@@ -180,15 +180,22 @@ model DiagramVersion {
 // ============================================
 
 model Feature {
-    id          String   @id @default(uuid())
-    ideaId      String   @map("idea_id")
-    title       String
-    description String   @db.Text
-    source      String // "auto" | "manual" | "ai_suggested"
-    status      String   @default("active") // active | archived
-    priority    String   @default("medium") // low | medium | high | critical
-    createdAt   DateTime @default(now()) @map("created_at")
-    updatedAt   DateTime @updatedAt @map("updated_at")
+    id                 String   @id @default(uuid())
+    ideaId             String   @map("idea_id")
+    title              String
+    description        String   @db.Text
+    businessValue      String?  @map("business_value") @db.Text
+    userValue          String?  @map("user_value") @db.Text
+    acceptanceCriteria Json?    @map("acceptance_criteria") // Array of strings
+    source             String // "auto" | "manual" | "ai_suggested"
+    status             String   @default("active") // active | archived
+    priority           String   @default("medium") // low | medium | high | critical
+    complexity         String   @default("medium") // low | medium | high
+    dependencies       Json?    // Array of strings (feature titles or ids)
+    technicalScope     String?  @map("technical_scope") @db.Text
+    suggestedTaskCount Int      @default(0) @map("suggested_task_count")
+    createdAt          DateTime @default(now()) @map("created_at")
+    updatedAt          DateTime @updatedAt @map("updated_at")
 
     // Relations
     // Feature -> Idea (Many -> One)
@@ -204,13 +211,21 @@ model Feature {
 }
 
 model FeatureVersion {
-    id          String   @id @default(uuid())
-    featureId   String   @map("feature_id")
-    version     Int
-    title       String
-    description String   @db.Text
-    changelog   String?  @db.Text
-    createdAt   DateTime @default(now()) @map("created_at")
+    id                 String   @id @default(uuid())
+    featureId          String   @map("feature_id")
+    version            Int
+    title              String
+    description        String   @db.Text
+    businessValue      String?  @map("business_value") @db.Text
+    userValue          String?  @map("user_value") @db.Text
+    acceptanceCriteria Json?    @map("acceptance_criteria")
+    priority           String   @default("medium")
+    complexity         String   @default("medium")
+    dependencies       Json?
+    technicalScope     String?  @map("technical_scope") @db.Text
+    suggestedTaskCount Int      @default(0) @map("suggested_task_count")
+    changelog          String?  @db.Text
+    createdAt          DateTime @default(now()) @map("created_at")
 
     // Relations
     // FeatureVersion -> Feature (Many -> One)

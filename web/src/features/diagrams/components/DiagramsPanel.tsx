@@ -12,6 +12,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
     diagrams,
     isLoading,
     isGeneratingMap,
+    generationStatusMap,
     handleInitialize,
     handleRegenerateSingle,
   } = useDiagramsPage(ideaId);
@@ -75,6 +76,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
           ideaId={ideaId}
           diagrams={diagrams}
           isGeneratingMap={isGeneratingMap}
+          generationStatusMap={generationStatusMap}
           onSelect={(type) => setActiveType(type)}
           onGenerate={(diagram) => handleRegenerateSingle(diagram)}
         />

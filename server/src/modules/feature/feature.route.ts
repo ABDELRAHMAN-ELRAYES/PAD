@@ -10,6 +10,9 @@ import {
     getVersionHistory,
     linkDiagram,
     unlinkDiagram,
+    regenerateFeature,
+    mergeFeatures,
+    splitFeature,
 } from "./feature.controller";
 
 const FeatureRouter: Router = Router();
@@ -30,11 +33,23 @@ FeatureRouter.route("/")
 FeatureRouter.route("/idea/:ideaId")
     .get(getFeaturesByIdea);
 
+// Merge features
+FeatureRouter.route("/idea/:ideaId/merge")
+    .post(mergeFeatures);
+
 // Specific feature routes
 FeatureRouter.route("/:id")
     .get(getFeature)
     .put(updateFeature)
     .delete(deleteFeature);
+
+// Regenerate single feature
+FeatureRouter.route("/regenerate/:id")
+    .post(regenerateFeature);
+
+// Split feature
+FeatureRouter.route("/:id/split")
+    .post(splitFeature);
 
 // Get feature with tasks
 FeatureRouter.route("/:id/full")
