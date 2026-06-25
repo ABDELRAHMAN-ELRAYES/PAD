@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { featureApi } from "../api/features.api";
 import { FeaturesPanelProps } from "../types/components/FeaturesPanel.types";
 import { Feature } from "../types/models/features";
+import { FeatureDetailPage } from "../page/FeatureDetailPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -26,6 +27,7 @@ export const FeaturesPanel: FC<FeaturesPanelProps> = ({ ideaId }) => {
     const [isExtracting, setIsExtracting] = useState(false);
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [activeFeatureId, setActiveFeatureId] = useState<string | null>(null);
 
     const [streamingText, setStreamingText] = useState("");
 
@@ -85,6 +87,16 @@ export const FeaturesPanel: FC<FeaturesPanelProps> = ({ ideaId }) => {
         }
     };
 
+    if (activeFeatureId) {
+        return (
+            <FeatureDetailPage
+                ideaId={ideaId}
+                featureId={activeFeatureId}
+                onBack={() => setActiveFeatureId(null)}
+            />
+        );
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-full min-h-[300px]">
@@ -94,15 +106,16 @@ export const FeaturesPanel: FC<FeaturesPanelProps> = ({ ideaId }) => {
     }
 
     return (
-        <div className="p-6 space-y-5">
-            <div className="flex items-center justify-between">
+        <div className="grow flex flex-col min-h-0 h-full overflow-hidden bg-background">
+            {/* Sticky Header */}
+            <div className="shrink-0 flex items-center justify-between border-b px-6 py-4">
                 <div>
                     <h2 className="text-xl font-bold">Features</h2>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Define and manage the core features of your idea.
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                     <Button
                         variant="outline"
                         size="sm"
@@ -128,68 +141,71 @@ export const FeaturesPanel: FC<FeaturesPanelProps> = ({ ideaId }) => {
                 </div>
             </div>
 
-            {error && (
-                <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    {error}
-                </div>
-            )}
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 w-full space-y-6">
+                {error && (
+                    <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        {error}
+                    </div>
+                )}
 
-            {isExtracting && streamingText && (
-                <Card className="border-primary/20 bg-primary/5">
-                    <CardHeader className="py-3 px-4">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary animate-pulse" />
-                            AI is extracting features...
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4">
-                        <div className="bg-muted/50 rounded-md p-3 font-mono text-xs max-h-[200px] overflow-y-auto whitespace-pre-wrap">
-                            {streamingText}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                {isExtracting && streamingText && (
+                    <Card className="border-primary/20 bg-primary/5">
+                        <CardHeader className="py-3 px-4">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                                AI is extracting features...
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4">
+                            <div className="bg-muted/50 rounded-md p-3 font-mono text-xs max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+                                {streamingText}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
-            {features.length === 0 && !isExtracting ? (
-                <Card className="border-dashed">
-                    <CardContent className="py-12 text-center">
-                        <PackagePlus className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                        <h3 className="text-base font-medium mb-1">No Features Yet</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            Start by extracting features from your PRD using AI.
-                        </p>
-                        <Button onClick={handleExtract} variant="outline" size="sm">
-                            <Sparkles className="mr-2 h-4 w-4 text-primary" />
-                            Extract from PRD
-                        </Button>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {features.map((feature) => (
-                        <Card
-                            key={feature.id}
-                            className="hover:border-primary/50 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/ideas/${ideaId}/features/${feature.id}`)}
-                        >
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start gap-2">
-                                    <CardTitle className="text-sm line-clamp-1">
-                                        {feature.title}
-                                    </CardTitle>
-                                    <PriorityBadge priority={feature.priority} />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-xs text-muted-foreground line-clamp-3">
-                                    {feature.description}
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
+                {features.length === 0 && !isExtracting ? (
+                    <Card className="border-dashed">
+                        <CardContent className="py-12 text-center">
+                            <PackagePlus className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                            <h3 className="text-base font-medium mb-1">No Features Yet</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Start by extracting features from your PRD using AI.
+                            </p>
+                            <Button onClick={handleExtract} variant="outline" size="sm">
+                                <Sparkles className="mr-2 h-4 w-4 text-primary" />
+                                Extract from PRD
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {features.map((feature) => (
+                            <Card
+                                key={feature.id}
+                                className="hover:border-primary/50 transition-colors cursor-pointer"
+                                onClick={() => setActiveFeatureId(feature.id)}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <CardTitle className="text-sm line-clamp-1">
+                                            {feature.title}
+                                        </CardTitle>
+                                        <PriorityBadge priority={feature.priority} />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-xs text-muted-foreground line-clamp-3">
+                                        {feature.description}
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+            </div>
 
             <CreateFeatureDialog
                 ideaId={ideaId}

@@ -94,8 +94,8 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
         if (!isStreamingDesc && !streamedDesc) return null;
 
         return (
-            <div className="w-full max-w-2xl mx-auto mt-2.5 p-3.5 rounded-2xl border border-indigo-500/10 bg-linear-to-b from-indigo-500/5 via-violet-500/5 to-transparent space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div 
+            <div className="w-full max-w-2xl mx-auto mt-2.5 p-3.5 rounded-2xl border border-indigo-500/10 bg-linear-to-b from-indigo-500/5 via-violet-500/5 to-transparent space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300 rounded-bl-none rounded-br-none translate-y-[11px] border-b-0">
+                <div
                     onClick={() => setIsDescExpanded(!isDescExpanded)}
                     className="flex items-center justify-between cursor-pointer group select-none px-1"
                 >
@@ -103,7 +103,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                         {isStreamingDesc ? (
                             <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
                         ) : (
-                            <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            <CheckCircle className="h-4 w-4 text-indigo-500" />
                         )}
                         <span className="text-[11px] font-semibold text-foreground tracking-tight flex items-center gap-1.5">
                             {isStreamingDesc ? "PAD is refining business concept..." : "Business concept refined"}
@@ -238,7 +238,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
         const isDisabled = isSubmitting || (isAuthenticated && (isInputEmpty || (isNewMode && charCount < MIN_CHAR_COUNT)));
 
         return (
-            <div className="w-full max-w-2xl mx-auto flex flex-col gap-2.5">
+            <div className="w-full max-w-2xl mx-auto flex flex-col gap-2.5 z-20">
                 {error && (
                     <div className="p-3 rounded-xl bg-destructive/5 dark:bg-destructive/10 border border-destructive/10 dark:border-destructive/20 text-destructive text-xs flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
                         <span className="font-medium">{error}</span>
@@ -342,7 +342,7 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                 <div
                     className={`w-2 h-2 rounded-full ${error ? "bg-destructive animate-pulse" :
                         (aiPhase !== "idle" || isCreating) ? "bg-violet-500 animate-pulse" :
-                            "bg-green-500 animate-pulse"
+                            "bg-indigo-500 animate-pulse"
                         }`}
                 />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">

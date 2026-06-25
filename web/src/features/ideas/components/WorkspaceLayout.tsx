@@ -148,7 +148,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
               minSize={35}
               className="flex flex-col"
             >
-              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" || activeSection === "workflow" || activeSection === "documents" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
+              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" || activeSection === "workflow" || activeSection === "documents" || activeSection === "features" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
                 {renderContentPanel()}
               </div>
             </ResizablePanel>

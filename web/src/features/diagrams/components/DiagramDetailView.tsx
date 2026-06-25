@@ -475,7 +475,7 @@ export const DiagramDetailView: FC<DiagramDetailViewProps> = ({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0 relative bg-background">
         {isPlaceholder && !isGenerating ? (
-          <div className="flex-grow flex flex-col items-center justify-center border border-dashed border-border rounded-2xl p-12 text-center gap-4 bg-muted/10 min-h-[300px]">
+          <div className="grow flex flex-col items-center justify-center border border-dashed border-border p-12 text-center gap-4 bg-muted/10 min-h-[300px]">
             <div className="p-3.5 rounded-full bg-muted border border-border text-muted-foreground">
               <CodeIcon className="h-8 w-8" />
             </div>

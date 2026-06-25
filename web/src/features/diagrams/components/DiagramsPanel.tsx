@@ -6,7 +6,7 @@ import { DiagramDetailView } from "./DiagramDetailView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Loader2, Play, Plus, Network, CheckCircle2 } from "lucide-react";
+import { Loader2, Plus, Network, CheckCircle2 } from "lucide-react";
 import { DIAGRAM_ICONS, DIAGRAM_LABELS } from "@/config/diagrams";
 
 const DIAGRAM_DESCRIPTIONS: Record<DiagramType, string> = {
@@ -67,7 +67,7 @@ export const DiagramsPanel: FC<DiagramsPanelProps> = ({ ideaId }) => {
   // If a specific diagram detail is active, render it
   if (activeType !== null) {
     return (
-      <div className="flex-grow flex flex-col min-h-0 bg-background">
+      <div className="grow flex flex-col min-h-0 bg-background">
         <DiagramDetailView
           ideaId={ideaId}
           diagramType={activeType}

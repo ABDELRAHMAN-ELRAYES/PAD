@@ -168,7 +168,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                         className={cn(
                           "flex items-center rounded-lg transition-colors shrink-0 mx-auto justify-center w-9 h-9 relative",
                           isActive
-                            ? `${item.activeColor} bg-accent`
+                            ? `text-indigo-500 bg-accent`
                             : `${item.color} hover:bg-accent/50`,
                           isDisabled &&
                           "opacity-30 cursor-not-allowed hover:bg-transparent",
@@ -238,7 +238,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                   >
                     <div className="shrink-0 flex items-center justify-center mt-0.5">
                       {idea.status === "confirmed" ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                        <CheckCircle className="h-3.5 w-3.5 text-indigo-500" />
                       ) : (
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
@@ -292,8 +292,8 @@ export const AppSidebar: FC<AppSidebarProps> = ({
                     className={cn(
                       "flex items-center rounded-lg transition-colors shrink-0 w-[236px] gap-2.5 px-2.5 py-1.5 text-sm",
                       isActive
-                        ? `${item.activeColor} bg-accent font-medium`
-                        : `${item.color} hover:bg-accent/50`,
+                        ? `text-indigo-500 bg-accent font-medium`
+                        : `hover:bg-accent/50`,
                       isDisabled &&
                       "opacity-30 cursor-not-allowed hover:bg-transparent",
                     )}
