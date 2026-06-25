@@ -1,9 +1,10 @@
 "use client";
 
 import { FC, useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, MessageSquare, ArrowUp, LogIn, CheckCircle, ChevronDown, Lightbulb } from "lucide-react";
+import { Send, Loader2, MessageSquare, ArrowUp, LogIn, CheckCircle, ChevronDown, Lightbulb, FileText, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ideaApi } from "@/features/ideas/api/ideas.api";
+import { toast } from "sonner";
 import { ChatMessage } from "./ChatMessage";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { useIterationChat } from "../hooks/use-iteration-chat";
@@ -16,6 +17,7 @@ import { useIdea } from "@/features/ideas/api/ideasQueries";
 import { UnifiedChatProps } from "../types/components/UnifiedChat.types";
 import { MIN_CHAR_COUNT } from "@/config/chat";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { cn } from "@/lib/utils";
 
 export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArtifactUpdated }) => {
     // Auth state
@@ -36,6 +38,10 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
 
     // New idea mode state
     const [isCreating, setIsCreating] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [isDraggingFile, setIsDraggingFile] = useState(false);
+    const dragCounter = useRef(0);
 
     // Iteration mode — socket-based hook with optimistic UI
     const {
@@ -48,6 +54,124 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
         sendMessage,
         clearError,
     } = useIterationChat(ideaId, onArtifactUpdated);
+
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            dragCounter.current++;
+            setIsDraggingFile(true);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if (dragCounter.current <= 0) {
+            setIsDraggingFile(false);
+            dragCounter.current = 0;
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingFile(false);
+        dragCounter.current = 0;
+
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+            const ext = file.name.split('.').pop()?.toLowerCase();
+            if (ext === "pdf" || ext === "txt" || ext === "md") {
+                await uploadSpecFile(file);
+            } else {
+                toast.error("Unsupported file type. Please upload a PDF, TXT, or MD file.");
+            }
+        }
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            await uploadSpecFile(file);
+        }
+    };
+
+    const uploadSpecFile = async (file: File) => {
+        if (!isAuthenticated) {
+            setAuthMode("sign-in");
+            setIsAuthOpen(true);
+            return;
+        }
+        setIsUploading(true);
+        setUploadError(null);
+        try {
+            const result = await ideaApi.uploadDocument(file);
+            toast.success("Document analyzed and project initialized!");
+            onIdeaCreated?.(result.id);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Failed to parse document specification";
+            setUploadError(msg);
+            toast.error(msg);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const renderDropZone = () => {
+        return (
+            <div className="w-full max-w-2xl mx-auto space-y-4">
+                {uploadError && (
+                    <div className="p-3 rounded-xl bg-destructive/5 dark:bg-destructive/10 border border-destructive/10 dark:border-destructive/20 text-destructive text-xs flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <span className="font-medium">{uploadError}</span>
+                        <button
+                            onClick={() => setUploadError(null)}
+                            className="ml-3 font-semibold hover:underline text-[10px] text-destructive/80 hover:text-destructive shrink-0 cursor-pointer"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
+
+                <div
+                    className={cn(
+                        "group relative flex flex-col items-center justify-center border border-dashed rounded-2xl p-8 text-center transition-all duration-300 min-h-[180px]",
+                        isUploading && "pointer-events-none opacity-80"
+                    )}
+                >
+                    {isUploading ? (
+                        <div className="space-y-3">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                            <div className="space-y-1">
+                                <p className="text-xs font-semibold text-foreground">Analyzing document details...</p>
+                                <p className="text-[10px] text-muted-foreground">Extracting text and initializing your project specification</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="p-3 rounded-2xl bg-background border border-border/80 shadow-xs group-hover:border-primary/20 transition-colors w-fit mx-auto text-muted-foreground/60 group-hover:text-primary">
+                                <UploadCloud className="h-6 w-6" />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-xs font-semibold text-foreground">
+                                    Drag and drop your specification document
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                    Supports PDF, Markdown, and Text files up to 10MB
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     // Sync already existing businessDescription
     useEffect(() => {
@@ -253,6 +377,20 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                         </button>
                     </div>
                 )}
+                {uploadError && (
+                    <div className="p-3 rounded-xl bg-destructive/5 dark:bg-destructive/10 border border-destructive/10 dark:border-destructive/20 text-destructive text-xs flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <span className="font-medium">{uploadError}</span>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setUploadError(null);
+                            }}
+                            className="ml-3 font-semibold hover:underline text-[10px] text-destructive/80 hover:text-destructive shrink-0 cursor-pointer"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
 
                 <div
                     className="group relative flex flex-col w-full rounded-2xl border border-border/80 bg-muted/20 dark:bg-muted/10 hover:border-border focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.15)] transition-all duration-300 ease-out cursor-text"
@@ -275,60 +413,105 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                     />
 
                     <div className="flex items-center justify-between px-3.5 pb-2 pt-0.5 bg-transparent select-none">
-                        {/* Helper text inside the box */}
-                        <div className="text-[10px] tracking-wide text-muted-foreground/50 font-normal px-1">
-                            {!isAuthenticated ? (
-                                <span>Please sign in to submit your idea</span>
-                            ) : isNewMode ? (
-                                <span>
-                                    {charCount > 0 && charCount < MIN_CHAR_COUNT
-                                        ? `${MIN_CHAR_COUNT - charCount} more characters required`
-                                        : charCount > 0
-                                            ? `${charCount} characters`
-                                            : "Ctrl+Enter to submit"}
-                                </span>
-                            ) : (
-                                <span>Enter to send · Shift+Enter for newline</span>
+                        <div className="flex items-center gap-2">
+                            {/* Hidden file input */}
+                            {isNewMode && (
+                                <input
+                                    id="spec-file-input"
+                                    type="file"
+                                    accept=".pdf,.txt,.md"
+                                    className="hidden"
+                                    onChange={handleFileSelect}
+                                    disabled={isUploading}
+                                />
                             )}
+
+                            {/* Upload Button */}
+                            {isNewMode && (
+                                <Button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        document.getElementById("spec-file-input")?.click();
+                                    }}
+                                    disabled={isUploading || isSubmitting}
+                                    size="icon"
+                                    className={`group/upload-btn h-8 rounded-full shrink-0 transition-all duration-300 flex items-center gap-0 cursor-pointer overflow-hidden
+                                        ${(isUploading || isSubmitting)
+                                            ? "w-8 justify-center pl-0 bg-muted text-muted-foreground/35 opacity-70 cursor-not-allowed"
+                                            : "w-8 justify-start pl-2 bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-indigo-500/20 hover:w-[82px]"
+                                        }`}
+                                    aria-label="Upload document"
+                                >
+                                    {isUploading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <UploadCloud className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/upload-btn:-translate-y-0.5" />
+                                            <span className="max-w-0 opacity-0 overflow-hidden font-semibold text-[10.5px] tracking-wide transition-all duration-300 ease-in-out group-hover/upload-btn:max-w-[48px] group-hover/upload-btn:opacity-100 ml-0 group-hover/upload-btn:ml-1.5 text-inherit whitespace-nowrap">
+                                                Upload
+                                            </span>
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+
+                            {/* Helper text inside the box */}
+                            <div className="text-[10px] tracking-wide text-muted-foreground/50 font-normal px-1">
+                                {!isAuthenticated ? (
+                                    <span>Please sign in to submit your idea</span>
+                                ) : isNewMode ? (
+                                    <span>
+                                        {charCount > 0 && charCount < MIN_CHAR_COUNT
+                                            ? `${MIN_CHAR_COUNT - charCount} more characters required`
+                                            : charCount > 0
+                                                ? `${charCount} characters`
+                                                : "Ctrl+Enter to submit"}
+                                    </span>
+                                ) : (
+                                    <span>Enter to send · Shift+Enter for newline</span>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Send Button */}
-                        <Button
-                            onClick={(e) => {
-                                e.stopPropagation(); // Avoid triggering container focus again
-                                handleSend();
-                            }}
-                            disabled={isDisabled}
-                            size="icon"
-                            className={`group/btn h-8 rounded-full shrink-0 transition-all duration-300 flex items-center gap-0 cursor-pointer overflow-hidden
-                                ${isDisabled
-                                    ? "w-8 justify-center pl-0 bg-muted text-muted-foreground/35 opacity-70 cursor-not-allowed"
-                                    : `w-8 justify-start pl-2 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-primary/20 ${!isAuthenticated
-                                        ? "hover:w-[85px]"
-                                        : isNewMode
-                                            ? "hover:w-[82px]"
-                                            : "hover:w-[70px]"
-                                    }`
-                                }`}
-                            aria-label={!isAuthenticated ? "Sign In" : isNewMode ? "Submit idea" : "Send message"}
-                        >
-                            {isSubmitting ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <>
-                                    {!isAuthenticated ? (
-                                        <LogIn className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
-                                    ) : isNewMode ? (
-                                        <ArrowUp className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
-                                    ) : (
-                                        <Send className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-                                    )}
-                                    <span className="max-w-0 opacity-0 overflow-hidden font-semibold text-[10.5px] tracking-wide transition-all duration-300 ease-in-out group-hover/btn:max-w-[48px] group-hover/btn:opacity-100 ml-0 group-hover/btn:ml-1.5 text-inherit whitespace-nowrap">
-                                        {!isAuthenticated ? "Sign In" : isNewMode ? "Submit" : "Send"}
-                                    </span>
-                                </>
-                            )}
-                        </Button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Send Button */}
+                            <Button
+                                onClick={(e) => {
+                                    e.stopPropagation(); // Avoid triggering container focus again
+                                    handleSend();
+                                }}
+                                disabled={isDisabled || isUploading}
+                                size="icon"
+                                className={`group/btn h-8 rounded-full shrink-0 transition-all duration-300 flex items-center gap-0 cursor-pointer overflow-hidden
+                                    ${(isDisabled || isUploading)
+                                        ? "w-8 justify-center pl-0 bg-muted text-muted-foreground/35 opacity-70 cursor-not-allowed"
+                                        : `w-8 justify-start pl-2 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow hover:shadow-primary/20 ${!isAuthenticated
+                                            ? "hover:w-[85px]"
+                                            : isNewMode
+                                                ? "hover:w-[82px]"
+                                                : "hover:w-[70px]"
+                                        }`
+                                    }`}
+                                aria-label={!isAuthenticated ? "Sign In" : isNewMode ? "Submit idea" : "Send message"}
+                            >
+                                {isSubmitting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <>
+                                        {!isAuthenticated ? (
+                                            <LogIn className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
+                                        ) : isNewMode ? (
+                                            <ArrowUp className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:-translate-y-0.5" />
+                                        ) : (
+                                            <Send className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+                                        )}
+                                        <span className="max-w-0 opacity-0 overflow-hidden font-semibold text-[10.5px] tracking-wide transition-all duration-300 ease-in-out group-hover/btn:max-w-[48px] group-hover/btn:opacity-100 ml-0 group-hover/btn:ml-1.5 text-inherit whitespace-nowrap">
+                                            {!isAuthenticated ? "Sign In" : isNewMode ? "Submit" : "Send"}
+                                        </span>
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -336,7 +519,32 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
     };
 
     return (
-        <div className="flex flex-col h-full bg-background relative">
+        <div
+            onDragEnter={isNewMode ? handleDragEnter : undefined}
+            onDragOver={isNewMode ? handleDragOver : undefined}
+            onDragLeave={isNewMode ? handleDragLeave : undefined}
+            onDrop={isNewMode ? handleDrop : undefined}
+            className="flex flex-col h-full bg-background relative"
+        >
+            {/* Drag & Drop Absolute Overlay */}
+            {isNewMode && isDraggingFile && (
+                <div
+                    onDragEnter={handleDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className="absolute inset-0 bg-background/85 backdrop-blur-xs border-2 border-dashed border-indigo-500 rounded-2xl z-50 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-200"
+                >
+                    <div className="p-4 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 animate-bounce">
+                        <UploadCloud className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-1 text-center">
+                        <p className="text-sm font-bold text-foreground">Drop document to initialize project</p>
+                        <p className="text-xs text-muted-foreground">Supports PDF, Markdown, and Text files up to 10MB</p>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
                 <div
@@ -365,27 +573,42 @@ export const UnifiedChat: FC<UnifiedChatProps> = ({ ideaId, onIdeaCreated, onArt
                             </div>
                         </div>
 
-                        {/* Centered Input Box */}
-                        <div className="w-full">
-                            {renderInputBox()}
-                            {renderBusinessDescriptionStreaming()}
-                        </div>
+                        {/* Centered Area */}
+                        <div className="w-full space-y-4">
+                            {isUploading ? (
+                                <div className="w-full max-w-2xl mx-auto p-8 border border-border/80 rounded-2xl bg-muted/10 flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                                    <div className="space-y-1 text-center">
+                                        <p className="text-xs font-semibold text-foreground">Analyzing document details...</p>
+                                        <p className="text-[10px] text-muted-foreground">Extracting text and initializing your project specification</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Centered Input Box */}
+                                    <div className="w-full">
+                                        {renderBusinessDescriptionStreaming()}
+                                        {renderInputBox()}
+                                    </div>
 
-                        {/* Suggestions */}
-                        <div className="flex flex-wrap justify-center gap-2 mt-4 max-w-2xl">
-                            {[
-                                "I want to build a ",
-                                "The target users are ",
-                                "Key features include ",
-                            ].map((hint) => (
-                                <button
-                                    key={hint}
-                                    onClick={() => setInputValue(prev => prev ? prev + " " + hint.trim() : hint.trim())}
-                                    className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/30 hover:bg-accent hover:text-accent-foreground transition-colors"
-                                >
-                                    {hint.trim()}
-                                </button>
-                            ))}
+                                    {/* Suggestions */}
+                                    <div className="flex flex-wrap justify-center gap-2 mt-4 max-w-2xl mx-auto">
+                                        {[
+                                            "I want to build a ",
+                                            "The target users are ",
+                                            "Key features include ",
+                                        ].map((hint) => (
+                                            <button
+                                                key={hint}
+                                                onClick={() => setInputValue(prev => prev ? prev + " " + hint.trim() : hint.trim())}
+                                                className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/30 hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                                            >
+                                                {hint.trim()}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 ) : isLoading ? (

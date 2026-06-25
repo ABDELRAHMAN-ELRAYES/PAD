@@ -24,6 +24,26 @@ export const createIdea = catchAsync(
     }
 );
 
+// Create a new idea from uploaded document
+export const createIdeaFromDocument = catchAsync(
+    async (request: Request, response: Response, next: NextFunction) => {
+        const currentUser = request.user as IUser;
+        const file = request.file;
+
+        if (!file) {
+            return next(new AppError(400, "Please upload a document file."));
+        }
+
+        const idea = await IdeaService.createIdeaFromDocument(currentUser.id, file, next);
+        if (!idea) return;
+
+        response.status(201).json({
+            status: "success",
+            data: { idea },
+        });
+    }
+);
+
 // Get a specific idea
 export const getIdea = catchAsync(
     async (request: Request, response: Response, next: NextFunction) => {

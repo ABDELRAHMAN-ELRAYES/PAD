@@ -8,12 +8,22 @@ import {
     refineIdea,
     confirmIdea,
     streamBusinessDescription,
+    createIdeaFromDocument,
 } from "./idea.controller";
+import upload, { validateUploadedFileSize } from "../../middlewares/file-upload";
 
 const IdeaRouter: Router = Router();
 
 // All routes require authentication
 IdeaRouter.use(AuthMiddleware.protect);
+
+// Upload spec file to create idea
+IdeaRouter.post(
+    "/upload",
+    upload.single("file"),
+    validateUploadedFileSize,
+    createIdeaFromDocument
+);
 
 // Base routes
 IdeaRouter.route("/")

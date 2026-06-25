@@ -53,10 +53,18 @@ const ALLOWED_FILE_TYPES: {
   },
 } as const;
 
-const getFileCategory = (fileMimeType: string) => {
+const getFileCategory = (fileMimeType: string, filename?: string) => {
   for (const key of Object.keys(ALLOWED_FILE_TYPES)) {
     if (ALLOWED_FILE_TYPES[key].mimeTypes.includes(fileMimeType)) {
       return key;
+    }
+  }
+  if (filename) {
+    const ext = path.extname(filename).toLowerCase();
+    for (const key of Object.keys(ALLOWED_FILE_TYPES)) {
+      if (ALLOWED_FILE_TYPES[key].extensions.includes(ext)) {
+        return key;
+      }
     }
   }
   return null;
@@ -81,7 +89,7 @@ export const validateUploadedFileSize = (
 
   const fileSize = request.file?.size as number;
   const fileMimeType = request.file?.mimetype as string;
-  const fileCategory = getFileCategory(fileMimeType);
+  const fileCategory = getFileCategory(fileMimeType, file.originalname);
 
   if (!fileCategory) {
     fs.unlink(file.path, (_error) => { });
@@ -145,36 +153,18 @@ export const validateUploadedMoreThanOneFileSize = (
   next();
 };
 
-// getAllowedFiles : Get the supported extensions and mimetypes according to file type(image, video, document, ...etc)
-const getAllowedFiles = (fileMimeType: string) => {
-  const fileCategory = getFileCategory(fileMimeType);
-  if (!fileCategory) {
-    return null;
-  }
-  const allowedExtensions = ALLOWED_FILE_TYPES[fileCategory].extensions;
-  const allowedMimeTypes = ALLOWED_FILE_TYPES[fileCategory].mimeTypes;
-  return { allowedExtensions, allowedMimeTypes };
-};
+
 
 const fileFilter = (
   _request: Request,
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  // Allow only specific file types
-  const fileMimeType = file?.mimetype as string;
-  const { allowedExtensions, allowedMimeTypes } = getAllowedFiles(
-    fileMimeType
-  ) as { allowedExtensions: string[]; allowedMimeTypes: string[] };
-
-  const extname = allowedExtensions.includes(
-    path.extname(file.originalname).toLowerCase()
-  );
-  const mimetype = allowedMimeTypes.includes(file.mimetype);
-  if (mimetype && extname) {
+  const fileCategory = getFileCategory(file.mimetype, file.originalname);
+  if (fileCategory) {
     return cb(null, true);
   } else {
-    cb(new AppError(400, "Invalid file type. This  file type is not supported."));
+    cb(new AppError(400, "Invalid file type. This file type is not supported."));
   }
 };
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "/uploads");

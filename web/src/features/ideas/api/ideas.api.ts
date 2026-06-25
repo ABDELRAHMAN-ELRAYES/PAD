@@ -16,6 +16,14 @@ export const ideaApi = {
         return response.data!.idea;
     },
 
+    // Create a new idea by uploading a document
+    async uploadDocument(file: File): Promise<Idea> {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await apiClient.post<ApiResponse<IdeaResponse>>("/ideas/upload", formData);
+        return response.data!.idea;
+    },
+
     // Get a specific idea by ID
     async getById(id: string): Promise<Idea> {
         const response = await apiClient.get<ApiResponse<IdeaResponse>>(`/ideas/${id}`);

@@ -1,4 +1,5 @@
 import { NextFunction } from "express";
+import fs from "fs";
 import AppError from "../../utils/app-error";
 import IdeaRepository from "./idea.repository";
 import AiService from "../ai/ai.service";
@@ -12,13 +13,14 @@ import SocketService from "../../services/socket.service";
 import DiscoveryService from "../discovery/discovery.service";
 import DocumentService from "../document/document.service";
 import DiagramService from "../diagram/diagram.service";
+import { extractTextFromDocument } from "../../utils/document-parser";
 
 class IdeaService {
     private static ideaRepository: IdeaRepository = IdeaRepository.getInstance();
 
     // Minimum and maximum character limits for idea text
     private static MIN_CHAR_LIMIT = 20;
-    private static MAX_CHAR_LIMIT = 10000;
+    private static MAX_CHAR_LIMIT = 100000;
 
     // Create a new idea
     static async createIdea(
@@ -38,6 +40,42 @@ class IdeaService {
         const idea = await this.ideaRepository.createIdea({
             rawText: normalizedText,
             userId: data.userId,
+        });
+
+        return idea as IIdea;
+    }
+
+    // Create a new idea from an uploaded document
+    static async createIdeaFromDocument(
+        userId: string,
+        file: Express.Multer.File,
+        next: NextFunction
+    ): Promise<IIdea | void> {
+        let extractedText = "";
+        try {
+            extractedText = await extractTextFromDocument(file.path, file.mimetype);
+        } catch (error) {
+            return next(new AppError(400, error instanceof Error ? error.message : "Failed to extract text from document."));
+        } finally {
+            // Cleanup file from disk in all cases
+            if (fs.existsSync(file.path)) {
+                await fs.promises.unlink(file.path).catch(() => {});
+            }
+        }
+
+        // Validate idea text
+        const validationError = this.validateIdeaText(extractedText);
+        if (validationError) {
+            return next(new AppError(400, `The document did not contain enough project details. ${validationError}`));
+        }
+
+        // Normalize whitespace
+        const normalizedText = this.normalizeText(extractedText);
+
+        // Create the idea
+        const idea = await this.ideaRepository.createIdea({
+            rawText: normalizedText,
+            userId,
         });
 
         return idea as IIdea;
