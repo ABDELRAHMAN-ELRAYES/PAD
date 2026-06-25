@@ -61,24 +61,27 @@ export const ResearchProgressPanel: FC<ResearchProgressPanelProps> = ({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[450px] p-6 max-w-2xl mx-auto space-y-8 animate-in fade-in duration-300">
-      
+
       {/* Animated Pixel Icon Area */}
-      <div className="flex flex-col items-center text-center space-y-4">
-        <div >
-          <DeepResearchIcon className="w-20 h-20 text-primary animate-pulse" />
-        </div>
-        <div className="space-y-1">
-          <h4 className="font-bold text-sm text-foreground tracking-tight">
-            {status === "failed" ? "Research Session Failed" : "Deep Research Agent Running"}
-          </h4>
-          <p className="text-xs text-muted-foreground max-w-md">
-            {status === "failed" 
-              ? "An error occurred while compiling search results."
-              : "Analyzing and searching the web to formulate a complete product specifications blueprint."
-            }
-          </p>
+      <div className="w-full flex justify-start">
+        <div className="flex items-center text-center space-y-4">
+          <div >
+            <DeepResearchIcon className="w-20 h-20 text-primary animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-left font-bold text-sm text-foreground tracking-tight">
+              {status === "failed" ? "Research Session Failed" : "Deep Research Agent Running"}
+            </h4>
+            <p className="text-xs text-muted-foreground max-w-md">
+              {status === "failed"
+                ? "An error occurred while compiling search results."
+                : "Analyzing and searching the web to formulate a complete product specifications blueprint."
+              }
+            </p>
+          </div>
         </div>
       </div>
+
 
       {status === "failed" ? (
         <Card className="w-full border-destructive/20 bg-destructive/5 rounded-2xl">

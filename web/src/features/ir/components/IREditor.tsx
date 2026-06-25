@@ -340,7 +340,7 @@ export default function IREditor({ ideaId, idea }: IREditorProps) {
   return (
     <div className={isFullscreen 
       ? "fixed inset-0 z-50 bg-background w-screen h-screen overflow-hidden" 
-      : "relative w-full h-full overflow-hidden border border-border rounded-xl bg-slate-50 dark:bg-zinc-950/20"
+      : "relative w-full h-full overflow-hidden border border-border bg-slate-50 dark:bg-zinc-950/20"
     }>
       <div
         ref={canvasRef}
