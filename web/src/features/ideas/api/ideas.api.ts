@@ -84,14 +84,8 @@ export const ideaApi = {
         return response;
     },
 
-    // Get research job status
-    async getResearchStatus(id: string): Promise<any> {
-        const response = await apiClient.get<ApiResponse<{ job: any; ideaStatus: string; researchResult: any }>>(`/ideas/${id}/research/status`);
-        return response.data!;
-    },
-
-    // Trigger/stream research (returns raw response stream)
-    async startResearchStream(id: string): Promise<Response> {
-        return await apiClient.post<Response>(`/ideas/${id}/research`, undefined, {}, true);
+    // Trigger research synthesis (fire-and-forget — server runs async)
+    async startResearch(id: string): Promise<void> {
+        await apiClient.post<ApiResponse<any>>(`/ideas/${id}/research`, undefined);
     },
 };

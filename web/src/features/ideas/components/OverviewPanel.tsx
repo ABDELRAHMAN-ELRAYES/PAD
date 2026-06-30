@@ -1,5 +1,4 @@
-import React, { FC, useEffect, useState, useCallback } from "react";
-import { Idea } from "../types/models/idea";
+import { FC, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,8 +27,6 @@ import remarkGfm from "remark-gfm";
 
 import { OverviewPanelProps } from "../types/components/OverviewPanel.types";
 import { DiscoveryQuestionnaireForm } from "./DiscoveryQuestionnaireForm";
-import { ResearchProgressPanel } from "./ResearchProgressPanel";
-import { useResearchStream } from "../hook/useResearchStream";
 import { ideaApi } from "../api/ideas.api";
 
 export const OverviewPanel: FC<OverviewPanelProps> = ({
@@ -45,24 +42,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   const [selectedDocs, setSelectedDocs] = useState<string[]>(["BRD", "PRD", "SRS"]);
   const [selectedDiags, setSelectedDiags] = useState<string[]>(["SYSTEM_ARCHITECTURE", "DATABASE_ERD", "USER_FLOW"]);
 
-  // Selection states
-
-  const handleResearchComplete = useCallback((updatedIdea: Idea) => {
-    onIdeaUpdate(updatedIdea);
-  }, [onIdeaUpdate]);
-
-  // Hook for deep research stream management
-  const {
-    progress,
-    phase,
-    message,
-    logs,
-    status: researchStatus,
-    error: researchError,
-    startResearch,
-  } = useResearchStream(ideaId, handleResearchComplete);
-
-
+  const [isStartingResearch, setIsStartingResearch] = useState(false);
 
   // 1. Poll/Fetch discovery questionnaire when status is "draft"
   useEffect(() => {
@@ -126,12 +106,15 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     onIdeaUpdate(updatedIdea);
   };
 
-  // 3. Automatically trigger deep research when status is questionnaire_complete
+  // 3. Trigger research when status transitions to questionnaire_complete
   useEffect(() => {
-    if (idea.status === "questionnaire_complete") {
-      startResearch();
+    if (idea.status === "questionnaire_complete" && !isStartingResearch) {
+      setIsStartingResearch(true);
+      ideaApi.startResearch(ideaId).catch((err) =>
+        console.error("Failed to start research:", err)
+      );
     }
-  }, [idea.status, startResearch]);
+  }, [idea.status, ideaId, isStartingResearch]);
 
   // 4. Confirm project scope baseline handler
   const handleConfirmScope = async () => {
@@ -484,15 +467,19 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
       case "questionnaire_complete":
       case "researching":
         return (
-          <ResearchProgressPanel
-            progress={progress}
-            phase={phase}
-            message={message}
-            logs={logs}
-            status={researchStatus}
-            error={researchError}
-            onRetry={startResearch}
-          />
+          <div className="flex flex-col items-center justify-center min-h-[450px] p-6 max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <div className="space-y-1">
+                <h4 className="font-bold text-sm text-foreground tracking-tight">
+                  AI Research Agent Running
+                </h4>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Analyzing your idea and formulating a complete product specifications blueprint. This may take a moment.
+                </p>
+              </div>
+            </div>
+          </div>
         );
 
       case "research_complete":
