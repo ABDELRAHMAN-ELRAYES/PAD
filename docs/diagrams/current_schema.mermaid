@@ -1,0 +1,431 @@
+erDiagram
+    %% ============================================
+    %% CORE: User
+    %% ============================================
+    User {
+        String id PK "default: uuid()"
+        String firstName "map: first_name"
+        String lastName "map: last_name"
+        String username UK "nullable"
+        String email UK
+        String phone UK "nullable"
+        String password
+        String role "default: CLIENT"
+        Boolean active "default: true"
+        Boolean emailVerified "map: email_verified, default: false"
+        DateTime passwordChangedAt "map: password_changed_at, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    %% ============================================
+    %% MODULE 1: Idea Intake & Pre-Validation
+    %% ============================================
+    Idea {
+        String id PK "default: uuid()"
+        String userId FK "map: user_id"
+        String rawText "map: raw_text, @db.Text"
+        String refinedText "map: refined_text, @db.Text, nullable"
+        String businessDescription "map: business_description, @db.Text, nullable"
+        String status "default: draft"
+        Json analysisResult "map: analysis_result, nullable"
+        Json researchResult "map: research_result, nullable"
+        DateTime confirmedAt "map: confirmed_at, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    %% ============================================
+    %% MODULE 2: Document Generation (PRD/BRD)
+    %% ============================================
+    Document {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id"
+        String type "PRD | BRD"
+        String title
+        String content "@db.Text"
+        String status "default: draft"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    DocumentVersion {
+        String id PK "default: uuid()"
+        String documentId FK "map: document_id"
+        Int version
+        String content "@db.Text"
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    AdminPrivilege {
+        String id PK "default: uuid()"
+        String userId FK "map: user_id"
+        String name
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% MODULE 3: Diagram Generation
+    %% ============================================
+    Diagram {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id"
+        String type "DiagramType enum"
+        String title
+        String mermaidCode "map: mermaid_code, @db.Text"
+        String status "default: draft"
+        String tier1Code "map: tier1_code, @db.Text, nullable"
+        String tier2Code "map: tier2_code, @db.Text, nullable"
+        String tier3Code "map: tier3_code, @db.Text, nullable"
+        Int activeTier "map: active_tier, nullable"
+        String validationError "map: validation_error, @db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    DiagramVersion {
+        String id PK "default: uuid()"
+        String diagramId FK "map: diagram_id"
+        Int version
+        String mermaidCode "map: mermaid_code, @db.Text"
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% MODULE 4: Feature Breakdown & Task Management
+    %% ============================================
+    Feature {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id"
+        String title
+        String description "@db.Text"
+        String businessValue "map: business_value, @db.Text, nullable"
+        String userValue "map: user_value, @db.Text, nullable"
+        Json acceptanceCriteria "map: acceptance_criteria, nullable"
+        String source "auto | manual | ai_suggested"
+        String status "default: active"
+        String priority "default: medium"
+        String complexity "default: medium"
+        Json dependencies "nullable"
+        String technicalScope "map: technical_scope, @db.Text, nullable"
+        Int suggestedTaskCount "map: suggested_task_count, default: 0"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    FeatureVersion {
+        String id PK "default: uuid()"
+        String featureId FK "map: feature_id"
+        Int version
+        String title
+        String description "@db.Text"
+        String businessValue "map: business_value, @db.Text, nullable"
+        String userValue "map: user_value, @db.Text, nullable"
+        Json acceptanceCriteria "map: acceptance_criteria, nullable"
+        String priority "default: medium"
+        String complexity "default: medium"
+        Json dependencies "nullable"
+        String technicalScope "map: technical_scope, @db.Text, nullable"
+        Int suggestedTaskCount "map: suggested_task_count, default: 0"
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    Task {
+        String id PK "default: uuid()"
+        String featureId FK "map: feature_id"
+        String title
+        String description "@db.Text"
+        String status "default: planned"
+        String priority "default: medium"
+        String estimatedEffort "map: estimated_effort, nullable"
+        Int order "default: 0"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    TaskVersion {
+        String id PK "default: uuid()"
+        String taskId FK "map: task_id"
+        Int version
+        String title
+        String description "@db.Text"
+        String status
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    TaskDependency {
+        String id PK "default: uuid()"
+        String taskId FK "map: task_id (DependentTask)"
+        String dependsOnTaskId FK "map: depends_on_task_id (DependsOnTask)"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    FeatureDiagramLink {
+        String id PK "default: uuid()"
+        String featureId FK "map: feature_id"
+        String diagramId FK "map: diagram_id"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% MODULE 5: Implementation Workflow
+    %% ============================================
+    Workflow {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        String status "default: draft"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    WorkflowStep {
+        String id PK "default: uuid()"
+        String workflowId FK "map: workflow_id"
+        String taskId FK "map: task_id, nullable"
+        String title
+        String description "@db.Text"
+        String instructions "@db.Text (AI IDE instructions)"
+        String status "default: pending"
+        Int order "default: 0"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    WorkflowStepDependency {
+        String id PK "default: uuid()"
+        String stepId FK "map: step_id (DependentStep)"
+        String dependsOnStepId FK "map: depends_on_step_id (DependsOnStep)"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    WorkflowStepVersion {
+        String id PK "default: uuid()"
+        String stepId FK "map: step_id"
+        Int version
+        String title
+        String description "@db.Text"
+        String instructions "@db.Text"
+        String status
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% MODULE 6: Iterative Feedback & Chat-Based Updates
+    %% ============================================
+    IterationSession {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        String status "default: active"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    IterationMessage {
+        String id PK "default: uuid()"
+        String sessionId FK "map: session_id"
+        String role "user | assistant"
+        String content "@db.Text"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    IterationSuggestion {
+        String id PK "default: uuid()"
+        String messageId FK "map: message_id, @unique"
+        String title
+        String summary "@db.Text"
+        String status "default: pending"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    IterationSuggestionAction {
+        String id PK "default: uuid()"
+        String suggestionId FK "map: suggestion_id"
+        String module "DOCUMENT | DIAGRAM | FEATURE | TASK | WORKFLOW"
+        String targetId "map: target_id"
+        String actionType "CREATE | MODIFY | DELETE | REGENERATE"
+        String newContent "map: new_content, @db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% FILE & GUIDELINE
+    %% ============================================
+    File {
+        String id PK "default: uuid()"
+        String userId FK "map: user_id"
+        String name "@unique"
+        String originalname "map: original_name"
+        String mimetype
+        String path
+        Int size
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    Guideline {
+        String id PK "default: uuid()"
+        String userId FK "map: user_id"
+        String fileId FK "map: file_id, @unique, nullable"
+        String title
+        String content "@db.Text"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    %% ============================================
+    %% PROJECT IR
+    %% ============================================
+    ProjectIR {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        Int version "default: 1"
+        Json schemaData "map: schema_data"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    ProjectIRVersion {
+        String id PK "default: uuid()"
+        String projectIRId FK "map: project_ir_id"
+        Int version
+        Json schemaData "map: schema_data"
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% MODULE 1 REDESIGN: Discovery & Research
+    %% ============================================
+    DiscoveryQuestionnaire {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        Json questions "IDiscoveryQuestion[]"
+        DateTime generatedAt "map: generated_at, default: now()"
+    }
+
+    QuestionnaireResponse {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        Json responses "questionId, value[]"
+        DateTime submittedAt "map: submitted_at, default: now()"
+    }
+
+    ResearchJob {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id, @unique"
+        String status "default: pending"
+        String currentPhase "map: current_phase, nullable"
+        Int progress "default: 0 (0-100)"
+        Json logs "nullable"
+        String error "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    %% ============================================
+    %% MODULE 5 REDESIGN: AI IDE Handoff Package
+    %% ============================================
+    HandoffPackage {
+        String id PK "default: uuid()"
+        String ideaId FK "map: idea_id"
+        Int version "default: 1"
+        String status "default: draft"
+        String zipPath "map: zip_path, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    HandoffArtifact {
+        String id PK "default: uuid()"
+        String packageId FK "map: package_id"
+        String filePath "map: file_path"
+        String title
+        String content "@db.Text"
+        String fileType "markdown | mermaid | json"
+        DateTime createdAt "map: created_at, default: now()"
+        DateTime updatedAt "map: updated_at, @updatedAt"
+    }
+
+    HandoffArtifactVersion {
+        String id PK "default: uuid()"
+        String artifactId FK "map: artifact_id"
+        Int version
+        String content "@db.Text"
+        String changelog "@db.Text, nullable"
+        DateTime createdAt "map: created_at, default: now()"
+    }
+
+    %% ============================================
+    %% RELATIONSHIPS
+    %% ============================================
+
+    %% User relations
+    User ||--o{ AdminPrivilege : "privileges"
+    User ||--o{ Idea : "ideas"
+    User ||--o{ Guideline : "guidelines"
+    User ||--o{ File : "files"
+
+    %% Idea relations
+    Idea ||--o{ Document : "documents"
+    Idea ||--o{ Diagram : "diagrams"
+    Idea ||--o{ Feature : "features"
+    Idea ||--|| Workflow : "workflow"
+    Idea ||--o| IterationSession : "iterationSession"
+    Idea ||--o| ProjectIR : "projectIR"
+    Idea ||--o{ HandoffPackage : "handoffPackages"
+    Idea ||--o| DiscoveryQuestionnaire : "discoveryQuestionnaire"
+    Idea ||--o| QuestionnaireResponse : "questionnaireResponse"
+    Idea ||--o| ResearchJob : "researchJob"
+
+    %% Document relations
+    Document ||--o{ DocumentVersion : "versions"
+
+    %% Diagram relations
+    Diagram ||--o{ DiagramVersion : "versions"
+    Diagram ||--o{ FeatureDiagramLink : "featureLinks"
+
+    %% Feature relations
+    Feature ||--o{ Task : "tasks"
+    Feature ||--o{ FeatureVersion : "versions"
+    Feature ||--o{ FeatureDiagramLink : "diagramLinks"
+
+    %% Task relations
+    Task ||--o{ TaskVersion : "versions"
+    Task ||--o{ TaskDependency : "dependents (DependentTask)"
+    Task ||--o{ TaskDependency : "dependencies (DependsOnTask)"
+    Task ||--o{ WorkflowStep : "steps"
+
+    %% Workflow relations
+    Workflow ||--o{ WorkflowStep : "steps"
+
+    %% WorkflowStep relations
+    WorkflowStep ||--o{ WorkflowStepDependency : "dependents (DependentStep)"
+    WorkflowStep ||--o{ WorkflowStepDependency : "dependencies (DependsOnStep)"
+    WorkflowStep ||--o{ WorkflowStepVersion : "versions"
+
+    %% IterationSession relations
+    IterationSession ||--o{ IterationMessage : "messages"
+
+    %% IterationMessage relations
+    IterationMessage ||--o| IterationSuggestion : "suggestion"
+
+    %% IterationSuggestion relations
+    IterationSuggestion ||--o{ IterationSuggestionAction : "actions"
+
+    %% File relations
+    File ||--o| Guideline : "guideline"
+
+    %% ProjectIR relations
+    ProjectIR ||--o{ ProjectIRVersion : "versions"
+
+    %% HandoffPackage relations
+    HandoffPackage ||--o{ HandoffArtifact : "artifacts"
+
+    %% HandoffArtifact relations
+    HandoffArtifact ||--o{ HandoffArtifactVersion : "versions"
