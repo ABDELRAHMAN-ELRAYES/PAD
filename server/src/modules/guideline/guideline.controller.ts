@@ -1,86 +1,91 @@
-import { Request, Response, NextFunction } from "express";
-import { catchAsync } from "../../utils/catch-async";
-import GuidelineService from "./guideline.service";
-import AppError from "../../utils/app-error";
-import { IUser } from "../user/types/IUser";
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from "@nestjs/swagger";
+import { diskStorage } from "multer";
+import * as path from "path";
+import * as crypto from "crypto";
+import { GuidelineService } from "./guideline.service";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { IUser } from "../user/types/user.interface";
 
-export const createGuideline = catchAsync(
-    async (request: Request, response: Response, _next: NextFunction) => {
-        const currentUser = request.user as IUser;
-        const userId = currentUser.id;
-        const { title, content } = request.body;
+@ApiTags("Guidelines")
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller("guidelines")
+export class GuidelineController {
+  constructor(private readonly guidelineService: GuidelineService) {}
 
-        const guideline = await GuidelineService.createGuideline(userId, title, content);
+  @Get()
+  @ApiOperation({ summary: "List all guidelines for current user" })
+  async listGuidelines(@CurrentUser() user: IUser) {
+    return this.guidelineService.listGuidelines(user.id);
+  }
 
-        response.status(201).json({
-            status: "success",
-            data: { guideline },
-        });
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Create guideline from raw text" })
+  async createGuideline(
+    @CurrentUser() user: IUser,
+    @Body() body: { title: string; content: string },
+  ) {
+    return this.guidelineService.createGuideline(
+      user.id,
+      body.title,
+      body.content,
+    );
+  }
+
+  @Post("file")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Create guideline from uploaded document" })
+  @ApiConsumes("multipart/form-data")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: diskStorage({
+        destination: "./uploads",
+        filename: (_req, file, cb) => {
+          const ext = path.extname(file.originalname);
+          const uniqueName = `${crypto.randomUUID()}${ext}`;
+          cb(null, uniqueName);
+        },
+      }),
+      limits: {
+        fileSize: 20 * 1024 * 1024,
+      },
+    }),
+  )
+  async createGuidelineFromFile(
+    @CurrentUser() user: IUser,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException("File is required");
     }
-);
+    return this.guidelineService.createGuidelineFromFile(user.id, file);
+  }
 
-export const uploadGuidelineFile = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const currentUser = request.user as IUser;
-        const userId = currentUser.id;
-        
-        if (!request.file) {
-            return next(new AppError(400, "Please upload a file (.txt or .md)."));
-        }
-
-        const guideline = await GuidelineService.createGuidelineFromFile(
-            userId,
-            request.file.filename,
-            request.file.originalname,
-            request.file.mimetype,
-            request.file.path,
-            request.file.size
-        );
-
-        response.status(201).json({
-            status: "success",
-            data: { guideline },
-        });
-    }
-);
-
-export const listGuidelines = catchAsync(
-    async (request: Request, response: Response, _next: NextFunction) => {
-        const currentUser = request.user as IUser;
-        const userId = currentUser.id;
-        const guidelines = await GuidelineService.listGuidelines(userId);
-
-        response.status(200).json({
-            status: "success",
-            data: { guidelines },
-        });
-    }
-);
-
-export const deleteGuideline = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const currentUser = request.user as IUser;
-        const userId = currentUser.id;
-        const guidelineId = request.params.id as string;
-
-        await GuidelineService.deleteGuideline(guidelineId, userId, next);
-
-        response.status(200).json({
-            status: "success",
-            message: "Guideline deleted successfully.",
-        });
-    }
-);
-
-export const downloadGuidelineFile = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const currentUser = request.user as IUser;
-        const userId = currentUser.id;
-        const fileId = request.params.fileId as string;
-
-        const fileRecord = await GuidelineService.downloadFile(fileId, userId, next);
-        if (!fileRecord) return;
-
-        response.download(fileRecord.path, fileRecord.originalname);
-    }
-);
+  @Delete(":id")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Delete guideline by ID" })
+  async deleteGuideline(
+    @CurrentUser() user: IUser,
+    @Param("id") guidelineId: string,
+  ) {
+    await this.guidelineService.deleteGuideline(guidelineId, user.id);
+    return { message: "Guideline deleted successfully" };
+  }
+}
