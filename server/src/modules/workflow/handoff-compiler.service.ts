@@ -1,8 +1,6 @@
 import { Response } from "express";
 import AiService from "../ai/ai.service";
 import IdeaRepository from "../idea/idea.repository";
-import FeatureRepository from "../feature/feature.repository";
-import TaskRepository from "../task/task.repository";
 import { handoffRepository } from "./workflow.repository";
 import { buildHandoffZip, IZipArtifact } from "./zip-archiver";
 import { buildTechSpecPrompt } from "./prompts/technical-spec.prompt";
@@ -11,8 +9,6 @@ import { buildApiSpecPrompt } from "./prompts/api-spec.prompt";
 import { buildCodingStandardsPrompt } from "./prompts/coding-standards.prompt";
 import { buildRoadmapPrompt } from "./prompts/roadmap.prompt";
 import { IHandoffCompilerVariables } from "./prompts/handoff-variables";
-import { IFeature } from "../feature/types/IFeature";
-import { ITask } from "../task/types/ITask";
 import AppError from "../../utils/app-error";
 import PrismaClientSingleton from "../../data-server-clients/prisma-client";
 
@@ -140,42 +136,6 @@ function buildStaticArtifacts(vars: IHandoffCompilerVariables): IZipArtifact[] {
         }
     }
 
-    // Features JSON
-    const featuresJson = vars.features.map((f) => ({
-        id: f.id,
-        title: f.title,
-        description: f.description,
-        priority: f.priority,
-        taskCount: f.tasks.length,
-    }));
-    artifacts.push({
-        filePath: "features/feature-requirements.json",
-        content: JSON.stringify(featuresJson, null, 2),
-    });
-
-    // Tasks backlog JSON
-    const taskBacklog = vars.features.flatMap((f) =>
-        f.tasks.map((t: ITask) => ({
-            id: t.id,
-            featureId: f.id,
-            featureTitle: f.title,
-            title: t.title,
-            description: t.description,
-            priority: t.priority,
-            estimatedEffort: t.estimatedEffort,
-        }))
-    );
-    artifacts.push({
-        filePath: "tasks/task-backlog.json",
-        content: JSON.stringify(taskBacklog, null, 2),
-    });
-
-    // Dependency matrix JSON
-    artifacts.push({
-        filePath: "tasks/dependency-matrix.json",
-        content: JSON.stringify(vars.taskDependenciesMap ?? {}, null, 2),
-    });
-
     return artifacts;
 }
 
@@ -185,8 +145,6 @@ function buildStaticArtifacts(vars: IHandoffCompilerVariables): IZipArtifact[] {
 export class HandoffCompilerService {
     static async compilePackage(ideaId: string, sse: SSEStreamWriter): Promise<void> {
         const ideaRepo = IdeaRepository.getInstance();
-        const featureRepo = FeatureRepository.getInstance();
-        const taskRepo = TaskRepository.getInstance();
 
         // 1. Gather input data
         sse.progress("Gathering workspace context...", 5);
@@ -195,33 +153,6 @@ export class HandoffCompilerService {
         if (!idea) {
             sse.error("Idea not found.");
             return;
-        }
-
-        const features = await featureRepo.getFeaturesByIdeaId(ideaId);
-        if (!features || features.length === 0) {
-            sse.error("No features found. Run Module 4 first.");
-            return;
-        }
-
-        // Hydrate tasks per feature
-        const featuresWithTasks = await Promise.all(
-            features.map(async (f) => {
-                const tasks = await taskRepo.getTasksByFeatureId(f.id);
-                return { ...f, tasks } as IFeature & { tasks: ITask[] };
-            })
-        );
-
-        // Build dependency map
-        const taskDependenciesMap: Record<string, string[]> = {};
-        for (const f of featuresWithTasks) {
-            for (const t of f.tasks) {
-                const taskWithDeps = await taskRepo.getTaskWithDependencies(t.id);
-                if (taskWithDeps?.dependencies) {
-                    taskDependenciesMap[t.id] = taskWithDeps.dependencies.map(
-                        (d: any) => d.dependsOnTaskId
-                    );
-                }
-            }
         }
 
         // Fetch documents (PRD/BRD)
@@ -256,7 +187,7 @@ export class HandoffCompilerService {
                 idea.businessDescription || idea.refinedText || idea.rawText,
                 6
             );
-            if (guidelines.length > 0) {
+            if (guidelines && guidelines.length > 0) {
                 userGuidelines = guidelines
                     .map((g: any, i: number) => `[${i + 1}] ${g.title}:\n${g.text}`)
                     .join("\n\n");
@@ -271,7 +202,6 @@ export class HandoffCompilerService {
         const vars: IHandoffCompilerVariables = {
             ideaText,
             ideaName,
-            features: featuresWithTasks,
             researchSummary,
             prdContent: prd?.content,
             brdContent: brd?.content,
@@ -280,7 +210,11 @@ export class HandoffCompilerService {
                 title: d.title,
                 mermaidCode: d.mermaidCode,
             })),
-            taskDependenciesMap,
+            documents: documents.map((d: any) => ({
+                type: d.type,
+                title: d.title,
+                content: d.content,
+            })),
             userGuidelines,
         };
 
@@ -321,7 +255,7 @@ export class HandoffCompilerService {
 
         // 4. Assemble static artifacts
         sse.progress("Assembling upstream artifacts...", 82);
-        sse.log("Packaging: research, documents, diagrams, features, tasks");
+        sse.log("Packaging: research, documents, diagrams");
         const staticArtifacts = buildStaticArtifacts(vars);
         for (const artifact of staticArtifacts) {
             const title = artifact.filePath.split("/").pop()?.replace(/\.(md|json|mmd)$/, "").replace(/-/g, " ") ?? artifact.filePath;

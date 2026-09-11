@@ -1,11 +1,8 @@
 import { IHandoffCompilerVariables } from "./handoff-variables";
 
 export const buildTechSpecPrompt = (vars: IHandoffCompilerVariables): string => {
-    const featureList = vars.features
-        .map((f) => `- **${f.title}**: ${f.description}`)
-        .join("\n");
-
     const diagramTypes = vars.diagrams?.map((d) => d.type).join(", ") || "None";
+    const docsSummary = vars.documents?.map((d) => `- **${d.title}** (${d.type})`).join("\n") || "";
 
     return `You are a senior software architect. Generate a complete \`technical-specification.md\` document for the project described below.
 
@@ -13,9 +10,8 @@ export const buildTechSpecPrompt = (vars: IHandoffCompilerVariables): string => 
 **Project Name**: ${vars.ideaName}
 **Description**: ${vars.ideaText}
 
-## Features (${vars.features.length} total)
-${featureList}
-
+${vars.prdContent ? `## Requirements Overview\n${vars.prdContent.substring(0, 2000)}` : ""}
+${docsSummary ? `## System Documents\n${docsSummary}` : ""}
 ${vars.researchSummary ? `## Research Findings\n${vars.researchSummary}` : ""}
 
 ## Available Diagrams

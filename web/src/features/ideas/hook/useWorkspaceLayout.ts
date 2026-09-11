@@ -53,7 +53,7 @@ export function useWorkspaceLayout(initialIdeaId: string | null = null): UseWork
         const handlePopState = () => {
             const params = new URLSearchParams(window.location.search);
             const tab = params.get("tab") as WorkspaceSection | null;
-            const validSections: WorkspaceSection[] = ["overview", "documents", "diagrams", "features", "workflow", "ir"];
+            const validSections: WorkspaceSection[] = ["overview", "documents", "diagrams", "workflow", "ir"];
             if (tab && validSections.includes(tab)) {
                 setActiveSection(tab);
             } else {

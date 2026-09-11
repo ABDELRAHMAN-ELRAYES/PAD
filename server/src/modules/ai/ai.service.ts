@@ -15,11 +15,8 @@ import {
   DiagramType,
   IGeneratedDiagram,
 } from "./prompts/generate-diagram.prompt";
-import { buildGenerateWorkflowPrompt } from "./prompts/generate-workflow.prompt";
-import { buildExtractFeaturesPrompt, IProjectContextForFeatures, buildRegenerateSingleFeaturePrompt } from "./prompts/feature-task.prompt";
+import { buildGenerateWorkflowPrompt, IWorkflowPromptContext } from "./prompts/generate-workflow.prompt";
 import { IGeneratedWorkflowStep } from "../workflow/types/IWorkflow";
-import { IFeature } from "../feature/types/IFeature";
-import { ITask } from "../task/types/ITask";
 import OllamaClient from "./ollama-client";
 import { QdrantClient } from "../../data-server-clients/qdrant";
 
@@ -692,59 +689,21 @@ class AiService {
 
     return fallbacks[type] || fallbacks.SYSTEM_ARCHITECTURE;
   }
-  // Generate features (Streaming)
-  static async *generateFeaturesStream(
-    context: IProjectContextForFeatures,
-    userId?: string,
-  ): AsyncGenerator<string> {
-    const prompt = buildExtractFeaturesPrompt(context);
-    yield* this.callLLMStream(prompt, undefined, userId);
-  }
-
-  // Regenerate a single feature using AI
-  static async regenerateSingleFeature(
-    featureTitle: string,
-    featureDescription: string,
-    existingFeatures: any[],
-    context: IProjectContextForFeatures,
-    userId?: string
-  ): Promise<string> {
-    const prompt = buildRegenerateSingleFeaturePrompt(
-      featureTitle,
-      featureDescription,
-      existingFeatures,
-      context
-    );
-    return await this.callLLM(prompt, true, undefined, userId);
-  }
-
   // Generate workflow (Streaming)
   static async *generateWorkflowStream(
-    ideaText: string,
-    features: (IFeature & { tasks: ITask[] })[],
-    taskDependencies: Record<string, string[]>,
+    context: IWorkflowPromptContext,
     userId?: string,
   ): AsyncGenerator<string> {
-    const prompt = buildGenerateWorkflowPrompt(
-      ideaText,
-      features,
-      taskDependencies,
-    );
+    const prompt = buildGenerateWorkflowPrompt(context);
     yield* this.callLLMStream(prompt, undefined, userId);
   }
 
   static async generateWorkflow(
-    ideaText: string,
-    features: (IFeature & { tasks: ITask[] })[],
-    taskDependencies: Record<string, string[]>,
+    context: IWorkflowPromptContext,
     next: NextFunction,
     userId?: string,
   ): Promise<IGeneratedWorkflowStep[] | void> {
-    const prompt = buildGenerateWorkflowPrompt(
-      ideaText,
-      features,
-      taskDependencies,
-    );
+    const prompt = buildGenerateWorkflowPrompt(context);
 
     let lastError: Error | null = null;
 

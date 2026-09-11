@@ -1,17 +1,14 @@
 import { NextFunction } from "express";
 import { Prisma } from "@prisma/client";
 import { workflowRepository } from "./workflow.repository";
-import FeatureRepository from "../feature/feature.repository";
-import TaskRepository from "../task/task.repository";
-
-const featureRepository = FeatureRepository.getInstance();
-const taskRepository = TaskRepository.getInstance();
 import AiService from "../ai/ai.service";
 import AppError from "../../utils/app-error";
 import { IWorkflow, IWorkflowStep, IUpdateWorkflowStepData, WorkflowStepStatus } from "./types/IWorkflow";
-import { IFeature } from "../feature/types/IFeature";
-import { ITask } from "../task/types/ITask";
 import IdeaRepository from "../idea/idea.repository";
+import DocumentRepository from "../document/document.repository";
+import DiagramRepository from "../diagram/diagram.repository";
+import IRRepository from "../ir/ir.repository";
+import { randomUUID } from "crypto";
 
 export class WorkflowService {
     static async generateWorkflow(ideaId: string, next: NextFunction, onChunk?: (data: any) => void): Promise<IWorkflow | void> {
@@ -21,38 +18,35 @@ export class WorkflowService {
             return next(new AppError(400, "Workflow already exists for this idea."));
         }
 
-        // 2. Fetch features and tasks
-        const features = await featureRepository.getFeaturesByIdeaId(ideaId);
-        if (!features || features.length === 0) {
-            return next(new AppError(400, "No features found for this idea. Please run Module 4 first."));
+        // 2. Fetch Idea, Documents, Diagrams, and ProjectIR
+        const ideaRepo = IdeaRepository.getInstance();
+        const docRepo = DocumentRepository.getInstance();
+        const diagRepo = DiagramRepository.getInstance();
+        const irRepo = IRRepository.getInstance();
+
+        const idea = await ideaRepo.getIdeaById(ideaId);
+        if (!idea) {
+            return next(new AppError(404, "Idea not found."));
         }
 
-        // We need to fetch tasks and task dependencies to feed the AI
-        const featuresWithTasks = await Promise.all(
-            features.map(async (feature) => {
-                const tasks = await taskRepository.getTasksByFeatureId(feature.id);
-                return { ...feature, tasks } as IFeature & { tasks: ITask[] };
-            })
-        );
+        const documents = await docRepo.getDocumentsByIdeaId(ideaId);
+        const diagrams = await diagRepo.getDiagramsByIdeaId(ideaId);
+        const projectIR = await irRepo.getIRByIdeaId(ideaId);
 
-        // Fetch all task dependencies to help workflow generation
-        const taskDependenciesMap: Record<string, string[]> = {};
-        for (const feature of featuresWithTasks) {
-            for (const task of feature.tasks) {
-                const taskWithDeps = await taskRepository.getTaskWithDependencies(task.id);
-                if (taskWithDeps && taskWithDeps.dependencies) {
-                    taskDependenciesMap[task.id] = taskWithDeps.dependencies.map((d: any) => d.dependsOnTaskId);
-                }
-            }
-        }
+        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
 
-        // Start background generation
+        const context = {
+            ideaText,
+            documents: documents.map(d => ({ type: d.type, title: d.title, content: d.content })),
+            diagrams: diagrams.map(d => ({ type: d.type, title: d.title, mermaidCode: d.mermaidCode })),
+            projectIR: projectIR || undefined,
+        };
+
+        // Start generation
         if (onChunk) {
-            // Perform generation and stream directly to callback (HTTP response)
-            await this.processWorkflowGeneration(ideaId, featuresWithTasks, taskDependenciesMap, onChunk);
+            await this.processWorkflowGeneration(ideaId, idea.userId, context, onChunk);
         } else {
-            // Background generation (still used by some parts, but without sockets for now)
-            this.processWorkflowGeneration(ideaId, featuresWithTasks, taskDependenciesMap);
+            this.processWorkflowGeneration(ideaId, idea.userId, context);
         }
 
         return {} as IWorkflow;
@@ -60,23 +54,19 @@ export class WorkflowService {
 
     private static async processWorkflowGeneration(
         ideaId: string,
-        featuresWithTasks: (IFeature & { tasks: ITask[] })[],
-        taskDependenciesMap: Record<string, string[]>,
+        userId: string,
+        context: {
+            ideaText: string;
+            documents: Array<{ type: string; title: string; content: string }>;
+            diagrams: Array<{ type: string; title: string; mermaidCode: string }>;
+            projectIR?: any;
+        },
         onChunk?: (data: any) => void
     ) {
-        const ideaRepo = IdeaRepository.getInstance();
-        const idea = await ideaRepo.getIdeaById(ideaId);
-        const ideaText = idea?.businessDescription || idea?.refinedText || idea?.rawText || "Implement the features below.";
-        
         let fullResponse = "";
 
         try {
-            const stream = AiService.generateWorkflowStream(
-                ideaText,
-                featuresWithTasks,
-                taskDependenciesMap,
-                idea?.userId
-            );
+            const stream = AiService.generateWorkflowStream(context, userId);
 
             for await (const chunk of stream) {
                 fullResponse += chunk;
@@ -96,23 +86,21 @@ export class WorkflowService {
             if (steps.length > 0) {
                 // Save to Database
                 const workflow = await workflowRepository.createWorkflow(ideaId);
-                const { randomUUID } = require("crypto");
                 const stepIdMap = new Map<number, string>();
-                const stepTaskIdMap = new Map<string, string>();
 
-                steps.forEach((s: any) => {
+                steps.forEach((s: any, idx: number) => {
                     const id = randomUUID();
-                    stepIdMap.set(s.order, id);
-                    if (s.taskId) stepTaskIdMap.set(s.taskId, id);
+                    const order = s.order || idx + 1;
+                    stepIdMap.set(order, id);
                 });
 
-                const sortedGeneratedSteps = [...steps].sort((a, b) => a.order - b.order);
+                const sortedGeneratedSteps = [...steps].sort((a, b) => (a.order || 0) - (b.order || 0));
                 const stepsData: Prisma.WorkflowStepCreateManyInput[] = sortedGeneratedSteps.map((s, index) => {
-                    const stepId = stepIdMap.get(s.order)!;
+                    const order = s.order || index + 1;
+                    const stepId = stepIdMap.get(order) || randomUUID();
                     return {
                         id: stepId,
                         workflowId: workflow.id,
-                        taskId: s.taskId || null,
                         title: s.title,
                         description: s.description,
                         instructions: s.instructions,
@@ -123,13 +111,14 @@ export class WorkflowService {
 
                 await workflowRepository.createWorkflowSteps(workflow.id, stepsData);
 
-                // Dependencies...
+                // Dependencies mapping
                 const depsData: Prisma.WorkflowStepDependencyCreateManyInput[] = [];
                 for (const s of sortedGeneratedSteps) {
-                    const currentStepId = stepIdMap.get(s.order)!;
-                    if (s.dependsOnTaskIds && Array.isArray(s.dependsOnTaskIds)) {
-                        for (const depTaskId of s.dependsOnTaskIds) {
-                            const dependsOnStepId = stepTaskIdMap.get(depTaskId);
+                    const currentOrder = s.order;
+                    const currentStepId = stepIdMap.get(currentOrder);
+                    if (currentStepId && s.dependsOnStepOrders && Array.isArray(s.dependsOnStepOrders)) {
+                        for (const depOrder of s.dependsOnStepOrders) {
+                            const dependsOnStepId = stepIdMap.get(depOrder);
                             if (dependsOnStepId && dependsOnStepId !== currentStepId) {
                                 depsData.push({ stepId: currentStepId, dependsOnStepId: dependsOnStepId });
                             }
@@ -149,7 +138,7 @@ export class WorkflowService {
                 if (onChunk) {
                     onChunk({
                         status: "error",
-                        message: "Failed to generate workflow steps. Please review features and tasks.",
+                        message: "Failed to generate workflow steps. Please review upstream specifications.",
                     });
                 }
             }
@@ -199,7 +188,7 @@ export class WorkflowService {
 
         const updatedStep = await workflowRepository.updateWorkflowStep(stepId, updateData);
 
-        // Create a version log if things changed substantially -> especially instructions
+        // Create a version log if things changed substantially
         if (data.instructions !== undefined || data.status !== undefined) {
             const currentVersion = await workflowRepository.getLatestStepVersion(stepId);
             await workflowRepository.createWorkflowStepVersion({
@@ -212,9 +201,6 @@ export class WorkflowService {
                 changelog: data.changelog || "Manual update",
             });
         }
-
-        // Auto-update parent Workflow status if needed
-        // For simplicity, skip here, but could transition workflow to "active" or "completed"
 
         return updatedStep as unknown as IWorkflowStep;
     }

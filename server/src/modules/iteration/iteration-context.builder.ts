@@ -11,10 +11,7 @@
 import IdeaRepository from "../idea/idea.repository";
 import DocumentRepository from "../document/document.repository";
 import DiagramRepository from "../diagram/diagram.repository";
-import FeatureRepository from "../feature/feature.repository";
-import TaskRepository from "../task/task.repository";
 import { workflowRepository } from "../workflow/workflow.repository";
-import { IFeature } from "../feature/types/IFeature";
 import IterationRepository from "./iteration.repository";
 
 // Content limits per mode — higher than before so AI can actually reason about content
@@ -44,20 +41,6 @@ export interface ProjectContext {
         type: string;
         title: string;
         mermaidPreview: string;
-    }>;
-    features: Array<{
-        id: string;
-        title: string;
-        description: string;
-        priority: string;
-        status: string;
-        tasks: Array<{
-            id: string;
-            title: string;
-            description: string;
-            status: string;
-            priority: string;
-        }>;
     }>;
     workflow: {
         id: string;
@@ -122,7 +105,6 @@ function resolveArtifactReferences(
 
     // Generic references like "this diagram", "the diagram"
     if (lower.includes("this diagram") || lower.includes("the diagram")) {
-        // Add all diagrams if ambiguous
         for (const d of ctx.diagrams) referenced.add(d.id);
     }
     if (lower.includes("this document") || lower.includes("the document")) {
@@ -170,15 +152,12 @@ export default class IterationContextBuilder {
         const ideaRepo = IdeaRepository.getInstance();
         const docRepo = DocumentRepository.getInstance();
         const diagramRepo = DiagramRepository.getInstance();
-        const featureRepo = FeatureRepository.getInstance();
-        const taskRepo = TaskRepository.getInstance();
 
         // Fetch all data in parallel
-        const [idea, documents, diagrams, features, workflow] = await Promise.all([
+        const [idea, documents, diagrams, workflow] = await Promise.all([
             ideaRepo.getIdeaById(ideaId),
             docRepo.getDocumentsByIdeaId(ideaId),
             diagramRepo.getDiagramsByIdeaId(ideaId),
-            featureRepo.getFeaturesByIdeaId(ideaId),
             workflowRepository.getWorkflowByIdeaId(ideaId),
         ]);
 
@@ -189,27 +168,6 @@ export default class IterationContextBuilder {
                 diagrams: diagrams.map((d: any) => ({ id: d.id, type: d.type, title: d.title })),
             })
             : new Set<string>();
-
-        // Build features with tasks
-        const featuresWithTasks = await Promise.all(
-            features.map(async (f: IFeature) => {
-                const tasks = await taskRepo.getTasksByFeatureId(f.id);
-                return {
-                    id: f.id,
-                    title: f.title,
-                    description: truncate(f.description, contentLimit),
-                    priority: f.priority,
-                    status: f.status,
-                    tasks: tasks.map((t: any) => ({
-                        id: t.id,
-                        title: t.title,
-                        description: truncate(t.description, contentLimit),
-                        status: t.status,
-                        priority: t.priority,
-                    })),
-                };
-            })
-        );
 
         // Build workflow context
         let workflowContext: ProjectContext["workflow"] = null;
@@ -256,7 +214,6 @@ export default class IterationContextBuilder {
                     ? d.mermaidCode || ""
                     : truncate(d.mermaidCode, contentLimit),
             })),
-            features: featuresWithTasks,
             workflow: workflowContext,
             recentChanges: isPlanner ? [] : recentChanges,
         };
@@ -289,7 +246,6 @@ export default class IterationContextBuilder {
 
     /**
      * Serialize context to string for prompt injection.
-     * Structured format — more readable for LLM than raw JSON.
      */
     static serialize(ctx: ProjectContext): string {
         const parts: string[] = [];
@@ -325,23 +281,6 @@ export default class IterationContextBuilder {
                     parts.push("```mermaid");
                     parts.push(d.mermaidPreview);
                     parts.push("```");
-                }
-            }
-        }
-
-        // Features + Tasks
-        if (ctx.features.length > 0) {
-            parts.push("\n## Features & Tasks");
-            for (const f of ctx.features) {
-                parts.push(`### Feature: "${f.title}" [${f.priority}/${f.status}] (id: ${f.id})`);
-                parts.push(f.description);
-                if (f.tasks.length > 0) {
-                    for (const t of f.tasks) {
-                        parts.push(`  - Task: "${t.title}" [${t.priority}/${t.status}] (id: ${t.id})`);
-                        if (t.description) {
-                            parts.push(`    ${t.description}`);
-                        }
-                    }
                 }
             }
         }

@@ -10,7 +10,7 @@
 
 
 export interface PlannedAction {
-    module: "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW";
+    module: "DOCUMENT" | "DIAGRAM" | "WORKFLOW";
     targetId: string;
     actionType: "CREATE" | "MODIFY" | "DELETE" | "REGENERATE";
     rationale: string;
@@ -55,10 +55,8 @@ TASK: Analyze the user's change request, determine ALL affected artifacts, and p
 DEPENDENCY ORDERING RULES:
 - DOCUMENT changes come first (they define requirements)
 - DIAGRAM changes come second (they reflect document changes)
-- FEATURE changes come third (derived from documents)
-- TASK changes come fourth (derived from features)
-- WORKFLOW changes come last (derived from tasks)
-- DELETE operations run in REVERSE order (workflow → task → feature → diagram → document)
+- WORKFLOW changes come last (derived from requirements and architecture)
+- DELETE operations run in REVERSE order (workflow → diagram → document)
 
 RULES:
 1. Use ACTUAL artifact IDs from the project context — never fabricate IDs
@@ -93,12 +91,12 @@ OUTPUT FORMAT — respond with ONLY this JSON structure, no other text:
 }
 
 Field Explanations:
-- "module": MUST be exactly one of: "DOCUMENT", "DIAGRAM", "FEATURE", "TASK", "WORKFLOW"
+- "module": MUST be exactly one of: "DOCUMENT", "DIAGRAM", "WORKFLOW"
 - "targetId": The exact ID of the artifact to modify/delete/regenerate, or "new" for CREATE
 - "actionType": MUST be exactly one of: "CREATE", "MODIFY", "DELETE", "REGENERATE"
 - "newContent": MUST be provided for CREATE and MODIFY. Do NOT use placeholders.
   - For DIAGRAM: provide the raw Mermaid code.
-  - For FEATURE, TASK, or WORKFLOW: provide a JSON string containing "title" and "description" keys. Example: "{\\"title\\":\\"My Feature\\", \\"description\\":\\"Very detailed description...\\"}"
+  - For WORKFLOW: provide a JSON string containing "title" and "description" keys or instruction text. Example: "{\\"title\\":\\"My Step\\", \\"description\\":\\"Very detailed description...\\"}"
   - For DOCUMENT: provide the raw HTML or Markdown content.
 
 EXAMPLES:

@@ -657,9 +657,9 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                 {onSectionChange && (
                   <div className="grid grid-cols-1 gap-2 pt-2">
                     {[
+                      { id: "ir", label: "IR Engine", desc: "Intermediate representation core" },
                       { id: "documents", label: "Requirements Specifications", desc: "PRD & BRD documents" },
                       { id: "diagrams", label: "Architecture Diagrams", desc: "System ERD & Flows" },
-                      { id: "features", label: "Features Backlog", desc: "User stories & checklist" },
                       { id: "workflow", label: "Implementation Workflows", desc: "Active step builder" },
                     ].map((item) => (
                       <button
