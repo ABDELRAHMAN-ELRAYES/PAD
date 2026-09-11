@@ -83,9 +83,4 @@ export const ideaApi = {
         const response = await apiClient.post<ApiResponse<any>>(`/ideas/${id}/questionnaire/regenerate`);
         return response;
     },
-
-    // Trigger research synthesis (fire-and-forget — server runs async)
-    async startResearch(id: string): Promise<void> {
-        await apiClient.post<ApiResponse<any>>(`/ideas/${id}/research`, undefined);
-    },
 };

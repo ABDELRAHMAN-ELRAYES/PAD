@@ -6,6 +6,7 @@ import { UserModule } from "./modules/user/user.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { FileModule } from "./modules/file/file.module";
 import { GuidelineModule } from "./modules/guideline/guideline.module";
+import { IdeaModule } from "./modules/idea/idea.module";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 
 @Module({
@@ -25,6 +26,7 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     AuthModule,
     FileModule,
     GuidelineModule,
+    IdeaModule,
   ],
 })
 export class AppModule implements NestModule {
