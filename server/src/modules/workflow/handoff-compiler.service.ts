@@ -171,12 +171,8 @@ export class HandoffCompilerService {
             },
         });
 
-        // Fetch research
-        const researchSummary =
-            idea.researchResult
-                ? (idea.researchResult as any).summary ||
-                  JSON.stringify(idea.researchResult)
-                : undefined;
+        // Research removed
+        const researchSummary = undefined;
 
         // Fetch user guidelines (RAG)
         let userGuidelines: string | undefined;
