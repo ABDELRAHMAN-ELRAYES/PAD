@@ -1,324 +1,166 @@
-import PrismaClientSingleton from "../../data-server-clients/prisma-client";
-import { PrismaClient } from "@prisma/client";
-import { IUser, NewUserData, UsersBatchResponse } from "./types/IUser";
-import { UserRole } from "../../enum/UserRole";
-import AppError from "../../utils/app-error";
-import config from "../../config/config";
+import { Injectable } from "@nestjs/common";
+import { DatabaseService } from "../../database/database.service";
+import { IUser } from "./types/user.interface";
 
-class UserRepository {
-    private prisma: PrismaClient;
-    static userRepositoryInstance: UserRepository;
+@Injectable()
+export class UserRepository {
+  constructor(private readonly db: DatabaseService) {}
 
-    private constructor() {
-        // initialize a prisma client to perform interactions with DB
-        this.prisma = PrismaClientSingleton.getPrismaClient();
+  private mapRowToUser(row: any): IUser {
+    return {
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      username: row.username,
+      email: row.email,
+      phone: row.phone,
+      password: row.password,
+      role: row.role,
+      active: row.active,
+      emailVerified: row.email_verified,
+      passwordChangedAt: row.password_changed_at ? new Date(row.password_changed_at) : null,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    };
+  }
+
+  async findById(id: string): Promise<IUser | null> {
+    const sql = `
+      SELECT id, first_name, last_name, username, email, phone, password, role,
+             active, email_verified, password_changed_at, created_at, updated_at
+      FROM users
+      WHERE id = $1
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [id]);
+    return row ? this.mapRowToUser(row) : null;
+  }
+
+  async findByEmail(email: string): Promise<IUser | null> {
+    const sql = `
+      SELECT id, first_name, last_name, username, email, phone, password, role,
+             active, email_verified, password_changed_at, created_at, updated_at
+      FROM users
+      WHERE LOWER(email) = LOWER($1)
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [email]);
+    return row ? this.mapRowToUser(row) : null;
+  }
+
+  async findByUsernameOrEmail(identifier: string): Promise<IUser | null> {
+    const sql = `
+      SELECT id, first_name, last_name, username, email, phone, password, role,
+             active, email_verified, password_changed_at, created_at, updated_at
+      FROM users
+      WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [identifier]);
+    return row ? this.mapRowToUser(row) : null;
+  }
+
+  async create(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    username?: string;
+    phone?: string;
+    role?: string;
+  }): Promise<IUser> {
+    const sql = `
+      INSERT INTO users (first_name, last_name, email, password, username, phone, role)
+      VALUES ($1, $2, LOWER($3), $4, $5, $6, $7)
+      RETURNING id, first_name, last_name, username, email, phone, password, role,
+                active, email_verified, password_changed_at, created_at, updated_at;
+    `;
+    const rows = await this.db.query(sql, [
+      data.firstName,
+      data.lastName,
+      data.email,
+      data.password,
+      data.username || null,
+      data.phone || null,
+      data.role || "CLIENT",
+    ]);
+    return this.mapRowToUser(rows[0]);
+  }
+
+  async updatePassword(id: string, hashedPassword: string): Promise<boolean> {
+    const sql = `
+      UPDATE users
+      SET password = $1, password_changed_at = NOW(), updated_at = NOW()
+      WHERE id = $2;
+    `;
+    const count = await this.db.execute(sql, [hashedPassword, id]);
+    return count > 0;
+  }
+
+  async update(
+    id: string,
+    data: Partial<{
+      firstName: string;
+      lastName: string;
+      username: string;
+      phone: string;
+      active: boolean;
+      emailVerified: boolean;
+    }>,
+  ): Promise<IUser | null> {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (data.firstName !== undefined) {
+      setClauses.push(`first_name = $${paramIndex++}`);
+      values.push(data.firstName);
+    }
+    if (data.lastName !== undefined) {
+      setClauses.push(`last_name = $${paramIndex++}`);
+      values.push(data.lastName);
+    }
+    if (data.username !== undefined) {
+      setClauses.push(`username = $${paramIndex++}`);
+      values.push(data.username);
+    }
+    if (data.phone !== undefined) {
+      setClauses.push(`phone = $${paramIndex++}`);
+      values.push(data.phone);
+    }
+    if (data.active !== undefined) {
+      setClauses.push(`active = $${paramIndex++}`);
+      values.push(data.active);
+    }
+    if (data.emailVerified !== undefined) {
+      setClauses.push(`email_verified = $${paramIndex++}`);
+      values.push(data.emailVerified);
     }
 
-    static getInstance(): UserRepository {
-        if (!UserRepository.userRepositoryInstance) {
-            UserRepository.userRepositoryInstance = new UserRepository();
-        }
-        return UserRepository.userRepositoryInstance;
+    if (setClauses.length === 0) {
+      return this.findById(id);
     }
 
-    // Getter for prisma client (needed for transactions in UserService)
-    getPrismaClient(): PrismaClient {
-        return this.prisma;
-    }
+    setClauses.push(`updated_at = NOW()`);
+    values.push(id);
 
-    // Create user with specific roles
-    async addUser(userData: NewUserData) {
-        try {
-            return await this.prisma.user.create({
-                data: {
-                    email: userData.email,
-                    username: userData.username || userData.email.split('@')[0], // Fallback if still needed or ensure service sends it
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                    role: userData.role,
-                    password: userData.password,
-                    phone: userData.phone,
-                },
-                include: {
-                    privileges: true,
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, `Failed to create user`);
-        }
-    }
+    const sql = `
+      UPDATE users
+      SET ${setClauses.join(", ")}
+      WHERE id = $${paramIndex}
+      RETURNING id, first_name, last_name, username, email, phone, password, role,
+                active, email_verified, password_changed_at, created_at, updated_at;
+    `;
 
-    async getAllUsers(role?: UserRole) {
-        const users = await this.prisma.user.findMany({
-            where: {
-                role,
-                email: {
-                    notIn: [config.adminDefault.email ? config.adminDefault.email : ""],
-                },
-            },
-        });
-        return users as IUser[];
-    }
+    const row = await this.db.queryOne(sql, values);
+    return row ? this.mapRowToUser(row) : null;
+  }
 
-    // Get a limit of users for a specific page with the ability of filtering according to many options like role, active, search input
-    async getBatchUsers(
-        {
-            page,
-            limit,
-            search,
-            role,
-            status,
-        }: {
-            page: number;
-            limit: number;
-            search?: string;
-            role?: string;
-            status?: boolean;
-        },
-        excluded: string[]
-    ): Promise<UsersBatchResponse> {
-        try {
-            const skip = (page - 1) * limit;
-
-            const where: any = {};
-
-            // Search filter
-            if (search) {
-                where.OR = [
-                    { firstName: { contains: search, mode: "insensitive" } },
-                    { lastName: { contains: search, mode: "insensitive" } },
-                    { username: { contains: search, mode: "insensitive" } },
-                    { email: { contains: search, mode: "insensitive" } },
-                ];
-            }
-
-            // Role filter
-            if (role && role !== "all") {
-                where.role = role;
-            }
-
-            // Check if there is a filter by the active status
-            if (status != undefined) {
-                where.active = status;
-            }
-            if (excluded.length) {
-                where.email = { notIn: excluded };
-            }
-
-            // Get all filtered users
-            const [users, total] = await Promise.all([
-                this.prisma.user.findMany({
-                    where,
-                    skip,
-                    take: limit,
-                    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-                }),
-                this.prisma.user.count({ where }),
-            ]);
-
-            return { users: users as any, total };
-        } catch (error) {
-            throw new AppError(500, `Error getting batch of users`);
-        }
-    }
-
-    async getMinBatchUsers(role: string) {
-        try {
-            return await this.prisma.user.findMany({
-                where: {
-                    role,
-                    email: {
-                        notIn: [config.adminDefault.email ? config.adminDefault.email : ""],
-                    },
-                },
-                select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true,
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, `Error getting batch of users`);
-        }
-    }
-
-    async getUserById(userId: string) {
-        try {
-            const user = await this.prisma.user.findFirst({
-                where: { id: userId },
-            });
-            return user as IUser | null;
-        } catch (error) {
-            throw new AppError(500, `Error getting user`);
-        }
-    }
-
-    async updateUserById(userData: IUser) {
-        try {
-            const { id, privileges, providerProfile, ...restData } = userData;
-
-            return await this.prisma.user.update({
-                where: { id },
-                data: restData,
-            });
-        } catch (error) {
-            throw new AppError(500, `Failed to update user with ID ${userData.id}`);
-        }
-    }
-
-    deleteUser(userId: string, tx?: any) {
-        try {
-            const prisma = tx || this.prisma;
-            return prisma.user.delete({ where: { id: userId } });
-        } catch (error) {
-            throw new AppError(500, `Error deleting user`);
-        }
-    }
-
-    getUserByUsernameOrEmail(usernameOrEmail: string) {
-        try {
-            return this.prisma.user.findFirst({
-                where: {
-                    OR: [{ email: usernameOrEmail }, { username: usernameOrEmail }],
-                },
-                include: {
-                    privileges: true, // Include admin privileges relation
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, "Error getting user by email or username");
-        }
-    }
-
-    updateUserPasswordByEmail(email: string, password: string) {
-        try {
-            return this.prisma.user.update({
-                where: {
-                    email,
-                },
-                data: {
-                    password,
-                    passwordChangedAt: new Date(),
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, `Error updating user password`);
-        }
-    }
-
-    // Check if the user found by his email if not create a new user
-    async findOrCreateUserByEmail(data: NewUserData) {
-        try {
-            const { email } = data;
-            let user = await this.getUserByUsernameOrEmail(email);
-            if (!user) {
-                user = await this.addUser(data);
-            }
-            return user;
-        } catch (error) {
-            throw new AppError(500, `An error occurred`);
-        }
-    }
-
-    // update user state
-    async updateUserStatus(userId: string, active: boolean) {
-        try {
-            return await this.prisma.user.update({
-                where: { id: userId },
-                data: { active },
-            });
-        } catch (error) {
-            throw new AppError(500, `User not found or update failed`);
-        }
-    }
-
-    async updateUserPassword(userId: string, password: string) {
-        try {
-            return await this.prisma.user.update({
-                where: { id: userId },
-                data: {
-                    password,
-                    passwordChangedAt: new Date(),
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, `User not found or update failed`);
-        }
-    }
-
-    async updateUserRole(userId: string, role: string, tx?: any) {
-        try {
-            const prisma = tx || this.prisma;
-            return await prisma.user.update({
-                where: { id: userId },
-                data: { role },
-            });
-        } catch (error) {
-            throw new AppError(500, `User not found or update failed`);
-        }
-    }
-
-    // * Get users roles number (how many users does each role includes)
-    async getUsersRoleNumbers() {
-        try {
-            return await this.prisma.user.groupBy({
-                by: ["role"],
-                _count: { role: true },
-            });
-        } catch (error) {
-            throw new AppError(500, `Error getting user role numbers`);
-        }
-    }
-
-    async getUsersActiveNumbers() {
-        try {
-            return await this.prisma.user.groupBy({
-                by: ["active"],
-                _count: { active: true },
-            });
-        } catch (error) {
-            throw new AppError(500, `Error getting user active numbers`);
-        }
-    }
-
-    async updateUserProfile(data: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        phone: string;
-        avatar?: string;
-    }) {
-        try {
-            return await this.prisma.user.update({
-                where: {
-                    id: data.id,
-                },
-                data: {
-                    firstName: data.firstName,
-                    lastName: data.lastName,
-                    email: data.email,
-                    phone: data.phone,
-                    ...(data.avatar && { avatar: data.avatar }),
-                },
-            });
-        } catch (error) {
-            throw new AppError(500, "Error updating user profile");
-        }
-    }
-
-    // ! FOR TESTING ONLY
-    // ! CREATE MANY USERS AT ONCE
-    async createBatchUsers(users: any) {
-        try {
-            return await this.prisma.user.createMany({
-                data: users,
-            });
-        } catch (error) {
-            throw new AppError(500, `User not found or update failed`);
-        }
-    }
+  async getUserPrivileges(userId: string): Promise<string[]> {
+    const sql = `
+      SELECT name FROM admin_privileges WHERE user_id = $1;
+    `;
+    const rows = await this.db.query<{ name: string }>(sql, [userId]);
+    return rows.map((r) => r.name);
+  }
 }
-
-export default UserRepository;
