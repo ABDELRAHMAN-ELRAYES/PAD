@@ -32,7 +32,7 @@ async function bootstrap(): Promise<void> {
   // Swagger OpenAPI Documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle("PAD API (Planning & Architecture Designer)")
-    .setDescription("Enterprise Production-Grade NestJS API with Raw SQL and AI Agents")
+    .setDescription("Enterprise Production-Grade API")
     .setVersion("2.0.0")
     .addBearerAuth()
     .build();
@@ -42,7 +42,7 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT || 5000;
   await app.listen(port);
-  logger.log(`PAD NestJS server running at http://localhost:${port}/api/v1`);
+  logger.log(`PAD server running at http://localhost:${port}/api/v1`);
   logger.log(`Swagger documentation available at http://localhost:${port}/api/docs`);
 }
 

@@ -1,68 +1,77 @@
-import PrismaClientSingleton from "../../data-server-clients/prisma-client";
-import { PrismaClient } from "@prisma/client";
-import AppError from "../../utils/app-error";
+import { Injectable } from "@nestjs/common";
+import { DatabaseService } from "../../database/database.service";
+import { IFile } from "./types/file.interface";
 
+@Injectable()
 export class FileRepository {
-    private prisma: PrismaClient;
-    private static instance: FileRepository;
+  constructor(private readonly db: DatabaseService) {}
 
-    private constructor() {
-        this.prisma = PrismaClientSingleton.getPrismaClient();
-    }
+  private mapRowToFile(row: any): IFile {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      name: row.name,
+      originalName: row.original_name,
+      mimetype: row.mimetype,
+      path: row.path,
+      size: Number(row.size),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    };
+  }
 
-    static getInstance(): FileRepository {
-        if (!FileRepository.instance) {
-            FileRepository.instance = new FileRepository();
-        }
-        return FileRepository.instance;
-    }
+  async createFile(data: {
+    userId: string;
+    name: string;
+    originalName: string;
+    mimetype: string;
+    path: string;
+    size: number;
+  }): Promise<IFile> {
+    const sql = `
+      INSERT INTO files (user_id, name, original_name, mimetype, path, size)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, user_id, name, original_name, mimetype, path, size, created_at, updated_at;
+    `;
+    const rows = await this.db.query(sql, [
+      data.userId,
+      data.name,
+      data.originalName,
+      data.mimetype,
+      data.path,
+      data.size,
+    ]);
+    return this.mapRowToFile(rows[0]);
+  }
 
-    async createFile(data: {
-        userId: string;
-        name: string;
-        originalname: string;
-        mimetype: string;
-        path: string;
-        size: number;
-    }) {
-        try {
-            return await this.prisma.file.create({
-                data: {
-                    userId: data.userId,
-                    name: data.name,
-                    originalname: data.originalname,
-                    mimetype: data.mimetype,
-                    path: data.path,
-                    size: data.size,
-                },
-            });
-        } catch (error) {
-            console.error("Create file error:", error);
-            throw new AppError(500, "Failed to create file record in DB");
-        }
-    }
+  async findById(fileId: string): Promise<IFile | null> {
+    const sql = `
+      SELECT id, user_id, name, original_name, mimetype, path, size, created_at, updated_at
+      FROM files
+      WHERE id = $1
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [fileId]);
+    return row ? this.mapRowToFile(row) : null;
+  }
 
-    async getFileById(fileId: string) {
-        try {
-            return await this.prisma.file.findUnique({
-                where: { id: fileId },
-            });
-        } catch (error) {
-            console.error("Get file error:", error);
-            throw new AppError(500, "Failed to fetch file record");
-        }
-    }
+  async findByUserId(userId: string): Promise<IFile[]> {
+    const sql = `
+      SELECT id, user_id, name, original_name, mimetype, path, size, created_at, updated_at
+      FROM files
+      WHERE user_id = $1
+      ORDER BY created_at DESC;
+    `;
+    const rows = await this.db.query(sql, [userId]);
+    return rows.map((r) => this.mapRowToFile(r));
+  }
 
-    async deleteFile(fileId: string) {
-        try {
-            return await this.prisma.file.delete({
-                where: { id: fileId },
-            });
-        } catch (error) {
-            console.error("Delete file error:", error);
-            throw new AppError(500, "Failed to delete file record");
-        }
-    }
+  async deleteFile(fileId: string): Promise<boolean> {
+    const sql = `
+      DELETE FROM files
+      WHERE id = $1;
+    `;
+    const count = await this.db.execute(sql, [fileId]);
+    return count > 0;
+  }
 }
-
-export default FileRepository;
