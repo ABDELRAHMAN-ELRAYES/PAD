@@ -4,6 +4,8 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./database/database.module";
 import { UserModule } from "./modules/user/user.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { FileModule } from "./modules/file/file.module";
+import { GuidelineModule } from "./modules/guideline/guideline.module";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 
 @Module({
@@ -21,6 +23,8 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     DatabaseModule,
     UserModule,
     AuthModule,
+    FileModule,
+    GuidelineModule,
   ],
 })
 export class AppModule implements NestModule {
