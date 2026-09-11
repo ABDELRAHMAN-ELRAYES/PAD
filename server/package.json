@@ -4,8 +4,8 @@
   "description": "PAD: From Planning to AI IDE",
   "main": "dist/server.js",
   "scripts": {
-    "start": "NODE_ENV=production node --env-file=.env ./dist/server.js",
-    "dev": "tsx watch --env-file=.env src/server.ts",
+    "start": "NODE_ENV=production node --env-file=.env ./dist/main.js",
+    "dev": "tsx watch --env-file=.env src/main.ts",
     "build": "tsc",
     "migrate:up": "tsx scripts/migrate.ts up",
     "migrate:down": "tsx scripts/migrate.ts down",

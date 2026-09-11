@@ -1,175 +1,109 @@
-import { catchAsync } from "../../utils/catch-async";
-import { Request, Response, NextFunction } from "express";
 import {
-  IRegisterData,
-  IRegisterVerificationData,
-  IResetPasswordData,
-} from "./types/IAuth";
-import AuthenticationService from "./auth.service";
-import { AdminPrivilege, UserRole } from "../../enum/UserRole";
-import { IUser } from "../user/types/IUser";
-import { getRolePrivileges, getRoleAllowedTabs } from "../../config/rbac";
-import { attachAuthCookie } from "../../utils/jwt";
-import { AuthMiddleware } from "../../middlewares/auth.middleware";
+  Controller,
+  Post,
+  Get,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Res,
+} from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
+import { Response } from "express";
+import { AuthService } from "./auth.service";
+import { UserService } from "../user/user.service";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
+import { ChangePasswordDto } from "./dto/change-password.dto";
+import { ForgetPasswordDto } from "./dto/forget-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { CurrentUser } from "./decorators/current-user.decorator";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { IUser } from "../user/types/user.interface";
 
-export const login = catchAsync(async (request: Request, response: Response, next: NextFunction) => {
-  const data = await AuthenticationService.login(request.body, next);
-  if (!data) return;
+@ApiTags("Authentication")
+@Controller("auth")
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+  ) {}
 
-  const { user, token } = data;
-  attachAuthCookie(response, token);
-
-  const dbPrivileges = user.privileges?.map((p) => p.name) ?? [];
-
-  const privileges = getRolePrivileges(user.role, dbPrivileges);
-  const allowedTabs = getRoleAllowedTabs(user.role, dbPrivileges);
-
-  response.status(200).json({
-    status: "success",
-    message: "تم تسجيل الدخول بنجاح!",
-    data: {
-      token,
-      user: {
-        ...user,
-        privileges,
-        allowedTabs,
-      },
-    },
-  });
-});
-
-// Verify user registration process using OTP
-export const register = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    // gather siging up information :first name, last name, date of birth, email, password
-    const userData: IRegisterVerificationData = {
-      email: request.body.email,
-    };
-    // Verify User with OTP across his gmail
-    const data = await AuthenticationService.register(userData, next);
-
-    if (!data) return;
-    const { email, otp } = data;
-    response.status(200).json({
-      status: "success",
-      message: "تم إرسال بريد التحقق من التسجيل، يرجى التحقق من صندوق بريدك الإلكتروني!",
-      data: { email, otp },
+  @Post("register")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Register new user account" })
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(dto);
+    res.cookie("jwt", result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+    return result;
   }
-);
-// Signup user after verification
-export const registerVerification = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    // Extract otp from request body
-    const { otp, user } = request.body;
-    const verificationData: IRegisterData = {
-      otp,
-      user,
-    };
 
-    // use the verification data for user verification and signup if verified
-    const data = await AuthenticationService.registerVerification(
-      verificationData,
-      next
-    );
-    if (!data) return;
-    attachAuthCookie(response, data.token);
-
-    response.status(200).json({
-      status: "success",
-      message: "تم التسجيل بنجاح",
-      data,
+  @Post("login")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Authenticate user and issue JWT" })
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    res.cookie("jwt", result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+    return result;
   }
-);
-// Protect specific routes from unlogged users
-export const protect = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    AuthMiddleware.protect(request, response, next);
+
+  @Post("logout")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Clear authentication session" })
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie("jwt");
+    return { message: "Logged out successfully" };
   }
-);
 
-// Restrict routes to specific users roles
-export const checkPermissions = (
-  allowedRoles: UserRole[],
-  requiredPrivileges: AdminPrivilege[] = []
-) =>
-  catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-      const handler = AuthMiddleware.checkPermissions(allowedRoles, requiredPrivileges);
-      handler(request, response, next);
-    }
-  );
-
-// Respond to the user action to change his password and send reset password mail
-export const forgetPassword = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    // Take the user email for sending password reset mail
-    const userEmail: string = request.body.email;
-
-    const data = await AuthenticationService.forgetPassword(userEmail, next);
-    if (!data) return;
-
-    response.status(200).json({
-      status: "success",
-      data,
-    });
+  @Get("me")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get current authenticated user" })
+  async me(@CurrentUser() user: IUser) {
+    return { user: this.userService.toProfile(user) };
   }
-);
 
-// Reset user password
-export const resetPassword = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const resetData: IResetPasswordData = {
-      token: request.body.token,
-      password: request.body.password,
-    };
-
-    const user = await AuthenticationService.resetPassword(resetData, next);
-    if (!user) return;
-
-    response.status(200).json({
-      status: "success",
-      message: "تم إعادة تعيين كلمة المرور بنجاح!",
-      data: { user },
-    });
+  @Post("change-password")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Change current user password" })
+  async changePassword(
+    @CurrentUser() user: IUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(user.id, dto);
+    return { message: "Password updated successfully" };
   }
-);
 
-// Logout the current user
-export const logout = catchAsync(
-  async (_request: Request, response: Response, _next: NextFunction) => {
-    AuthenticationService.logout();
-    response.cookie("jwt", "logged-out", {
-      expires: new Date(Date.now() + 10),
-    });
-    response.status(200).json({
-      status: "success",
-      message: "تم تسجيل الخروج بنجاح",
-    });
+  @Post("forget-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Request password reset instructions" })
+  async forgetPassword(@Body() dto: ForgetPasswordDto) {
+    return this.authService.forgetPassword(dto);
   }
-);
 
-// * Get current user session Data
-export const getCurrentUserData = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const user = await AuthenticationService.getCurrentUserData(request.user as IUser, next);
-    if (!user) return;
-
-    const dbPrivileges = user.privileges?.map((p) => p.name) ?? [];
-
-    const privileges = getRolePrivileges(user.role, dbPrivileges);
-    const allowedTabs = getRoleAllowedTabs(user.role, dbPrivileges);
-
-    response.status(200).json({
-      status: "success",
-      data: {
-        user: {
-          ...user,
-          privileges,
-          allowedTabs,
-        },
-      },
-    });
+  @Post("reset-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Reset password using token" })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto);
+    return { message: "Password has been reset successfully" };
   }
-);
+}
