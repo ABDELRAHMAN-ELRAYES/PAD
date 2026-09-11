@@ -1,0 +1,2 @@
+-- 000001_create_uuid_and_extensions.down.sql
+-- Extensions are idempotent; generally kept enabled
