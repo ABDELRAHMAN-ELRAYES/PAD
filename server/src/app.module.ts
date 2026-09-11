@@ -2,6 +2,8 @@ import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./database/database.module";
+import { UserModule } from "./modules/user/user.module";
+import { AuthModule } from "./modules/auth/auth.module";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 
 @Module({
@@ -17,6 +19,8 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
       },
     ]),
     DatabaseModule,
+    UserModule,
+    AuthModule,
   ],
 })
 export class AppModule implements NestModule {
