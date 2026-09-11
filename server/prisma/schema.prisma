@@ -62,8 +62,6 @@ model Idea {
     documents              Document[]
     // Idea -> Diagram (One -> Many)
     diagrams               Diagram[]
-    // Idea -> Feature (One -> Many)
-    features               Feature[]
     // Idea -> Workflow (One -> One)
     workflow               Workflow?
     iterationSession       IterationSession?
@@ -151,11 +149,9 @@ model Diagram {
 
     // Relations
     // Diagram -> Idea (Many -> One)
-    idea         Idea                 @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+    idea     Idea             @relation(fields: [ideaId], references: [id], onDelete: Cascade)
     // Diagram -> DiagramVersion (One -> Many)
-    versions     DiagramVersion[]
-    // Diagram -> FeatureDiagramLink (One -> Many)
-    featureLinks FeatureDiagramLink[]
+    versions DiagramVersion[]
 
     @@map("diagrams")
 }
@@ -174,143 +170,6 @@ model DiagramVersion {
 
     @@unique([diagramId, version])
     @@map("diagram_versions")
-}
-
-// ============================================
-// Module 4: Feature Breakdown & Task Management
-// ============================================
-
-model Feature {
-    id                 String   @id @default(uuid())
-    ideaId             String   @map("idea_id")
-    title              String
-    description        String   @db.Text
-    businessValue      String?  @map("business_value") @db.Text
-    userValue          String?  @map("user_value") @db.Text
-    acceptanceCriteria Json?    @map("acceptance_criteria") // Array of strings
-    source             String // "auto" | "manual" | "ai_suggested"
-    status             String   @default("active") // active | archived
-    priority           String   @default("medium") // low | medium | high | critical
-    complexity         String   @default("medium") // low | medium | high
-    dependencies       Json? // Array of strings (feature titles or ids)
-    technicalScope     String?  @map("technical_scope") @db.Text
-    suggestedTaskCount Int      @default(0) @map("suggested_task_count")
-    createdAt          DateTime @default(now()) @map("created_at")
-    updatedAt          DateTime @updatedAt @map("updated_at")
-
-    // Relations
-    // Feature -> Idea (Many -> One)
-    idea         Idea                 @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-    // Feature -> Task (One -> Many)
-    tasks        Task[]
-    // Feature -> FeatureVersion (One -> Many)
-    versions     FeatureVersion[]
-    // Feature -> FeatureDiagramLink (One -> Many)
-    diagramLinks FeatureDiagramLink[]
-
-    @@map("features")
-}
-
-model FeatureVersion {
-    id                 String   @id @default(uuid())
-    featureId          String   @map("feature_id")
-    version            Int
-    title              String
-    description        String   @db.Text
-    businessValue      String?  @map("business_value") @db.Text
-    userValue          String?  @map("user_value") @db.Text
-    acceptanceCriteria Json?    @map("acceptance_criteria")
-    priority           String   @default("medium")
-    complexity         String   @default("medium")
-    dependencies       Json?
-    technicalScope     String?  @map("technical_scope") @db.Text
-    suggestedTaskCount Int      @default(0) @map("suggested_task_count")
-    changelog          String?  @db.Text
-    createdAt          DateTime @default(now()) @map("created_at")
-
-    // Relations
-    // FeatureVersion -> Feature (Many -> One)
-    feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
-
-    @@unique([featureId, version])
-    @@map("feature_versions")
-}
-
-model Task {
-    id              String   @id @default(uuid())
-    featureId       String   @map("feature_id")
-    title           String
-    description     String   @db.Text
-    status          String   @default("planned") // planned | in_progress | completed | blocked
-    priority        String   @default("medium") // low | medium | high | critical
-    estimatedEffort String?  @map("estimated_effort") // e.g., "2h", "1d", "1w"
-    order           Int      @default(0)
-    createdAt       DateTime @default(now()) @map("created_at")
-    updatedAt       DateTime @updatedAt @map("updated_at")
-
-    // Relations
-    // Task -> Feature (Many -> One)
-    feature      Feature          @relation(fields: [featureId], references: [id], onDelete: Cascade)
-    // Task -> TaskVersion (One -> Many)
-    versions     TaskVersion[]
-    // Task -> TaskDependency (One -> Many) - dependencies on this task
-    dependents   TaskDependency[] @relation("DependentTask")
-    // Task -> TaskDependency (One -> Many) - this task depends on others
-    dependencies TaskDependency[] @relation("DependsOnTask")
-    // Task -> WorkflowStep (One -> Many)
-    steps        WorkflowStep[]
-
-    @@map("tasks")
-}
-
-model TaskVersion {
-    id          String   @id @default(uuid())
-    taskId      String   @map("task_id")
-    version     Int
-    title       String
-    description String   @db.Text
-    status      String
-    changelog   String?  @db.Text
-    createdAt   DateTime @default(now()) @map("created_at")
-
-    // Relations
-    // TaskVersion -> Task (Many -> One)
-    task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-    @@unique([taskId, version])
-    @@map("task_versions")
-}
-
-model TaskDependency {
-    id              String   @id @default(uuid())
-    taskId          String   @map("task_id")
-    dependsOnTaskId String   @map("depends_on_task_id")
-    createdAt       DateTime @default(now()) @map("created_at")
-
-    // Relations
-    // TaskDependency -> Task (Many -> One) - the dependent task
-    task      Task @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
-    // TaskDependency -> Task (Many -> One) - the task it depends on
-    dependsOn Task @relation("DependsOnTask", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
-
-    @@unique([taskId, dependsOnTaskId])
-    @@map("task_dependencies")
-}
-
-model FeatureDiagramLink {
-    id        String   @id @default(uuid())
-    featureId String   @map("feature_id")
-    diagramId String   @map("diagram_id")
-    createdAt DateTime @default(now()) @map("created_at")
-
-    // Relations
-    // FeatureDiagramLink -> Feature (Many -> One)
-    feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
-    // FeatureDiagramLink -> Diagram (Many -> One)
-    diagram Diagram @relation(fields: [diagramId], references: [id], onDelete: Cascade)
-
-    @@unique([featureId, diagramId])
-    @@map("feature_diagram_links")
 }
 
 // ============================================
@@ -334,7 +193,6 @@ model Workflow {
 model WorkflowStep {
     id           String   @id @default(uuid())
     workflowId   String   @map("workflow_id")
-    taskId       String?  @map("task_id")
     title        String
     description  String   @db.Text
     instructions String   @db.Text // AI IDE instructions
@@ -345,7 +203,6 @@ model WorkflowStep {
 
     // Relations
     workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-    task     Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
     dependents   WorkflowStepDependency[] @relation("DependentStep")
     dependencies WorkflowStepDependency[] @relation("DependsOnStep")
@@ -353,6 +210,7 @@ model WorkflowStep {
 
     @@map("workflow_steps")
 }
+
 
 model WorkflowStepDependency {
     id              String   @id @default(uuid())

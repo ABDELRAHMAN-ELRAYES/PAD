@@ -1,34 +1,43 @@
-
-import { ITask } from "../../task/types/ITask";
-import { IFeature } from "../../feature/types/IFeature";
+export interface IWorkflowPromptContext {
+    ideaText: string;
+    documents?: Array<{ type: string; title: string; content: string }>;
+    diagrams?: Array<{ type: string; title: string; mermaidCode: string }>;
+    projectIR?: any;
+}
 
 export const buildGenerateWorkflowPrompt = (
-    ideaText: string,
-    features: (IFeature & { tasks: ITask[] })[],
-    taskDependencies: Record<string, string[]>
+    context: IWorkflowPromptContext
 ): string => {
-    // Format features and tasks for the AI context
-    const featureContext = features.map(f => {
-        const taskContext = f.tasks.map((t: ITask) => {
-            const deps = taskDependencies[t.id] || [];
-            const depsStr = deps.length > 0 ? ` (Depends on: ${deps.join(", ")})` : "";
-            return `    - Task ID: ${t.id} | Title: ${t.title} | Priority: ${t.priority}${depsStr}\n      Description: ${t.description}`;
-        }).join("\n");
+    const docsContext = (context.documents || [])
+        .map((d) => `### Document: ${d.title} (${d.type})\n${d.content.substring(0, 3000)}`)
+        .join("\n\n");
 
-        return `Feature: ${f.title}\nDescription: ${f.description}\nTasks:\n${taskContext}`;
-    }).join("\n\n");
+    const diagsContext = (context.diagrams || [])
+        .map((d) => `### Diagram: ${d.title} (${d.type})\n\`\`\`mermaid\n${d.mermaidCode}\n\`\`\``)
+        .join("\n\n");
+
+    const irContext = context.projectIR
+        ? `### Project Intermediate Representation (Schema & Models)\n\`\`\`json\n${JSON.stringify(context.projectIR.schemaData || context.projectIR, null, 2).substring(0, 4000)}\n\`\`\``
+        : "";
 
     return `
-You are an expert software architect and technical lead. Your task is to convert confirmed features and task breakdowns into a structured, actionable development workflow that can be executed by an engineer or an AI-powered IDE (like Cursor or GitHub Copilot).
+You are an expert principal software architect and engineering lead. Your task is to analyze the approved system requirements, architectural diagrams, and data models to generate a structured, sequential, end-to-end development workflow for an AI-powered IDE (like Cursor, Claude Code, or GitHub Copilot).
 
-### **Original Idea Overview**
-${ideaText}
+### **Original Project Concept**
+${context.ideaText}
 
-### **Feature & Task Breakdown**
-${featureContext}
+${docsContext ? `### **System Requirements & Specifications**\n${docsContext}\n` : ""}
+${diagsContext ? `### **Architecture & Structural Diagrams**\n${diagsContext}\n` : ""}
+${irContext ? `${irContext}\n` : ""}
 
-### **Task Instructions**
-Analyze the provided features and tasks. Generate an ordered sequence of "Workflow Steps" required to implement the entire project. Each task usually corresponds to one or more workflow steps. If a task is too large, break it down.
+### **Workflow Generation Instructions**
+Synthesize the requirements, data models, APIs, and UI architecture into an ordered sequence of implementation "Workflow Steps".
+1. Start with Project Scaffolding & Environment Config.
+2. Proceed with Database Models, Migrations & Seeders.
+3. Build Core Repositories, Data Access & Service Layer.
+4. Implement REST APIs, WebSockets & Security Middleware.
+5. Construct Frontend UI, State Management & API Client Hooks.
+6. Finalize with Integration Tests & Deployment Configurations.
 
 ### **Output Format Requirements**
 You MUST return ONLY valid JSON matching this exact structure:
@@ -36,21 +45,19 @@ You MUST return ONLY valid JSON matching this exact structure:
 {
   "steps": [
     {
-      "taskId": "string", // Match the original Task ID exactly. Use null if this is an intermediate step not explicitly tied to one task.
-      "title": "string", // Clear, action-oriented title
-      "description": "string", // Brief description of what is being accomplished
-      "instructions": "string", // Highly detailed, explicit coding instructions for an AI IDE. Specify file names, data structures, and logic.
-      "order": number, // 1-based index representing execution order
-      "dependsOnTaskIds": ["string"] // Array of ORIGINAL Task IDs this step depends on. Empty array if none.
+      "title": "string", // Clear, action-oriented step title
+      "description": "string", // Concise summary of what is accomplished
+      "instructions": "string", // Highly detailed, explicit file-by-file coding instructions for an AI IDE. Specify exact file paths, schemas, and logic.
+      "order": number, // 1-based sequential index (1, 2, 3...)
+      "dependsOnStepOrders": [1] // Array of prerequisite step order numbers (1-based). Empty array if none.
     }
   ]
 }
 \`\`\`
 
 ### **Rules**
-1. Ensure the logical order of implementation (e.g., Database -> Backend Models -> Services -> API Controllers -> Frontend).
-2. The "instructions" field MUST be incredibly detailed and prescriptive. Write it as if you are giving commands to a deterministic code generator. Include precise file paths, technologies, and constraints.
-3. Preserve dependencies correctly using \`dependsOnTaskIds\`. If step B relies on task A being complete, list task A's ID.
-4. DO NOT include markdown formatting outside the JSON block. Return ONLY the raw JSON object.
+1. Implementation steps must follow strict architectural order (Database -> Backend Models/Services -> APIs -> Frontend Components -> Tests).
+2. The "instructions" field MUST be prescriptive and complete: include exact file paths, exported TypeScript types, validation rules, and error handling.
+3. DO NOT include markdown formatting outside the JSON block. Return ONLY the raw JSON object.
 `;
 };

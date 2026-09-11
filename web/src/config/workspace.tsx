@@ -47,13 +47,6 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     activeColor: "text-violet-500",
   },
   {
-    id: "features",
-    label: "Features",
-    icon: <ListChecks className="h-5 w-5" />,
-    color: "text-muted-foreground",
-    activeColor: "text-green-500",
-  },
-  {
     id: "workflow",
     label: "Workflow",
     icon: <Bot className="h-5 w-5" />,
@@ -90,13 +83,6 @@ export const SECTION_ITEMS: SidebarItem[] = [
     icon: <GitBranch className="h-4 w-4" />,
     color: "text-muted-foreground",
     activeColor: "text-violet-500",
-  },
-  {
-    id: "features",
-    label: "Features",
-    icon: <ListChecks className="h-4 w-4" />,
-    color: "text-muted-foreground",
-    activeColor: "text-green-500",
   },
   {
     id: "workflow",

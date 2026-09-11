@@ -5,21 +5,13 @@ export const buildDatabaseSpecPrompt = (vars: IHandoffCompilerVariables): string
         (d) => d.type === "DATABASE_ERD" || d.type === "ERD"
     );
 
-    const featureList = vars.features
-        .map((f) => {
-            const taskList = f.tasks.map((t) => `  - ${t.title}: ${t.description}`).join("\n");
-            return `### ${f.title}\n${f.description}\nTasks:\n${taskList}`;
-        })
-        .join("\n\n");
-
     return `You are a senior database architect. Generate a complete \`database-specification.md\` document.
 
 ## Project Context
 **Project Name**: ${vars.ideaName}
 **Description**: ${vars.ideaText}
 
-## Feature & Task Breakdown
-${featureList}
+${vars.prdContent ? `## Requirements Data Model Expectations\n${vars.prdContent.substring(0, 2000)}` : ""}
 
 ${
     erdDiagram
@@ -28,7 +20,7 @@ The following ERD was previously generated for this project. Use it as the prima
 \`\`\`mermaid
 ${erdDiagram.mermaidCode}
 \`\`\``
-        : "## Note: No ERD diagram available. Infer entities from features and tasks."
+        : "## Note: No ERD diagram available. Infer entities from project requirements."
 }
 
 ## Output Requirements

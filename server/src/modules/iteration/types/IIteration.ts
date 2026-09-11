@@ -30,7 +30,7 @@ export interface IIterationSuggestion {
 export interface IIterationSuggestionAction {
     id: string;
     suggestionId: string;
-    module: "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW";
+    module: "DOCUMENT" | "DIAGRAM" | "WORKFLOW";
     targetId: string;
     actionType: "CREATE" | "MODIFY" | "DELETE" | "REGENERATE";
     newContent?: string;
@@ -55,7 +55,7 @@ export interface ICreateIterationSuggestionData {
 }
 
 export interface ICreateIterationSuggestionActionData {
-    module: "DOCUMENT" | "DIAGRAM" | "FEATURE" | "TASK" | "WORKFLOW";
+    module: "DOCUMENT" | "DIAGRAM" | "WORKFLOW";
     targetId: string;
     actionType: "CREATE" | "MODIFY" | "DELETE" | "REGENERATE";
     newContent?: string;

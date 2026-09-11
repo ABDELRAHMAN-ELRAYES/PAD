@@ -10,7 +10,6 @@ import { AppSidebar } from "./AppSidebar";
 import { OverviewPanel } from "./OverviewPanel";
 import { DocumentsPanel } from "@/features/documents";
 import { DiagramsPanel } from "@/features/diagrams";
-import { FeaturesPanel } from "@/features/features";
 import IREditor from "@/features/ir/components/IREditor";
 import { Loader2 } from "lucide-react";
 import { StreamingProvider } from "@/components/providers/StreamingProvider";
@@ -86,8 +85,6 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
         return <DocumentsPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} idea={idea} />;
       case "diagrams":
         return <DiagramsPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} />;
-      case "features":
-        return <FeaturesPanel key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} />;
       case "workflow":
         return <WorkflowPage key={`${activeIdeaId}-${refreshKey}`} ideaId={activeIdeaId} isEmbedded />;
       case "ir":
@@ -148,7 +145,7 @@ export const WorkspaceLayout: FC<WorkspaceLayoutProps> = ({
               minSize={35}
               className="flex flex-col"
             >
-              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" || activeSection === "workflow" || activeSection === "documents" || activeSection === "features" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
+              <div className={`flex-1 workspace-panel ${activeSection === "ir" || activeSection === "diagrams" || activeSection === "workflow" || activeSection === "documents" ? "h-full flex flex-col overflow-hidden" : "overflow-y-auto"}`}>
                 {renderContentPanel()}
               </div>
             </ResizablePanel>
