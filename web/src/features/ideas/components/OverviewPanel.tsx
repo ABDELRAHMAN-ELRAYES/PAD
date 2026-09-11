@@ -3,27 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   CheckCircle,
   Clock,
   Loader2,
-  FileText,
-  AlertTriangle,
-  Lightbulb,
-  ExternalLink,
-  BookOpen,
   ArrowRight,
-  TrendingUp,
-  Cpu,
-  Bookmark,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 import { OverviewPanelProps } from "../types/components/OverviewPanel.types";
 import { DiscoveryQuestionnaireForm } from "./DiscoveryQuestionnaireForm";
@@ -41,8 +25,6 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [selectedDocs, setSelectedDocs] = useState<string[]>(["BRD", "PRD", "SRS"]);
   const [selectedDiags, setSelectedDiags] = useState<string[]>(["SYSTEM_ARCHITECTURE", "DATABASE_ERD", "USER_FLOW"]);
-
-  const [isStartingResearch, setIsStartingResearch] = useState(false);
 
   // 1. Poll/Fetch discovery questionnaire when status is "draft"
   useEffect(() => {
@@ -100,23 +82,13 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
 
   // 2. Submit questionnaire responses handler
   const handleQuestionnaireSubmit = async (responses: any[]) => {
-    const responseRecord = await ideaApi.submitQuestionnaire(ideaId, responses);
+    await ideaApi.submitQuestionnaire(ideaId, responses);
     // Refresh idea status in parent layout
     const updatedIdea = await ideaApi.getById(ideaId);
     onIdeaUpdate(updatedIdea);
   };
 
-  // 3. Trigger research when status transitions to questionnaire_complete
-  useEffect(() => {
-    if (idea.status === "questionnaire_complete" && !isStartingResearch) {
-      setIsStartingResearch(true);
-      ideaApi.startResearch(ideaId).catch((err) =>
-        console.error("Failed to start research:", err)
-      );
-    }
-  }, [idea.status, ideaId, isStartingResearch]);
-
-  // 4. Confirm project scope baseline handler
+  // 3. Confirm project scope baseline handler
   const handleConfirmScope = async () => {
     setIsConfirming(true);
     setConfirmError(null);
@@ -143,18 +115,11 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
             Approved Scope
           </Badge>
         );
-      case "research_complete":
+      case "questionnaire_complete":
         return (
-          <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-500/15 text-[10px] font-semibold animate-pulse">
-            <BookOpen className="mr-1 h-3 w-3 shrink-0" />
-            Research Complete
-          </Badge>
-        );
-      case "researching":
-        return (
-          <Badge className="bg-violet-500/10 text-violet-600 border-violet-500/20 hover:bg-violet-500/15 text-[10px] font-semibold">
-            <Loader2 className="mr-1 h-3 w-3 shrink-0 animate-spin" />
-            Deep Researching...
+          <Badge className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-500/15 text-[10px] font-semibold">
+            <CheckCircle className="mr-1 h-3 w-3 shrink-0" />
+            Questionnaire Completed
           </Badge>
         );
       default:
@@ -168,8 +133,6 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
   };
 
   const renderScopeConfiguration = () => {
-    if (idea.status !== "research_complete") return null;
-    
     const documentsList = [
       { type: "BRD", name: "Business Requirements (BRD)", desc: "Core business goals and targets" },
       { type: "PRD", name: "Product Requirements (PRD)", desc: "Functional specifications and user stories" },
@@ -294,144 +257,6 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
     );
   };
 
-  // --- Sub-rendering: Render Blueprint results panel ---
-  const renderBlueprintContent = () => {
-    const result = idea.researchResult;
-    if (!result) return null;
-
-    const sections = [
-      {
-        id: "summary",
-        title: "Executive Summary",
-        icon: Lightbulb,
-        color: "text-amber-500",
-        content: result.synthesisSummary,
-      },
-      {
-        id: "understanding",
-        title: "Product Understanding",
-        icon: FileText,
-        color: "text-blue-500",
-        content: result.understanding,
-      },
-      {
-        id: "competitors",
-        title: "Competitor Analysis",
-        icon: TrendingUp,
-        color: "text-rose-500",
-        content: result.competitors,
-      },
-      {
-        id: "market",
-        title: "Market & Persona Profiling",
-        icon: BookOpen,
-        color: "text-emerald-500",
-        content: result.marketAnalysis,
-      },
-      {
-        id: "architecture",
-        title: "System Architecture",
-        icon: Cpu,
-        color: "text-violet-500",
-        content: result.architecture,
-      },
-      {
-        id: "scope",
-        title: "MVP Backlog & Roadmap",
-        icon: CheckCircle,
-        color: "text-indigo-500",
-        content: result.suggestedScope,
-      },
-      {
-        id: "risks",
-        title: "Risks & Mitigations",
-        icon: AlertTriangle,
-        color: "text-amber-600",
-        content: result.risksAndConcerns,
-      },
-    ];
-
-    const bibliography = result.sources || [];
-
-    return (
-      <div className="space-y-6">
-        {renderScopeConfiguration()}
-        <div className="space-y-1">
-          <h3 className="text-md font-bold tracking-tight text-foreground">Deep Research Project Blueprint</h3>
-          <p className="text-xs text-muted-foreground">
-            Review the 7-phase structural system proposal generated from our deep agentic searches.
-          </p>
-        </div>
-
-        {/* Collapsible Blueprint Sections */}
-        <Accordion type="single" collapsible defaultValue="summary" className="w-full space-y-3">
-          {sections.map((sec) => {
-            const IconComponent = sec.icon;
-            return (
-              <AccordionItem
-                key={sec.id}
-                value={sec.id}
-                className="border border-border/80 bg-card rounded-2xl overflow-hidden px-4"
-              >
-                <AccordionTrigger className="hover:no-underline py-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl bg-muted/50 ${sec.color}`}>
-                      <IconComponent className="h-4.5 w-4.5" />
-                    </div>
-                    <span className="text-xs font-semibold text-foreground tracking-tight">
-                      {sec.title}
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-4 pt-1 text-xs text-muted-foreground leading-relaxed pl-11 select-text">
-                  <div className="prose prose-neutral dark:prose-invert max-w-none text-[11.5px] whitespace-pre-line">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{sec.content}</ReactMarkdown>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
-        </Accordion>
-
-        {/* Interactive Bibliography/Sources */}
-        {bibliography.length > 0 && (
-          <Card className="border-border/80 rounded-2xl shadow-xs overflow-hidden">
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-center gap-2 border-b pb-2 mb-2 text-primary font-semibold text-xs uppercase tracking-wider">
-                <Bookmark className="h-4 w-4" />
-                <span>Search Sources Bibliography</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar select-text pr-1">
-                {bibliography.map((src: any, idx: number) => (
-                  <a
-                    key={idx}
-                    href={src.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-2.5 p-2.5 rounded-xl border border-muted hover:border-primary/30 bg-muted/20 hover:bg-muted/40 transition-colors group cursor-pointer"
-                  >
-                    <BookOpen className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                    <div className="space-y-0.5 flex-1 min-w-0">
-                      <p className="text-[10.5px] font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                        {src.title || "Wikipedia Source"}
-                      </p>
-                      <p className="text-[9.5px] text-muted-foreground truncate flex items-center gap-1">
-                        <span>{src.url}</span>
-                        <ExternalLink className="h-2.5 w-2.5 inline shrink-0" />
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  };
-
-
-
   // --- Main Render Engine ---
   const renderFlow = () => {
     switch (idea.status) {
@@ -465,26 +290,12 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
         );
 
       case "questionnaire_complete":
-      case "researching":
+      case "confirmed":
         return (
-          <div className="flex flex-col items-center justify-center min-h-[450px] p-6 max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <div className="space-y-1">
-                <h4 className="font-bold text-sm text-foreground tracking-tight">
-                  AI Research Agent Running
-                </h4>
-                <p className="text-xs text-muted-foreground max-w-md">
-                  Analyzing your idea and formulating a complete product specifications blueprint. This may take a moment.
-                </p>
-              </div>
-            </div>
+          <div className="space-y-6">
+            {renderScopeConfiguration()}
           </div>
         );
-
-      case "research_complete":
-      case "confirmed":
-        return renderBlueprintContent();
 
       default:
         return null;
@@ -501,18 +312,18 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
             {renderStatusBadge()}
           </div>
           <p className="text-xs text-muted-foreground">
-            Manage your initial project scope, analyze gaps, and finalize structural requirements.
+            Manage your initial project scope, analyze requirements, and finalize architectural deliverables.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6 items-start">
-        {/* Left Column: Interactive flow steps / Blueprint Accordion */}
+        {/* Left Column: Flow steps & Scope Configuration */}
         <div className="space-y-6 @4xl:col-span-2 @container">
           {renderFlow()}
         </div>
 
-        {/* Right Column: Sidebar lifecycle list & Scope Confirmation CTA */}
+        {/* Right Column: Lifecycle checklist & Confirmation CTA */}
         <div className="space-y-6 @4xl:col-span-1 @container">
           {/* Project Lifecycle Checklist */}
           <Card className="rounded-2xl border-border/80 shadow-xs">
@@ -553,33 +364,7 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Step 3: Deep Research Agent */}
-                <div className="flex items-start gap-3 relative">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
-                    ${idea.status === "research_complete" || idea.status === "confirmed"
-                      ? "bg-green-500/10 border-green-500/20 text-green-600"
-                      : idea.status === "researching"
-                        ? "bg-violet-500/10 border-violet-500/20 text-violet-600 animate-pulse"
-                        : "bg-muted text-muted-foreground/30 border-transparent"
-                    }`}
-                  >
-                    {idea.status === "research_complete" || idea.status === "confirmed" ? (
-                      <CheckCircle className="h-3.5 w-3.5" />
-                    ) : (
-                      <Clock className="h-3.5 w-3.5" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={`text-xs font-semibold 
-                      ${idea.status === "researching" || idea.status === "research_complete" || idea.status === "confirmed" ? "text-foreground" : "text-muted-foreground"}`}
-                    >
-                      3. Deep Research Agent
-                    </h4>
-                    <p className="text-[10px] text-muted-foreground">Compile web search reports</p>
-                  </div>
-                </div>
-
-                {/* Step 4: Lock Blueprints */}
+                {/* Step 3: Lock Scope */}
                 <div className="flex items-start gap-3 relative">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 bg-background border
                     ${idea.status === "confirmed"
@@ -595,9 +380,9 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
                   </div>
                   <div>
                     <h4 className={`text-xs font-semibold ${idea.status === "confirmed" ? "text-foreground" : "text-muted-foreground"}`}>
-                      4. Lock Blueprints
+                      3. Lock Project Scope
                     </h4>
-                    <p className="text-[10px] text-muted-foreground">Confirm scope to launch active panels</p>
+                    <p className="text-[10px] text-muted-foreground">Confirm scope to launch design panels</p>
                   </div>
                 </div>
 
@@ -605,8 +390,8 @@ export const OverviewPanel: FC<OverviewPanelProps> = ({
             </CardContent>
           </Card>
 
-          {/* Scope Confirmation / Active Navigation Hub */}
-          {idea.status === "research_complete" && (
+          {/* Scope Confirmation CTA */}
+          {idea.status === "questionnaire_complete" && (
             <Card className="rounded-2xl border-indigo-500/10 bg-linear-to-br from-indigo-500/5 via-violet-500/5 to-transparent shadow-xs">
               <CardContent className="p-5 space-y-4">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Approve Scope</h3>
