@@ -1,3 +1,4 @@
+import { Injectable } from "@nestjs/common";
 import AiService from "../ai/ai.service";
 
 export const BUILD_REPAIR_PROMPT = `
@@ -24,164 +25,217 @@ Return ONLY the corrected, valid, and fully complete Mermaid code.
 4. DO NOT return any JSON, HTML, or explanations. Only return the raw corrected text starting with %% title:.
 `;
 
+@Injectable()
 export class DiagramValidatorService {
-    /**
-     * Runs balanced brackets, open quotes, and diagram header keyword validation
-     * on the provided Mermaid code string.
-     */
-    static validateMermaidSyntax(code: string, type: string): { valid: boolean; error?: string } {
-        if (!code || code.trim().length === 0) {
-            return { valid: false, error: "Diagram code is empty" };
-        }
+  /**
+   * Runs balanced brackets, open quotes, and diagram header keyword validation
+   * on the provided Mermaid code string.
+   */
+  validateMermaidSyntax(
+    code: string,
+    type: string,
+  ): { valid: boolean; error?: string } {
+    return DiagramValidatorService.validateMermaidSyntax(code, type);
+  }
 
-        // Split into lines, filter out empty and comment lines (starting with %%)
-        const lines = code.split("\n")
-            .map(line => line.trim())
-            .filter(line => line.length > 0 && !line.startsWith("%%"));
+  static validateMermaidSyntax(
+    code: string,
+    type: string,
+  ): { valid: boolean; error?: string } {
+    if (!code || code.trim().length === 0) {
+      return { valid: false, error: "Diagram code is empty" };
+    }
 
-        if (lines.length === 0) {
-            return { valid: false, error: "Diagram code contains only comments or whitespace" };
-        }
+    // Split into lines, filter out empty and comment lines (starting with %%)
+    const lines = code
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("%%"));
 
-        const headerLine = lines[0].toLowerCase();
-        
-        // Expected header starts mapping
-        const expectedHeaders: Record<string, string[]> = {
-            SYSTEM_ARCHITECTURE: ["graph", "flowchart"],
-            DATABASE_ERD: ["erdiagram"],
-            SEQUENCE: ["sequencediagram"],
-            COMPONENT: ["graph", "flowchart"],
-            DEPLOYMENT: ["graph", "flowchart"],
-            USER_FLOW: ["flowchart", "graph"],
-            CLASS: ["classdiagram"],
-            STATE: ["statediagram", "statediagram-v2"],
-            USE_CASE: ["graph", "flowchart", "usecasediagram"],
-            ACTIVITY: ["flowchart", "graph"],
+    if (lines.length === 0) {
+      return {
+        valid: false,
+        error: "Diagram code contains only comments or whitespace",
+      };
+    }
+
+    const headerLine = lines[0].toLowerCase();
+
+    // Expected header starts mapping
+    const expectedHeaders: Record<string, string[]> = {
+      SYSTEM_ARCHITECTURE: ["graph", "flowchart"],
+      DATABASE_ERD: ["erdiagram"],
+      SEQUENCE: ["sequencediagram"],
+      COMPONENT: ["graph", "flowchart"],
+      DEPLOYMENT: ["graph", "flowchart"],
+      USER_FLOW: ["flowchart", "graph"],
+      CLASS: ["classdiagram"],
+      STATE: ["statediagram", "statediagram-v2"],
+      USE_CASE: ["graph", "flowchart", "usecasediagram"],
+      ACTIVITY: ["flowchart", "graph"],
+    };
+
+    const expected = expectedHeaders[type];
+    if (expected) {
+      const hasValidHeader = expected.some((vh) => headerLine.startsWith(vh));
+      if (!hasValidHeader) {
+        return {
+          valid: false,
+          error: `Invalid diagram header for type "${type}". First line must declare: ${expected.join(" or ")}. Got: "${lines[0]}"`,
         };
+      }
+    }
 
-        const expected = expectedHeaders[type];
-        if (expected) {
-            const hasValidHeader = expected.some(vh => headerLine.startsWith(vh));
-            if (!hasValidHeader) {
+    // Run balanced brackets check on code (ignoring comments and matching quotes)
+    const codeToCheck = lines.join("\n");
+    const stack: string[] = [];
+    let insideQuote = false;
+
+    for (let i = 0; i < codeToCheck.length; i++) {
+      const char = codeToCheck[i];
+
+      // Handle escape characters inside quotes
+      if (char === "\\" && insideQuote && i + 1 < codeToCheck.length) {
+        i++; // skip next char
+        continue;
+      }
+
+      if (char === '"') {
+        insideQuote = !insideQuote;
+        continue;
+      }
+
+      if (insideQuote) {
+        continue; // Skip bracket matching inside quotes
+      }
+
+      if (char === "[" || char === "(" || char === "{") {
+        stack.push(char);
+      } else if (char === "]") {
+        const last = stack.pop();
+        if (last !== "[") {
+          return { valid: false, error: "Mismatched closing bracket ']'" };
+        }
+      } else if (char === ")") {
+        const last = stack.pop();
+        if (last !== "(") {
+          return { valid: false, error: "Mismatched closing parenthesis ')'" };
+        }
+      } else if (char === "}") {
+        const last = stack.pop();
+        if (last !== "{") {
+          return { valid: false, error: "Mismatched closing brace '}'" };
+        }
+      }
+    }
+
+    if (insideQuote) {
+      return {
+        valid: false,
+        error: 'Unclosed double quote (") in Mermaid code',
+      };
+    }
+
+    if (stack.length > 0) {
+      const unmatched = stack
+        .map((b) => {
+          if (b === "[") return "bracket '['";
+          if (b === "(") return "parenthesis '('";
+          return "brace '{'";
+        })
+        .join(", ");
+      return { valid: false, error: `Unclosed shape symbols: ${unmatched}` };
+    }
+
+    // Check for common flowchart errors: parentheses or brackets inside shape labels without double quotes
+    if (
+      [
+        "SYSTEM_ARCHITECTURE",
+        "COMPONENT",
+        "DEPLOYMENT",
+        "USER_FLOW",
+        "USE_CASE",
+        "ACTIVITY",
+      ].includes(type)
+    ) {
+      const flowchartRegexes = [
+        /\[+([^\]]+)\]+/g,
+        /\(+([^)]+)\)+/g,
+        /\{+([^}]+)\}+/g,
+      ];
+
+      for (const line of lines) {
+        const lineClean = line.replace(/"([^"\\]|\\.)*"/g, '""');
+
+        for (const regex of flowchartRegexes) {
+          let match;
+          regex.lastIndex = 0;
+          while ((match = regex.exec(lineClean)) !== null) {
+            const labelText = match[1].trim();
+            if (labelText.length > 0) {
+              const isQuoted =
+                labelText.startsWith('"') && labelText.endsWith('"');
+              if (
+                !isQuoted &&
+                (labelText.includes("(") ||
+                  labelText.includes(")") ||
+                  labelText.includes("[") ||
+                  labelText.includes("]"))
+              ) {
                 return {
-                    valid: false,
-                    error: `Invalid diagram header for type "${type}". First line must declare: ${expected.join(" or ")}. Got: "${lines[0]}"`
+                  valid: false,
+                  error: `Flowchart node label "${labelText}" contains special syntax characters [ ] or ( ) without enclosing double-quotes.`,
                 };
+              }
             }
+          }
         }
-
-        // Run balanced brackets check on code (ignoring comments and matching quotes)
-        const codeToCheck = lines.join("\n");
-        const stack: string[] = [];
-        let insideQuote = false;
-        
-        for (let i = 0; i < codeToCheck.length; i++) {
-            const char = codeToCheck[i];
-            
-            // Handle escape characters inside quotes
-            if (char === '\\' && insideQuote && i + 1 < codeToCheck.length) {
-                i++; // skip next char
-                continue;
-            }
-
-            if (char === '"') {
-                insideQuote = !insideQuote;
-                continue;
-            }
-
-            if (insideQuote) {
-                continue; // Skip bracket matching inside quotes
-            }
-
-            if (char === '[' || char === '(' || char === '{') {
-                stack.push(char);
-            } else if (char === ']') {
-                const last = stack.pop();
-                if (last !== '[') {
-                    return { valid: false, error: "Mismatched closing bracket ']'" };
-                }
-            } else if (char === ')') {
-                const last = stack.pop();
-                if (last !== '(') {
-                    return { valid: false, error: "Mismatched closing parenthesis ')'" };
-                }
-            } else if (char === '}') {
-                const last = stack.pop();
-                if (last !== '{') {
-                    return { valid: false, error: "Mismatched closing brace '}'" };
-                }
-            }
-        }
-
-        if (insideQuote) {
-            return { valid: false, error: "Unclosed double quote (\") in Mermaid code" };
-        }
-
-        if (stack.length > 0) {
-            const unmatched = stack.map(b => {
-                if (b === '[') return "bracket '['";
-                if (b === '(') return "parenthesis '('";
-                return "brace '{'";
-            }).join(", ");
-            return { valid: false, error: `Unclosed shape symbols: ${unmatched}` };
-        }
-
-        // Check for common flowchart errors: parentheses or brackets inside shape labels without double quotes
-        if (["SYSTEM_ARCHITECTURE", "COMPONENT", "DEPLOYMENT", "USER_FLOW", "USE_CASE", "ACTIVITY"].includes(type)) {
-            const flowchartRegexes = [
-                /\[+([^\]]+)\]+/g,
-                /\(+([^)]+)\)+/g,
-                /\{+([^}]+)\}+/g,
-            ];
-
-            for (const line of lines) {
-                // Strip double-quoted strings to avoid matching inside quotes
-                const lineClean = line.replace(/"([^"\\]|\\.)*"/g, '""');
-                
-                for (const regex of flowchartRegexes) {
-                    let match;
-                    regex.lastIndex = 0;
-                    while ((match = regex.exec(lineClean)) !== null) {
-                        const labelText = match[1].trim();
-                        if (labelText.length > 0) {
-                            const isQuoted = labelText.startsWith('"') && labelText.endsWith('"');
-                            if (!isQuoted && (labelText.includes('(') || labelText.includes(')') || labelText.includes('[') || labelText.includes(']'))) {
-                                return {
-                                    valid: false,
-                                    error: `Flowchart node label "${labelText}" contains special syntax characters [ ] or ( ) without enclosing double-quotes.`
-                                };
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return { valid: true };
+      }
     }
 
-    static async repairDiagram(code: string, errorMessage: string, userId?: string): Promise<string> {
-        const prompt = BUILD_REPAIR_PROMPT
-            .replace("{{INVALID_CODE}}", code)
-            .replace("{{ERROR_MESSAGE}}", errorMessage);
+    return { valid: true };
+  }
 
-        const systemPrompt = "You are a Mermaid compiler assistant. You correct invalid Mermaid syntax and return raw corrected code.";
-        const response = await AiService.callLLM(prompt, false, systemPrompt, userId);
+  async repairDiagram(
+    code: string,
+    errorMessage: string,
+    userId?: string,
+  ): Promise<string> {
+    return DiagramValidatorService.repairDiagram(code, errorMessage, userId);
+  }
 
-        let repairedCode = response.trim();
-        
-        // Clean up markdown ticks if the LLM wraps them anyway
-        if (repairedCode.startsWith("```")) {
-            const lines = repairedCode.split("\n");
-            if (lines[0].startsWith("```")) {
-                lines.shift();
-            }
-            if (lines.length > 0 && lines[lines.length - 1].startsWith("```")) {
-                lines.pop();
-            }
-            repairedCode = lines.join("\n").trim();
-        }
+  static async repairDiagram(
+    code: string,
+    errorMessage: string,
+    userId?: string,
+  ): Promise<string> {
+    const prompt = BUILD_REPAIR_PROMPT.replace(
+      "{{INVALID_CODE}}",
+      code,
+    ).replace("{{ERROR_MESSAGE}}", errorMessage);
 
-        return repairedCode;
+    const systemPrompt =
+      "You are a Mermaid compiler assistant. You correct invalid Mermaid syntax and return raw corrected code.";
+    const response = await AiService.callLLM(
+      prompt,
+      false,
+      systemPrompt,
+      userId,
+    );
+
+    let repairedCode = response.trim();
+
+    if (repairedCode.startsWith("```")) {
+      const lines = repairedCode.split("\n");
+      if (lines[0].startsWith("```")) {
+        lines.shift();
+      }
+      if (lines.length > 0 && lines[lines.length - 1].startsWith("```")) {
+        lines.pop();
+      }
+      repairedCode = lines.join("\n").trim();
     }
+
+    return repairedCode;
+  }
 }
