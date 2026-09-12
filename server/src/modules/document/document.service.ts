@@ -1,447 +1,475 @@
-import { NextFunction } from "express";
-import AppError from "../../utils/app-error";
-import DocumentRepository from "./document.repository";
-import IdeaRepository from "../idea/idea.repository";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from "@nestjs/common";
+import { DocumentRepository } from "./document.repository";
+import { IdeaRepository } from "../idea/idea.repository";
 import AiService from "../ai/ai.service";
 import {
-    IDocument,
-    IDocumentVersion,
-    IUpdateDocumentWithChangelogData,
-    IDocumentWithVersions,
-    DocumentType,
+  IDocument,
+  IDocumentVersion,
+  IUpdateDocumentWithChangelogData,
+  IDocumentWithVersions,
+  DocumentType,
 } from "./types/IDocument";
 import TurndownService from "turndown";
 
-class DocumentService {
-    private static documentRepo: DocumentRepository = DocumentRepository.getInstance();
-    private static ideaRepo = IdeaRepository.getInstance();
+@Injectable()
+export class DocumentService {
+  private readonly logger = new Logger(DocumentService.name);
+  private static instance: DocumentService;
 
-    // Helper to get friendly titles for types
-    static getFriendlyDocumentTitle(type: string): string {
-        switch (type) {
-            case "BRD":
-                return "Business Requirements Document (BRD)";
-            case "PRD":
-                return "Product Requirements Document (PRD)";
-            case "SRS":
-                return "Software Requirements Specification (SRS)";
-            case "FRS":
-                return "Functional Requirements Specification (FRS)";
-            case "SYSTEM_ARCH":
-                return "System Architecture Document (SAD)";
-            case "API_SPEC":
-                return "API Specification (API Spec)";
-            case "TEST_PLAN":
-                return "QA & Test Plan";
-            case "USER_MANUAL":
-                return "User Guide & Manual";
-            case "SECURITY_PLAN":
-                return "Security & Compliance Plan";
-            default:
-                return `${type} Specification`;
-        }
+  constructor(
+    private readonly documentRepo: DocumentRepository,
+    private readonly ideaRepo: IdeaRepository,
+  ) {
+    DocumentService.instance = this;
+  }
+
+  static getInstance(): DocumentService {
+    return DocumentService.instance;
+  }
+
+  // Helper to get friendly titles for types
+  getFriendlyDocumentTitle(type: string): string {
+    switch (type) {
+      case "BRD":
+        return "Business Requirements Document (BRD)";
+      case "PRD":
+        return "Product Requirements Document (PRD)";
+      case "SRS":
+        return "Software Requirements Specification (SRS)";
+      case "FRS":
+        return "Functional Requirements Specification (FRS)";
+      case "SYSTEM_ARCH":
+        return "System Architecture Document (SAD)";
+      case "API_SPEC":
+        return "API Specification (API Spec)";
+      case "TEST_PLAN":
+        return "QA & Test Plan";
+      case "USER_MANUAL":
+        return "User Guide & Manual";
+      case "SECURITY_PLAN":
+        return "Security & Compliance Plan";
+      default:
+        return `${type} Specification`;
+    }
+  }
+
+  static getFriendlyDocumentTitle(type: string): string {
+    return DocumentService.getInstance()?.getFriendlyDocumentTitle(type) || `${type} Specification`;
+  }
+
+  // Initialize selected documents
+  async initializeSelectedDocuments(
+    ideaId: string,
+    selectedTypes: string[],
+  ): Promise<IDocument[]> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
     }
 
-    // Initialize selected documents
-    static async initializeSelectedDocuments(
-        ideaId: string,
-        selectedTypes: string[],
-        next: NextFunction
-    ): Promise<IDocument[] | void> {
-        const idea = await this.ideaRepo.getIdeaById(ideaId);
-        if (!idea) {
-            return next(new AppError(404, "Idea not found"));
-        }
+    const created: IDocument[] = [];
+    for (const type of selectedTypes) {
+      const title = this.getFriendlyDocumentTitle(type);
+      const document = await this.documentRepo.createDocument({
+        ideaId,
+        type: type as DocumentType,
+        title,
+        content: "",
+      });
+      await this.documentRepo.createVersion(
+        document.id,
+        1,
+        "",
+        "Placeholder created",
+      );
+      created.push(document);
+    }
+    return created;
+  }
 
-        const created: IDocument[] = [];
-        for (const type of selectedTypes) {
-            const title = this.getFriendlyDocumentTitle(type);
-            const document = await this.documentRepo.createDocument({
-                ideaId,
-                type: type as DocumentType,
-                title,
-                content: "",
-            });
-            await this.documentRepo.createVersion(document.id, 1, "", "Placeholder created");
-            created.push(document);
-        }
-        return created;
+  // Create placeholder document for a confirmed idea
+  async createPlaceholder(
+    ideaId: string,
+    type: DocumentType,
+  ): Promise<IDocument> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
     }
 
-    // Create placeholder document for a confirmed idea
-    static async createPlaceholder(
-        ideaId: string,
-        type: DocumentType,
-        next: NextFunction
-    ): Promise<IDocument | void> {
-        // Get the idea
-        const idea = await this.ideaRepo.getIdeaById(ideaId);
-        if (!idea) {
-            return next(new AppError(404, "Idea not found"));
+    if (idea.status !== "confirmed") {
+      throw new BadRequestException("Only confirmed ideas can generate documents");
+    }
+
+    const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
+    const hasSpecificDoc = existingDocs.some((doc) => doc.type === type);
+    if (hasSpecificDoc) {
+      throw new BadRequestException(`${type} document already exists for this idea.`);
+    }
+
+    const title = this.getFriendlyDocumentTitle(type);
+    const document = await this.documentRepo.createDocument({
+      ideaId,
+      type,
+      title,
+      content: "",
+    });
+
+    await this.documentRepo.createVersion(
+      document.id,
+      1,
+      "",
+      "Placeholder created",
+    );
+
+    return document;
+  }
+
+  // Generate documents for a confirmed idea
+  async generateDocuments(
+    ideaId: string,
+    type: DocumentType | undefined,
+    onChunk?: (data: any) => void,
+  ): Promise<IDocument[]> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
+    }
+
+    if (idea.status !== "confirmed") {
+      throw new BadRequestException("Only confirmed ideas can generate documents");
+    }
+
+    const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
+    if (type) {
+      const hasSpecificDoc = existingDocs.some((doc) => doc.type === type);
+      if (hasSpecificDoc) {
+        throw new BadRequestException(`${type} document already exists for this idea.`);
+      }
+    } else {
+      if (existingDocs.length > 0) {
+        throw new BadRequestException(
+          "Documents already exist for this idea. Please edit the existing documents.",
+        );
+      }
+    }
+
+    const ideaText =
+      idea.businessDescription || idea.refinedText || idea.rawText;
+    const analysisResult = idea.analysisResult;
+
+    if (onChunk) {
+      await this.processDocumentGeneration(
+        ideaId,
+        ideaText,
+        analysisResult,
+        type,
+        onChunk,
+      );
+    } else {
+      this.processDocumentGeneration(
+        ideaId,
+        ideaText,
+        analysisResult,
+        type,
+      ).catch((err) => {
+        this.logger.error("Background document generation error:", err);
+      });
+    }
+
+    return [];
+  }
+
+  private async processDocumentGeneration(
+    ideaId: string,
+    ideaText: string,
+    analysisResult: any,
+    type: DocumentType | undefined,
+    onChunk?: (data: any) => void,
+  ) {
+    try {
+      const docsCreated: IDocument[] = [];
+      const idea = await this.ideaRepo.findById(ideaId);
+      const userId = idea?.userId;
+
+      const typesToGenerate: DocumentType[] = type
+        ? [type]
+        : [
+            "BRD",
+            "PRD",
+            "SRS",
+            "FRS",
+            "SYSTEM_ARCH",
+            "API_SPEC",
+            "TEST_PLAN",
+            "USER_MANUAL",
+            "SECURITY_PLAN",
+          ];
+
+      for (const docType of typesToGenerate) {
+        let fullResponse = "";
+        const stream = AiService.generateDocumentStream(
+          docType,
+          ideaText,
+          analysisResult,
+          userId,
+        );
+        for await (const chunk of stream) {
+          fullResponse += chunk;
+          const chunkData = {
+            type: docType,
+            chunk,
+            fullText: fullResponse,
+          };
+          if (onChunk) {
+            onChunk(chunkData);
+          }
         }
-
-        // Check if idea is confirmed
-        if (idea.status !== "confirmed") {
-            return next(new AppError(400, "Only confirmed ideas can generate documents"));
-        }
-
-        // Check if document already exists
-        const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
-        const hasSpecificDoc = existingDocs.some(doc => doc.type === type);
-        if (hasSpecificDoc) {
-            return next(new AppError(400, `${type} document already exists for this idea.`));
-        }
-
-        const title = this.getFriendlyDocumentTitle(type);
-
-        const document = await this.documentRepo.createDocument({
+        const result = AiService.parseDocumentResult(fullResponse);
+        if (result) {
+          const doc = await this.documentRepo.createDocument({
             ideaId,
-            type,
-            title,
-            content: "",
-        });
+            type: docType,
+            title: result.title,
+            content: result.content,
+          });
+          await this.documentRepo.createVersion(
+            doc.id,
+            1,
+            result.content,
+            "Initial generation",
+          );
+          docsCreated.push(doc);
+        }
+      }
 
-        // Create initial empty version (v1)
-        await this.documentRepo.createVersion(document.id, 1, "", "Placeholder created");
+      if (onChunk) {
+        onChunk({ status: "final", documents: docsCreated });
+      }
+    } catch (error) {
+      this.logger.error("AI document generation error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Document generation failed";
 
-        return document;
+      if (onChunk) {
+        onChunk({ status: "error", message: errorMessage });
+      }
+    }
+  }
+
+  async getDocument(documentId: string): Promise<IDocument> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+    return document;
+  }
+
+  async getDocumentWithVersions(
+    documentId: string,
+  ): Promise<IDocumentWithVersions> {
+    const document = await this.documentRepo.getDocumentWithVersions(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+    return document;
+  }
+
+  async getDocumentsByIdea(ideaId: string): Promise<IDocument[]> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
+    }
+    return this.documentRepo.getDocumentsByIdeaId(ideaId);
+  }
+
+  async updateDocument(
+    documentId: string,
+    data: IUpdateDocumentWithChangelogData,
+  ): Promise<IDocument> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
     }
 
-    // Generate documents for a confirmed idea
-    static async generateDocuments(
-        ideaId: string,
-        type: DocumentType | undefined,
-        next: NextFunction,
-        onChunk?: (data: any) => void
-    ): Promise<IDocument[] | void> {
-        // Get the idea
-        const idea = await this.ideaRepo.getIdeaById(ideaId);
-        if (!idea) {
-            return next(new AppError(404, "Idea not found"));
-        }
+    if (data.content && data.content !== document.content) {
+      const latestVersion =
+        await this.documentRepo.getLatestVersionNumber(documentId);
+      await this.documentRepo.createVersion(
+        documentId,
+        latestVersion + 1,
+        data.content,
+        data.changelog || "Content updated",
+      );
+    }
 
-        // Check if idea is confirmed
-        if (idea.status !== "confirmed") {
-            return next(new AppError(400, "Only confirmed ideas can generate documents"));
-        }
+    const updatedDoc = await this.documentRepo.updateDocument(documentId, {
+      title: data.title,
+      content: data.content,
+      status: data.status,
+    });
 
-        // Check if documents already exist
-        const existingDocs = await this.documentRepo.getDocumentsByIdeaId(ideaId);
-        if (type) {
-            const hasSpecificDoc = existingDocs.some(doc => doc.type === type);
-            if (hasSpecificDoc) {
-                return next(new AppError(400, `${type} document already exists for this idea.`));
-            }
-        } else {
-            if (existingDocs.length > 0) {
-                return next(new AppError(400, "Documents already exist for this idea. Please edit the existing documents."));
-            }
-        }
+    return updatedDoc;
+  }
 
-        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
-        const analysisResult = idea.analysisResult;
+  async getVersionHistory(documentId: string): Promise<IDocumentVersion[]> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+    return this.documentRepo.getVersionHistory(documentId);
+  }
 
+  async revertToVersion(
+    documentId: string,
+    versionNumber: number,
+  ): Promise<IDocument> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+
+    const version = await this.documentRepo.getVersion(
+      documentId,
+      versionNumber,
+    );
+    if (!version) {
+      throw new NotFoundException("Version not found");
+    }
+
+    const latestVersion =
+      await this.documentRepo.getLatestVersionNumber(documentId);
+    await this.documentRepo.createVersion(
+      documentId,
+      latestVersion + 1,
+      version.content,
+      `Reverted to version ${versionNumber}`,
+    );
+
+    const updatedDoc = await this.documentRepo.updateDocument(documentId, {
+      content: version.content,
+    });
+
+    return updatedDoc;
+  }
+
+  async regenerateDocument(
+    documentId: string,
+    onChunk?: (chunk: any) => void,
+  ): Promise<void> {
+    const document = await this.documentRepo.getDocumentWithVersions(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+
+    const idea = await this.ideaRepo.findById(document.ideaId);
+    if (!idea) {
+      throw new NotFoundException("Associated idea not found");
+    }
+
+    const ideaText =
+      idea.businessDescription || idea.refinedText || idea.rawText;
+    const analysisResult = idea.analysisResult;
+    const type = document.type as DocumentType;
+
+    try {
+      let fullResponse = "";
+      const stream = AiService.generateDocumentStream(
+        type,
+        ideaText,
+        analysisResult,
+        idea.userId,
+      );
+
+      for await (const chunk of stream) {
+        fullResponse += chunk;
         if (onChunk) {
-            // Perform generation and stream directly to callback (HTTP response)
-            await this.processDocumentGeneration(ideaId, ideaText, analysisResult, type, onChunk);
-        } else {
-            // Background generation for sockets
-            this.processDocumentGeneration(ideaId, ideaText, analysisResult, type);
-        }
-
-        return [];
-    }
-
-    private static async processDocumentGeneration(
-        ideaId: string,
-        ideaText: string,
-        analysisResult: any,
-        type: DocumentType | undefined,
-        onChunk?: (data: any) => void
-    ) {
-        try {
-            const docsCreated: IDocument[] = [];
-            const idea = await this.ideaRepo.getIdeaById(ideaId);
-            const userId = idea?.userId;
-
-            const typesToGenerate: DocumentType[] = type
-                ? [type]
-                : ["BRD", "PRD", "SRS", "FRS", "SYSTEM_ARCH", "API_SPEC", "TEST_PLAN", "USER_MANUAL", "SECURITY_PLAN"];
-
-            for (const docType of typesToGenerate) {
-                let fullResponse = "";
-                const stream = AiService.generateDocumentStream(docType, ideaText, analysisResult, userId);
-                for await (const chunk of stream) {
-                    fullResponse += chunk;
-                    const chunkData = {
-                        type: docType,
-                        chunk,
-                        fullText: fullResponse,
-                    };
-                    if (onChunk) {
-                        onChunk(chunkData);
-                    }
-                }
-                const result = AiService.parseDocumentResult(fullResponse);
-                if (result) {
-                    const doc = await this.documentRepo.createDocument({
-                        ideaId,
-                        type: docType,
-                        title: result.title,
-                        content: result.content,
-                    });
-                    await this.documentRepo.createVersion(doc.id, 1, result.content, "Initial generation");
-                    docsCreated.push(doc);
-                }
-            }
-
-            if (onChunk) {
-                onChunk({ status: "final", documents: docsCreated });
-            }
-        } catch (error) {
-            console.error("AI document generation error:", error);
-            const errorMessage = error instanceof Error ? error.message : "Document generation failed";
-            
-            if (onChunk) {
-                onChunk({ status: "error", message: errorMessage });
-            }
-        }
-    }
-
-    // Get a single document
-    static async getDocument(
-        documentId: string,
-        next: NextFunction
-    ): Promise<IDocument | void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-        return document;
-    }
-
-    // Get document with versions
-    static async getDocumentWithVersions(
-        documentId: string,
-        next: NextFunction
-    ): Promise<IDocumentWithVersions | void> {
-        const document = await this.documentRepo.getDocumentWithVersions(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-        return document;
-    }
-
-    // Get all documents for an idea
-    static async getDocumentsByIdea(
-        ideaId: string,
-        next: NextFunction
-    ): Promise<IDocument[] | void> {
-        // Verify idea exists
-        const idea = await this.ideaRepo.getIdeaById(ideaId);
-        if (!idea) {
-            return next(new AppError(404, "Idea not found"));
-        }
-
-        return await this.documentRepo.getDocumentsByIdeaId(ideaId);
-    }
-
-    // Update a document (creates new version)
-    static async updateDocument(
-        documentId: string,
-        data: IUpdateDocumentWithChangelogData,
-        next: NextFunction
-    ): Promise<IDocument | void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-
-        // If content is being updated, create a new version
-        if (data.content && data.content !== document.content) {
-            const latestVersion = await this.documentRepo.getLatestVersionNumber(documentId);
-            await this.documentRepo.createVersion(
-                documentId,
-                latestVersion + 1,
-                data.content,
-                data.changelog || "Content updated"
-            );
-        }
-
-        // Update the document
-        const updatedDoc = await this.documentRepo.updateDocument(documentId, {
-            title: data.title,
-            content: data.content,
-            status: data.status,
-        });
-
-        return updatedDoc;
-    }
-
-    // Get version history
-    static async getVersionHistory(
-        documentId: string,
-        next: NextFunction
-    ): Promise<IDocumentVersion[] | void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-
-        return await this.documentRepo.getVersionHistory(documentId);
-    }
-
-    // Revert to a specific version
-    static async revertToVersion(
-        documentId: string,
-        versionNumber: number,
-        next: NextFunction
-    ): Promise<IDocument | void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-
-        const version = await this.documentRepo.getVersion(documentId, versionNumber);
-        if (!version) {
-            return next(new AppError(404, "Version not found"));
-        }
-
-        // Create a new version with reverted content
-        const latestVersion = await this.documentRepo.getLatestVersionNumber(documentId);
-        await this.documentRepo.createVersion(
+          onChunk({
             documentId,
-            latestVersion + 1,
-            version.content,
-            `Reverted to version ${versionNumber}`
+            type,
+            chunk,
+            fullText: fullResponse,
+          });
+        }
+      }
+
+      const result = AiService.parseDocumentResult(fullResponse);
+      if (result) {
+        const latestVersion =
+          await this.documentRepo.getLatestVersionNumber(documentId);
+        await this.documentRepo.createVersion(
+          documentId,
+          latestVersion + 1,
+          result.content,
+          "Regenerated by AI",
         );
 
-        // Update document with reverted content
         const updatedDoc = await this.documentRepo.updateDocument(documentId, {
-            content: version.content,
+          title: result.title,
+          content: result.content,
         });
 
-        return updatedDoc;
+        if (onChunk) {
+          onChunk({ status: "final", document: updatedDoc });
+        }
+      }
+    } catch (error) {
+      this.logger.error("Document regeneration error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to regenerate document";
+      if (onChunk) {
+        onChunk({ status: "error", message: errorMessage });
+      }
+    }
+  }
+
+  async deleteDocument(documentId: string): Promise<void> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
+    }
+    await this.documentRepo.deleteDocument(documentId);
+  }
+
+  async exportDocument(
+    documentId: string,
+    format: "markdown" | "html",
+  ): Promise<{ content: string; filename: string; mimeType: string }> {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
     }
 
-    // Regenerate a specific document type (Streaming)
-    static async regenerateDocument(
-        documentId: string,
-        next: NextFunction,
-        onChunk?: (chunk: any) => void
-    ): Promise<void> {
-        const document = await this.documentRepo.getDocumentWithVersions(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
+    const baseFilename = `${document.title.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-        // Get the idea
-        const idea = await this.ideaRepo.getIdeaById(document.ideaId);
-        if (!idea) {
-            return next(new AppError(404, "Associated idea not found"));
-        }
-
-        const ideaText = idea.businessDescription || idea.refinedText || idea.rawText;
-        const analysisResult = idea.analysisResult;
-        const type = document.type as DocumentType;
-
-        try {
-            let fullResponse = "";
-            const stream = AiService.generateDocumentStream(type, ideaText, analysisResult, idea.userId);
-
-            for await (const chunk of stream) {
-                fullResponse += chunk;
-                if (onChunk) {
-                    onChunk({
-                        documentId,
-                        type,
-                        chunk,
-                        fullText: fullResponse,
-                    });
-                }
-            }
-
-            const result = AiService.parseDocumentResult(fullResponse);
-            if (result) {
-                const latestVersion = await this.documentRepo.getLatestVersionNumber(documentId);
-                await this.documentRepo.createVersion(
-                    documentId,
-                    latestVersion + 1,
-                    result.content,
-                    "Regenerated by AI"
-                );
-
-                const updatedDoc = await this.documentRepo.updateDocument(documentId, {
-                    title: result.title,
-                    content: result.content,
-                });
-
-                if (onChunk) {
-                    onChunk({ status: "final", document: updatedDoc });
-                }
-            }
-        } catch (error) {
-            console.error("Document regeneration error:", error);
-            const errorMessage = error instanceof Error ? error.message : "Failed to regenerate document";
-            if (onChunk) {
-                onChunk({ status: "error", message: errorMessage });
-            }
-        }
+    switch (format) {
+      case "markdown": {
+        const turndownService = new TurndownService();
+        const markdown = turndownService.turndown(document.content);
+        return {
+          content: `# ${document.title}\n\n${markdown}`,
+          filename: `${baseFilename}.md`,
+          mimeType: "text/markdown",
+        };
+      }
+      case "html":
+        return {
+          content: this.convertToHtml(document.title, document.content),
+          filename: `${baseFilename}.html`,
+          mimeType: "text/html",
+        };
+      default:
+        throw new BadRequestException("Unsupported export format");
     }
+  }
 
-
-    // Delete a document
-    static async deleteDocument(
-        documentId: string,
-        next: NextFunction
-    ): Promise<void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-
-        await this.documentRepo.deleteDocument(documentId);
-    }
-
-    // Export document as specific format (returns content for client-side processing)
-    static async exportDocument(
-        documentId: string,
-        format: "markdown" | "html",
-        next: NextFunction
-    ): Promise<{ content: string; filename: string; mimeType: string } | void> {
-        const document = await this.documentRepo.getDocumentById(documentId);
-        if (!document) {
-            return next(new AppError(404, "Document not found"));
-        }
-
-        const baseFilename = `${document.title.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-        switch (format) {
-            case "markdown":
-                const turndownService = new TurndownService();
-                const markdown = turndownService.turndown(document.content);
-                return {
-                    content: `# ${document.title}\n\n${markdown}`,
-                    filename: `${baseFilename}.md`,
-                    mimeType: "text/markdown",
-                };
-            case "html":
-                return {
-                    content: this.convertToHtml(document.title, document.content),
-                    filename: `${baseFilename}.html`,
-                    mimeType: "text/html",
-                };
-            default:
-                return next(new AppError(400, "Unsupported export format"));
-        }
-    }
-
-    // Helper to convert content to HTML
-    private static convertToHtml(title: string, content: string): string {
-        // Content is already HTML from the rich text editor, so we just wrap it
-        const html = content;
-
-        return `<!DOCTYPE html>
+  private convertToHtml(title: string, content: string): string {
+    return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -454,10 +482,10 @@ class DocumentService {
 </head>
 <body>
     <h1>${title}</h1>
-    ${html}
+    ${content}
 </body>
 </html>`;
-    }
+  }
 }
 
 export default DocumentService;
