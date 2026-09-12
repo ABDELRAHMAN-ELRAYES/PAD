@@ -1,180 +1,206 @@
-import { PrismaClient } from "@prisma/client";
-import AppError from "../../utils/app-error";
+import { Injectable } from "@nestjs/common";
+import { DatabaseService } from "../../database/database.service";
 import {
-    IDocument,
-    IDocumentVersion,
-    ICreateDocumentData,
-    IUpdateDocumentData,
-    IDocumentWithVersions,
+  IDocument,
+  IDocumentVersion,
+  ICreateDocumentData,
+  IUpdateDocumentData,
+  IDocumentWithVersions,
+  DocumentType,
+  DocumentStatus,
 } from "./types/IDocument";
 
-class DocumentRepository {
-    private static instance: DocumentRepository;
-    private prisma: PrismaClient;
+@Injectable()
+export class DocumentRepository {
+  private static instance: DocumentRepository;
 
-    private constructor() {
-        this.prisma = new PrismaClient();
+  constructor(private readonly db: DatabaseService) {
+    DocumentRepository.instance = this;
+  }
+
+  static getInstance(): DocumentRepository {
+    return DocumentRepository.instance;
+  }
+
+  private mapRowToDocument(row: any): IDocument {
+    return {
+      id: row.id,
+      ideaId: row.idea_id,
+      type: row.type as DocumentType,
+      title: row.title,
+      content: row.content || "",
+      status: (row.status || "draft") as DocumentStatus,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    };
+  }
+
+  private mapRowToVersion(row: any): IDocumentVersion {
+    return {
+      id: row.id,
+      documentId: row.document_id,
+      version: Number(row.version),
+      content: row.content || "",
+      changelog: row.changelog || null,
+      createdAt: new Date(row.created_at),
+    };
+  }
+
+  async createDocument(data: ICreateDocumentData): Promise<IDocument> {
+    const sql = `
+      INSERT INTO documents (idea_id, type, title, content, status, current_version, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, 'draft', 1, NOW(), NOW())
+      RETURNING id, idea_id, type, title, content, status, current_version, created_at, updated_at;
+    `;
+    const row = await this.db.queryOne(sql, [
+      data.ideaId,
+      data.type,
+      data.title,
+      data.content || "",
+    ]);
+    return this.mapRowToDocument(row);
+  }
+
+  async getDocumentById(id: string): Promise<IDocument | null> {
+    const sql = `
+      SELECT id, idea_id, type, title, content, status, current_version, created_at, updated_at
+      FROM documents
+      WHERE id = $1
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [id]);
+    return row ? this.mapRowToDocument(row) : null;
+  }
+
+  async getDocumentWithVersions(id: string): Promise<IDocumentWithVersions | null> {
+    const doc = await this.getDocumentById(id);
+    if (!doc) return null;
+
+    const versions = await this.getVersionHistory(id);
+    return {
+      ...doc,
+      versions,
+    };
+  }
+
+  async getDocumentsByIdeaId(ideaId: string): Promise<IDocument[]> {
+    const sql = `
+      SELECT id, idea_id, type, title, content, status, current_version, created_at, updated_at
+      FROM documents
+      WHERE idea_id = $1
+      ORDER BY created_at DESC;
+    `;
+    const rows = await this.db.query(sql, [ideaId]);
+    return rows.map((r) => this.mapRowToDocument(r));
+  }
+
+  async updateDocument(
+    id: string,
+    data: IUpdateDocumentData,
+  ): Promise<IDocument> {
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (data.title !== undefined) {
+      setClauses.push(`title = $${idx++}`);
+      values.push(data.title);
+    }
+    if (data.content !== undefined) {
+      setClauses.push(`content = $${idx++}`);
+      values.push(data.content);
+    }
+    if (data.status !== undefined) {
+      setClauses.push(`status = $${idx++}`);
+      values.push(data.status);
     }
 
-    static getInstance(): DocumentRepository {
-        if (!DocumentRepository.instance) {
-            DocumentRepository.instance = new DocumentRepository();
-        }
-        return DocumentRepository.instance;
+    if (setClauses.length === 0) {
+      const existing = await this.getDocumentById(id);
+      if (!existing) throw new Error("Document not found");
+      return existing;
     }
 
-    // Create a new document
-    async createDocument(data: ICreateDocumentData): Promise<IDocument> {
-        try {
-            const document = await this.prisma.document.create({
-                data: {
-                    ideaId: data.ideaId,
-                    type: data.type,
-                    title: data.title,
-                    content: data.content,
-                },
-            });
-            return document as IDocument;
-        } catch (error) {
-            throw new AppError(500, "Failed to create document");
-        }
-    }
+    setClauses.push(`updated_at = NOW()`);
+    values.push(id);
 
-    // Get document by ID
-    async getDocumentById(id: string): Promise<IDocument | null> {
-        try {
-            const document = await this.prisma.document.findUnique({
-                where: { id },
-            });
-            return document as IDocument | null;
-        } catch (error) {
-            throw new AppError(500, "Failed to fetch document");
-        }
-    }
+    const sql = `
+      UPDATE documents
+      SET ${setClauses.join(", ")}
+      WHERE id = $${idx}
+      RETURNING id, idea_id, type, title, content, status, current_version, created_at, updated_at;
+    `;
+    const row = await this.db.queryOne(sql, values);
+    return this.mapRowToDocument(row);
+  }
 
-    // Get document by ID with versions
-    async getDocumentWithVersions(id: string): Promise<IDocumentWithVersions | null> {
-        try {
-            const document = await this.prisma.document.findUnique({
-                where: { id },
-                include: {
-                    versions: {
-                        orderBy: { version: "desc" },
-                    },
-                },
-            });
-            return document as IDocumentWithVersions | null;
-        } catch (error) {
-            throw new AppError(500, "Failed to fetch document with versions");
-        }
-    }
+  async createVersion(
+    documentId: string,
+    version: number,
+    content: string,
+    changelog?: string,
+  ): Promise<IDocumentVersion> {
+    const sql = `
+      INSERT INTO document_versions (document_id, version, content, changelog, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (document_id, version) DO UPDATE
+      SET content = EXCLUDED.content, changelog = EXCLUDED.changelog
+      RETURNING id, document_id, version, content, changelog, created_at;
+    `;
+    const row = await this.db.queryOne(sql, [
+      documentId,
+      version,
+      content,
+      changelog || null,
+    ]);
 
-    // Get all documents for an idea
-    async getDocumentsByIdeaId(ideaId: string): Promise<IDocument[]> {
-        try {
-            const documents = await this.prisma.document.findMany({
-                where: { ideaId },
-                orderBy: { createdAt: "desc" },
-            });
-            return documents as IDocument[];
-        } catch (error) {
-            throw new AppError(500, "Failed to fetch documents for idea");
-        }
-    }
+    await this.db.execute(
+      `UPDATE documents SET current_version = $1, updated_at = NOW() WHERE id = $2;`,
+      [version, documentId],
+    );
 
-    // Update document
-    async updateDocument(id: string, data: IUpdateDocumentData): Promise<IDocument> {
-        try {
-            const document = await this.prisma.document.update({
-                where: { id },
-                data: {
-                    title: data.title,
-                    content: data.content,
-                    status: data.status,
-                },
-            });
-            return document as IDocument;
-        } catch (error) {
-            throw new AppError(500, "Failed to update document");
-        }
-    }
+    return this.mapRowToVersion(row);
+  }
 
-    // Create a document version
-    async createVersion(
-        documentId: string,
-        version: number,
-        content: string,
-        changelog?: string
-    ): Promise<IDocumentVersion> {
-        try {
-            const documentVersion = await this.prisma.documentVersion.create({
-                data: {
-                    documentId,
-                    version,
-                    content,
-                    changelog,
-                },
-            });
-            return documentVersion as IDocumentVersion;
-        } catch (error) {
-            throw new AppError(500, "Failed to create document version");
-        }
-    }
+  async getVersionHistory(documentId: string): Promise<IDocumentVersion[]> {
+    const sql = `
+      SELECT id, document_id, version, content, changelog, created_at
+      FROM document_versions
+      WHERE document_id = $1
+      ORDER BY version DESC;
+    `;
+    const rows = await this.db.query(sql, [documentId]);
+    return rows.map((r) => this.mapRowToVersion(r));
+  }
 
-    // Get version history for a document
-    async getVersionHistory(documentId: string): Promise<IDocumentVersion[]> {
-        try {
-            const versions = await this.prisma.documentVersion.findMany({
-                where: { documentId },
-                orderBy: { version: "desc" },
-            });
-            return versions as IDocumentVersion[];
-        } catch (error) {
-            throw new AppError(500, "Failed to fetch version history");
-        }
-    }
+  async getVersion(
+    documentId: string,
+    version: number,
+  ): Promise<IDocumentVersion | null> {
+    const sql = `
+      SELECT id, document_id, version, content, changelog, created_at
+      FROM document_versions
+      WHERE document_id = $1 AND version = $2
+      LIMIT 1;
+    `;
+    const row = await this.db.queryOne(sql, [documentId, version]);
+    return row ? this.mapRowToVersion(row) : null;
+  }
 
-    // Get a specific version
-    async getVersion(documentId: string, version: number): Promise<IDocumentVersion | null> {
-        try {
-            const docVersion = await this.prisma.documentVersion.findUnique({
-                where: {
-                    documentId_version: {
-                        documentId,
-                        version,
-                    },
-                },
-            });
-            return docVersion as IDocumentVersion | null;
-        } catch (error) {
-            throw new AppError(500, "Failed to fetch document version");
-        }
-    }
+  async getLatestVersionNumber(documentId: string): Promise<number> {
+    const sql = `
+      SELECT COALESCE(MAX(version), 0) AS max_ver
+      FROM document_versions
+      WHERE document_id = $1;
+    `;
+    const row = await this.db.queryOne(sql, [documentId]);
+    return Number(row?.max_ver || 0);
+  }
 
-    // Get the latest version number for a document
-    async getLatestVersionNumber(documentId: string): Promise<number> {
-        try {
-            const latestVersion = await this.prisma.documentVersion.findFirst({
-                where: { documentId },
-                orderBy: { version: "desc" },
-                select: { version: true },
-            });
-            return latestVersion?.version || 0;
-        } catch (error) {
-            throw new AppError(500, "Failed to get latest version number");
-        }
-    }
-
-    // Delete a document
-    async deleteDocument(id: string): Promise<void> {
-        try {
-            await this.prisma.document.delete({
-                where: { id },
-            });
-        } catch (error) {
-            throw new AppError(500, "Failed to delete document");
-        }
-    }
+  async deleteDocument(id: string): Promise<void> {
+    const sql = `DELETE FROM documents WHERE id = $1;`;
+    await this.db.execute(sql, [id]);
+  }
 }
 
 export default DocumentRepository;

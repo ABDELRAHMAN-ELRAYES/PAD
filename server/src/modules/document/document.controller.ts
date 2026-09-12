@@ -1,207 +1,255 @@
-import { Request, Response, NextFunction } from "express";
-import { catchAsync } from "../../utils/catch-async";
-import AppError from "../../utils/app-error";
-import DocumentService from "./document.service";
-import { IUpdateDocumentWithChangelogData, DocumentType } from "./types/IDocument";
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Res,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { Response } from "express";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse as SwaggerApiResponse,
+  ApiQuery,
+  ApiParam,
+} from "@nestjs/swagger";
+import { DocumentService } from "./document.service";
+import { DocumentRepository } from "./document.repository";
+import { IdeaRepository } from "../idea/idea.repository";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import { IUser } from "../user/types/IUser";
+import { DocumentType } from "./types/IDocument";
+import { UpdateDocumentDto } from "./dto/update-document.dto";
 
-// Generate documents for an idea (creates placeholder and returns it)
-export const generateDocuments = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
-        const type = request.query.type as DocumentType;
-        const supportedTypes: DocumentType[] = [
-            "BRD",
-            "PRD",
-            "SRS",
-            "FRS",
-            "SYSTEM_ARCH",
-            "API_SPEC",
-            "TEST_PLAN",
-            "USER_MANUAL",
-            "SECURITY_PLAN"
-        ];
+const SUPPORTED_DOCUMENT_TYPES: DocumentType[] = [
+  "BRD",
+  "PRD",
+  "SRS",
+  "FRS",
+  "SYSTEM_ARCH",
+  "API_SPEC",
+  "TEST_PLAN",
+  "USER_MANUAL",
+  "SECURITY_PLAN",
+];
 
-        if (!type || !supportedTypes.includes(type)) {
-            return next(new AppError(400, `Valid document type (${supportedTypes.join(", ")}) is required`));
-        }
+@ApiTags("documents")
+@Controller("documents")
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class DocumentController {
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly documentRepo: DocumentRepository,
+    private readonly ideaRepo: IdeaRepository,
+  ) {}
 
-        const document = await DocumentService.createPlaceholder(ideaId, type, next);
-        if (!document) return;
-
-        response.status(201).json({
-            status: "success",
-            data: { document },
-        });
+  private async assertIdeaOwnership(ideaId: string, userId: string) {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
     }
-);
-
-// Get a single document
-export const getDocument = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-
-        const document = await DocumentService.getDocument(documentId, next);
-        if (!document) return;
-
-        response.status(200).json({
-            status: "success",
-            data: { document },
-        });
+    if (idea.userId !== userId) {
+      throw new ForbiddenException("You do not have access to this idea");
     }
-);
+    return idea;
+  }
 
-// Get document with version history
-export const getDocumentWithVersions = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-
-        const document = await DocumentService.getDocumentWithVersions(documentId, next);
-        if (!document) return;
-
-        response.status(200).json({
-            status: "success",
-            data: { document },
-        });
+  private async assertDocumentOwnership(documentId: string, userId: string) {
+    const document = await this.documentRepo.getDocumentById(documentId);
+    if (!document) {
+      throw new NotFoundException("Document not found");
     }
-);
+    await this.assertIdeaOwnership(document.ideaId, userId);
+    return document;
+  }
 
-// Get all documents for an idea
-export const getDocumentsByIdea = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const ideaId = Array.isArray(request.params.ideaId) ? request.params.ideaId[0] : request.params.ideaId;
-
-        const documents = await DocumentService.getDocumentsByIdea(ideaId, next);
-        if (!documents) return;
-
-        response.status(200).json({
-            status: "success",
-            data: { documents, count: documents.length },
-        });
+  @Post("generate/:ideaId")
+  @ApiOperation({ summary: "Create placeholder document for a confirmed idea" })
+  @ApiQuery({ name: "type", enum: SUPPORTED_DOCUMENT_TYPES })
+  @SwaggerApiResponse({ status: 201, description: "Document placeholder created" })
+  async generateDocuments(
+    @Param("ideaId") ideaId: string,
+    @Query("type") type: DocumentType,
+    @CurrentUser() user: IUser,
+  ) {
+    if (!type || !SUPPORTED_DOCUMENT_TYPES.includes(type)) {
+      throw new BadRequestException(
+        `Valid document type (${SUPPORTED_DOCUMENT_TYPES.join(", ")}) is required`,
+      );
     }
-);
 
-// Update a document
-export const updateDocument = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-        const data: IUpdateDocumentWithChangelogData = {
-            title: request.body.title,
-            content: request.body.content,
-            status: request.body.status,
-            changelog: request.body.changelog,
-        };
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const document = await this.documentService.createPlaceholder(ideaId, type);
 
-        const document = await DocumentService.updateDocument(documentId, data, next);
-        if (!document) return;
+    return { document };
+  }
 
-        response.status(200).json({
-            status: "success",
-            message: "Document updated successfully",
-            data: { document },
-        });
+  @Get("idea/:ideaId")
+  @ApiOperation({ summary: "Get all documents for an idea" })
+  @SwaggerApiResponse({ status: 200, description: "Documents list retrieved" })
+  async getDocumentsByIdea(
+    @Param("ideaId") ideaId: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const documents = await this.documentService.getDocumentsByIdea(ideaId);
+
+    return { documents, count: documents.length };
+  }
+
+  @Get(":id/full")
+  @ApiOperation({ summary: "Get document with full version history" })
+  @SwaggerApiResponse({ status: 200, description: "Document with versions retrieved" })
+  async getDocumentWithVersions(
+    @Param("id") id: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+    const document = await this.documentService.getDocumentWithVersions(id);
+
+    return { document };
+  }
+
+  @Get(":id/versions")
+  @ApiOperation({ summary: "Get document version history" })
+  @SwaggerApiResponse({ status: 200, description: "Version history retrieved" })
+  async getVersionHistory(
+    @Param("id") id: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+    const versions = await this.documentService.getVersionHistory(id);
+
+    return { versions, count: versions.length };
+  }
+
+  @Post(":id/revert/:version")
+  @ApiOperation({ summary: "Revert document to a specific version" })
+  @SwaggerApiResponse({ status: 200, description: "Document reverted successfully" })
+  async revertToVersion(
+    @Param("id") id: string,
+    @Param("version") versionParam: string,
+    @CurrentUser() user: IUser,
+  ) {
+    const versionNumber = parseInt(versionParam, 10);
+    if (isNaN(versionNumber)) {
+      throw new BadRequestException("Invalid version number");
     }
-);
 
-// Get version history
-export const getVersionHistory = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    await this.assertDocumentOwnership(id, user.id);
+    const document = await this.documentService.revertToVersion(id, versionNumber);
 
-        const versions = await DocumentService.getVersionHistory(documentId, next);
-        if (!versions) return;
+    return {
+      message: `Reverted to version ${versionNumber}`,
+      document,
+    };
+  }
 
-        response.status(200).json({
-            status: "success",
-            data: { versions, count: versions.length },
-        });
+  @Post(":id/regenerate")
+  @ApiOperation({ summary: "Regenerate a document via AI streaming" })
+  async regenerateDocument(
+    @Param("id") id: string,
+    @CurrentUser() user: IUser,
+    @Res() response: Response,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+
+    response.setHeader("Content-Type", "application/json");
+    response.setHeader("Transfer-Encoding", "chunked");
+    response.setHeader("Cache-Control", "no-cache");
+    response.setHeader("Connection", "keep-alive");
+
+    try {
+      await this.documentService.regenerateDocument(id, (chunk) => {
+        response.write(JSON.stringify(chunk) + "\n");
+      });
+      response.end();
+    } catch (err) {
+      if (!response.headersSent) {
+        response.status(500).json({ status: "error", message: "Regeneration failed" });
+      } else {
+        response.end();
+      }
     }
-);
+  }
 
-// Revert to a specific version
-export const revertToVersion = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-
-        const versionNumber = parseInt(Array.isArray(request.params.version) ? request.params.version[0] : request.params.version, 10);
-
-        if (isNaN(versionNumber)) {
-            response.status(400).json({
-                status: "fail",
-                message: "Invalid version number",
-            });
-            return;
-        }
-
-        const document = await DocumentService.revertToVersion(documentId, versionNumber, next);
-        if (!document) return;
-
-        response.status(200).json({
-            status: "success",
-            message: `Reverted to version ${versionNumber}`,
-            data: { document },
-        });
+  @Get(":id/export/:format")
+  @ApiOperation({ summary: "Export document as markdown or html" })
+  @ApiParam({ name: "format", enum: ["markdown", "html"] })
+  async exportDocument(
+    @Param("id") id: string,
+    @Param("format") format: "markdown" | "html",
+    @CurrentUser() user: IUser,
+    @Res() response: Response,
+  ) {
+    if (!["markdown", "html"].includes(format)) {
+      throw new BadRequestException("Unsupported format. Use 'markdown' or 'html'");
     }
-);
 
-// Regenerate a document (Streaming)
-export const regenerateDocument = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    await this.assertDocumentOwnership(id, user.id);
+    const result = await this.documentService.exportDocument(id, format);
 
-        // Set headers for streaming
-        response.setHeader("Content-Type", "application/json");
-        response.setHeader("Transfer-Encoding", "chunked");
-        response.setHeader("Cache-Control", "no-cache");
-        response.setHeader("Connection", "keep-alive");
+    response.setHeader("Content-Type", result.mimeType);
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${result.filename}"`,
+    );
+    response.status(200).send(result.content);
+  }
 
-        try {
-            await DocumentService.regenerateDocument(documentId, next, (chunk) => {
-                response.write(JSON.stringify(chunk) + "\n");
-            });
-            response.end();
-        } catch (err) {
-            if (!response.headersSent) {
-                return next(err);
-            }
-            console.error("Document regeneration streaming error:", err);
-            response.end();
-        }
-    }
-);
+  @Get(":id")
+  @ApiOperation({ summary: "Get a single document by ID" })
+  @SwaggerApiResponse({ status: 200, description: "Document retrieved" })
+  async getDocument(
+    @Param("id") id: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+    const document = await this.documentService.getDocument(id);
 
-// Export document
-export const exportDocument = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-        const format = request.params.format as "markdown" | "html";
+    return { document };
+  }
 
-        if (!["markdown", "html"].includes(format)) {
-            response.status(400).json({
-                status: "fail",
-                message: "Unsupported format. Use 'markdown' or 'html'",
-            });
-            return;
-        }
+  @Put(":id")
+  @ApiOperation({ summary: "Update document content or metadata" })
+  @SwaggerApiResponse({ status: 200, description: "Document updated" })
+  async updateDocument(
+    @Param("id") id: string,
+    @Body() dto: UpdateDocumentDto,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+    const document = await this.documentService.updateDocument(id, dto);
 
-        const result = await DocumentService.exportDocument(documentId, format, next);
-        if (!result) return;
+    return {
+      message: "Document updated successfully",
+      document,
+    };
+  }
 
-        response.setHeader("Content-Type", result.mimeType);
-        response.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
-        response.status(200).send(result.content);
-    }
-);
-
-// Delete a document
-export const deleteDocument = catchAsync(
-    async (request: Request, response: Response, next: NextFunction) => {
-        const documentId = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
-
-        await DocumentService.deleteDocument(documentId, next);
-
-        response.status(204).json({
-            status: "success",
-            data: null,
-        });
-    }
-);
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete a document" })
+  @SwaggerApiResponse({ status: 204, description: "Document deleted" })
+  async deleteDocument(
+    @Param("id") id: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertDocumentOwnership(id, user.id);
+    await this.documentService.deleteDocument(id);
+    return null;
+  }
+}
