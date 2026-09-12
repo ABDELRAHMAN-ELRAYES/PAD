@@ -1,85 +1,106 @@
-import { Request, Response, NextFunction } from "express";
-import { catchAsync } from "../../utils/catch-async";
-import DiscoveryService from "./discovery.service";
-import AppError from "../../utils/app-error";
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  UseGuards,
+  NotFoundException,
+  ForbiddenException,
+  HttpCode,
+  HttpStatus,
+} from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse as SwaggerApiResponse } from "@nestjs/swagger";
+import { DiscoveryService } from "./discovery.service";
+import { IdeaRepository } from "../idea/idea.repository";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { IUser } from "../user/types/IUser";
-import PrismaClientSingleton from "../../data-server-clients/prisma-client";
+import { SubmitQuestionnaireDto } from "./dto/submit-questionnaire.dto";
 
-const prisma = PrismaClientSingleton.getPrismaClient();
+@ApiTags("discovery")
+@Controller("ideas/:id/questionnaire")
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class DiscoveryController {
+  constructor(
+    private readonly discoveryService: DiscoveryService,
+    private readonly ideaRepo: IdeaRepository,
+  ) {}
 
-export const getQuestionnaire = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    const currentUser = request.user as IUser;
-
-    const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+  @Get()
+  @ApiOperation({ summary: "Get discovery questionnaire for an idea" })
+  @SwaggerApiResponse({ status: 200, description: "Questionnaire retrieved successfully" })
+  @SwaggerApiResponse({ status: 404, description: "Idea not found" })
+  @SwaggerApiResponse({ status: 403, description: "Forbidden" })
+  async getQuestionnaire(
+    @Param("id") ideaId: string,
+    @CurrentUser() user: IUser,
+  ) {
+    const idea = await this.ideaRepo.findById(ideaId);
     if (!idea) {
-      return next(new AppError(404, "Idea not found"));
+      throw new NotFoundException("Idea not found");
     }
 
-    if (idea.userId !== currentUser.id) {
-      return next(new AppError(403, "غير مصرح لك بالوصول لهذه الفكرة."));
+    if (idea.userId !== user.id) {
+      throw new ForbiddenException("You do not have access to this idea");
     }
 
-    const questionnaire = await DiscoveryService.getQuestionnaire(ideaId);
-
-    response.status(200).json({
-      status: "success",
-      data: { questionnaire }
-    });
+    const questionnaire = await this.discoveryService.getQuestionnaire(ideaId);
+    return { questionnaire };
   }
-);
 
-export const submitQuestionnaire = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    const currentUser = request.user as IUser;
-    const { responses } = request.body;
-
-    if (!Array.isArray(responses)) {
-      return next(new AppError(400, "Responses must be an array"));
-    }
-
-    const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+  @Post("submit")
+  @ApiOperation({ summary: "Submit answers for discovery questionnaire" })
+  @SwaggerApiResponse({ status: 200, description: "Questionnaire submitted successfully" })
+  @SwaggerApiResponse({ status: 404, description: "Idea not found" })
+  @SwaggerApiResponse({ status: 403, description: "Forbidden" })
+  async submitQuestionnaire(
+    @Param("id") ideaId: string,
+    @Body() dto: SubmitQuestionnaireDto,
+    @CurrentUser() user: IUser,
+  ) {
+    const idea = await this.ideaRepo.findById(ideaId);
     if (!idea) {
-      return next(new AppError(404, "Idea not found"));
+      throw new NotFoundException("Idea not found");
     }
 
-    if (idea.userId !== currentUser.id) {
-      return next(new AppError(403, "غير مصرح لك بالوصول لهذه الفكرة."));
+    if (idea.userId !== user.id) {
+      throw new ForbiddenException("You do not have access to this idea");
     }
 
-    const result = await DiscoveryService.submitResponses(ideaId, responses);
+    const result = await this.discoveryService.submitResponses(
+      ideaId,
+      dto.responses,
+    );
 
-    response.status(200).json({
-      status: "success",
-      data: { response: result }
-    });
+    return { response: result };
   }
-);
 
-export const regenerateQuestionnaire = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    const currentUser = request.user as IUser;
-
-    const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+  @Post("regenerate")
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: "Trigger discovery questionnaire regeneration asynchronously" })
+  @SwaggerApiResponse({ status: 202, description: "Questionnaire generation triggered" })
+  @SwaggerApiResponse({ status: 404, description: "Idea not found" })
+  @SwaggerApiResponse({ status: 403, description: "Forbidden" })
+  async regenerateQuestionnaire(
+    @Param("id") ideaId: string,
+    @CurrentUser() user: IUser,
+  ) {
+    const idea = await this.ideaRepo.findById(ideaId);
     if (!idea) {
-      return next(new AppError(404, "Idea not found"));
+      throw new NotFoundException("Idea not found");
     }
 
-    if (idea.userId !== currentUser.id) {
-      return next(new AppError(403, "غير مصرح لك بالوصول لهذه الفكرة."));
+    if (idea.userId !== user.id) {
+      throw new ForbiddenException("You do not have access to this idea");
     }
 
     // Trigger regeneration asynchronously
-    DiscoveryService.generateQuestionnaire(ideaId).catch(err => {
+    this.discoveryService.generateQuestionnaire(ideaId).catch((err) => {
       console.error("Async questionnaire generation failed:", err);
     });
 
-    response.status(202).json({
-      status: "success",
-      message: "Questionnaire generation triggered"
-    });
+    return { message: "Questionnaire generation triggered" };
   }
-);
+}
