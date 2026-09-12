@@ -1,91 +1,127 @@
-import PrismaClientSingleton from "../../data-server-clients/prisma-client";
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  Logger,
+} from "@nestjs/common";
+import { DiscoveryRepository } from "./discovery.repository";
+import { IdeaRepository } from "../idea/idea.repository";
 import AiService from "../ai/ai.service";
-import { QUESTIONNAIRE_SYSTEM_PROMPT, buildQuestionnairePrompt } from "./prompts/questionnaire.prompt";
+import {
+  QUESTIONNAIRE_SYSTEM_PROMPT,
+  buildQuestionnairePrompt,
+} from "./prompts/questionnaire.prompt";
 import SocketService from "../../services/socket.service";
-import AppError from "../../utils/app-error";
+import {
+  IDiscoveryQuestionnaire,
+  IDiscoveryAnswer,
+} from "./types/discovery.interface";
 
-export default class DiscoveryService {
-  private static prisma = PrismaClientSingleton.getPrismaClient();
+@Injectable()
+export class DiscoveryService {
+  private readonly logger = new Logger(DiscoveryService.name);
+  private static instance: DiscoveryService;
 
-  static async generateQuestionnaire(ideaId: string): Promise<any> {
-    const idea = await this.prisma.idea.findUnique({ where: { id: ideaId } });
-    if (!idea) throw new AppError(404, "Idea not found");
+  constructor(
+    private readonly discoveryRepo: DiscoveryRepository,
+    private readonly ideaRepo: IdeaRepository,
+  ) {
+    DiscoveryService.instance = this;
+  }
 
-    // Save status to DB first if it's draft, so UI knows it's generating
-    await this.prisma.idea.update({
-      where: { id: ideaId },
-      data: { status: "draft" }
-    });
+  static getInstance(): DiscoveryService {
+    return DiscoveryService.instance;
+  }
+
+  async generateQuestionnaire(ideaId: string): Promise<IDiscoveryQuestionnaire> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
+    }
+
+    // Set idea status to 'draft' during generation if needed
+    await this.ideaRepo.updateStatus(ideaId, "draft");
 
     try {
-      const prompt = buildQuestionnairePrompt(idea.businessDescription || idea.rawText);
-      const response = await AiService.callLLM(prompt, true, QUESTIONNAIRE_SYSTEM_PROMPT, idea.userId);
+      const sourceText = idea.businessDescription || idea.rawText;
+      const prompt = buildQuestionnairePrompt(sourceText);
+      const response = await AiService.callLLM(
+        prompt,
+        true,
+        QUESTIONNAIRE_SYSTEM_PROMPT,
+        idea.userId,
+      );
       const parsed = AiService.robustJSONParse<any>(response);
 
       if (!parsed || !Array.isArray(parsed.questions)) {
-        throw new Error("Invalid questionnaire JSON response");
+        throw new Error("Invalid questionnaire JSON structure received from AI");
       }
 
-      // Save to database (upsert to handle retries/re-generations)
-      const questionnaire = await this.prisma.discoveryQuestionnaire.upsert({
-        where: { ideaId },
-        update: {
-          questions: parsed.questions as any,
-          generatedAt: new Date()
-        },
-        create: {
-          ideaId,
-          questions: parsed.questions as any
-        }
-      });
+      // Save questionnaire and its questions
+      const questionnaire = await this.discoveryRepo.saveQuestionnaire(
+        ideaId,
+        parsed.questions,
+      );
 
-      // Update idea status
-      const updatedIdea = await this.prisma.idea.update({
-        where: { id: ideaId },
-        data: { status: "questionnaire_ready" }
-      });
+      // Update idea status to questionnaire_ready
+      const updatedIdea = await this.ideaRepo.updateStatus(
+        ideaId,
+        "questionnaire_ready",
+      );
 
-      // Emit to socket room
+      // Emit to WebSocket room
       const socketService = SocketService.getInstance();
-      socketService.emitToRoom(ideaId, "discovery:questionnaire_ready", { idea: updatedIdea, questionnaire });
+      socketService.emitToRoom(ideaId, "discovery:questionnaire_ready", {
+        idea: updatedIdea,
+        questionnaire,
+      });
 
       return questionnaire;
     } catch (error) {
-      console.error("Error generating discovery questionnaire:", error);
+      this.logger.error(`Error generating discovery questionnaire for idea ${ideaId}:`, error);
       const socketService = SocketService.getInstance();
-      socketService.emitToRoom(ideaId, "discovery:error", { message: "Failed to generate questionnaire." });
-      throw error;
+      socketService.emitToRoom(ideaId, "discovery:error", {
+        message: "Failed to generate questionnaire.",
+      });
+      throw new InternalServerErrorException(
+        "Failed to generate discovery questionnaire",
+      );
     }
   }
 
-  static async getQuestionnaire(ideaId: string): Promise<any> {
-    const questionnaire = await this.prisma.discoveryQuestionnaire.findUnique({
-      where: { ideaId }
-    });
-    return questionnaire;
+  async getQuestionnaire(ideaId: string): Promise<IDiscoveryQuestionnaire | null> {
+    return this.discoveryRepo.getQuestionnaireByIdeaId(ideaId);
   }
 
-  static async submitResponses(ideaId: string, responses: any[]): Promise<any> {
-    const idea = await this.prisma.idea.findUnique({ where: { id: ideaId } });
-    if (!idea) throw new AppError(404, "Idea not found");
+  async submitResponses(
+    ideaId: string,
+    responses: Array<{
+      questionId?: string;
+      questionKey?: string;
+      label?: string;
+      value: any;
+    }>,
+  ): Promise<IDiscoveryAnswer[]> {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
+    }
 
-    // Save responses
-    const responseRecord = await this.prisma.questionnaireResponse.upsert({
-      where: { ideaId },
-      update: { responses: responses as any, submittedAt: new Date() },
-      create: { ideaId, responses: responses as any }
-    });
+    const savedAnswers = await this.discoveryRepo.saveAnswers(ideaId, responses);
 
-    // Update status
-    const updatedIdea = await this.prisma.idea.update({
-      where: { id: ideaId },
-      data: { status: "questionnaire_complete" }
-    });
+    // Update status to questionnaire_complete
+    const updatedIdea = await this.ideaRepo.updateStatus(
+      ideaId,
+      "questionnaire_complete",
+    );
 
-    // Emit to socket room
+    // Emit to WebSocket room
     const socketService = SocketService.getInstance();
-    socketService.emitToRoom(ideaId, "discovery:submitted", { idea: updatedIdea, response: responseRecord });
+    socketService.emitToRoom(ideaId, "discovery:submitted", {
+      idea: updatedIdea,
+      response: savedAnswers,
+    });
 
-    return responseRecord;
+    return savedAnswers;
   }
 }
