@@ -9,6 +9,7 @@ import { GuidelineModule } from "./modules/guideline/guideline.module";
 import { IdeaModule } from "./modules/idea/idea.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { DocumentModule } from "./modules/document/document.module";
+import { DiagramModule } from "./modules/diagram/diagram.module";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 
 @Module({
@@ -31,6 +32,7 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     IdeaModule,
     DiscoveryModule,
     DocumentModule,
+    DiagramModule,
   ],
 })
 export class AppModule implements NestModule {
