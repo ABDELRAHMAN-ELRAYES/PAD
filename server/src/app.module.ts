@@ -11,6 +11,7 @@ import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { DocumentModule } from "./modules/document/document.module";
 import { DiagramModule } from "./modules/diagram/diagram.module";
 import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
+import { IRModule } from "./modules/ir/ir.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.midd
     DiscoveryModule,
     DocumentModule,
     DiagramModule,
+    IRModule,
   ],
 })
 export class AppModule implements NestModule {

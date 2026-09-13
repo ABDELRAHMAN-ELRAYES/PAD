@@ -88,9 +88,7 @@ export default class IterationService {
                 }
 
                 // Apply patch to the IR schema
-                const updatedIr = await IRService.patchIR(ideaId, feedback, userId, (err) => {
-                    if (err) throw err;
-                });
+                const updatedIr = await IRService.patchIR(ideaId, feedback, userId);
 
                 if (!updatedIr) {
                     throw new Error("Failed to apply schema changes");
@@ -103,9 +101,7 @@ export default class IterationService {
                     ? existingDiagrams.map((d: any) => d.type)
                     : ["ERD", "SEQUENCE"];
 
-                await IRService.compileIR(ideaId, diagramTypesToCompile, userId, (err) => {
-                    if (err) throw err;
-                });
+                await IRService.compileIR(ideaId, diagramTypesToCompile, userId);
 
                 // Post a message in the chat explaining the changes applied
                 const explanation = `✅ **Facts Schema updated successfully!**\n\nI have merged your requested database/schema changes into the project's Intermediate Representation (IR) and recompiled all downstream assets (PRD, BRD, and diagrams).\n\n**Applied change:** "${feedback}"`;
