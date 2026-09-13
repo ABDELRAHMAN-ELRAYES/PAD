@@ -1,123 +1,132 @@
-import { Request, Response, NextFunction } from "express";
-import { catchAsync } from "../../utils/catch-async";
-import IRService from "./ir.service";
-import IdeaRepository from "../idea/idea.repository";
-import AppError from "../../utils/app-error";
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  UseGuards,
+  NotFoundException,
+  ForbiddenException,
+  HttpStatus,
+  HttpCode,
+} from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse as SwaggerApiResponse,
+} from "@nestjs/swagger";
+import { IRService } from "./ir.service";
+import { IdeaRepository } from "../idea/idea.repository";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { IUser } from "../user/types/IUser";
+import { UpdateIRDto } from "./dto/update-ir.dto";
+import { PatchIRDto } from "./dto/patch-ir.dto";
+import { CompileIRDto } from "./dto/compile-ir.dto";
 
-// Check user ownership helper
-async function checkOwnership(ideaId: string, request: Request, next: NextFunction): Promise<boolean> {
-  const idea = await IdeaRepository.getInstance().getIdeaById(ideaId);
-  if (!idea) {
-    next(new AppError(404, "Idea not found"));
-    return false;
+@ApiTags("ir")
+@Controller("ideas/:id/ir")
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class IRController {
+  constructor(
+    private readonly irService: IRService,
+    private readonly ideaRepo: IdeaRepository,
+  ) {}
+
+  private async assertIdeaOwnership(ideaId: string, userId: string) {
+    const idea = await this.ideaRepo.findById(ideaId);
+    if (!idea) {
+      throw new NotFoundException("Idea not found");
+    }
+    if (idea.userId !== userId) {
+      throw new ForbiddenException("You do not have access to this idea");
+    }
+    return idea;
   }
-  const currentUser = request.user as IUser;
-  if (idea.userId !== currentUser.id) {
-    next(new AppError(403, "Not authorized to access this idea"));
-    return false;
+
+  @Get()
+  @ApiOperation({ summary: "Get current Project IR and version history for an idea" })
+  @SwaggerApiResponse({ status: 200, description: "Project IR retrieved successfully" })
+  async getIR(
+    @Param("id") ideaId: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const ir = await this.irService.getIR(ideaId);
+    return { ir };
   }
-  return true;
-}
 
-// GET /ideas/:id/ir
-export const getIR = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    if (!(await checkOwnership(ideaId, request, next))) return;
-
-    const ir = await IRService.getIR(ideaId, next);
-    if (!ir) return;
-
-    response.status(200).json({
-      status: "success",
-      data: { ir },
-    });
-  }
-);
-
-// POST /ideas/:id/ir/generate
-export const generateInitialIR = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    if (!(await checkOwnership(ideaId, request, next))) return;
-
-    const currentUser = request.user as IUser;
-    const ir = await IRService.generateInitialIR(ideaId, currentUser.id, next);
-    if (!ir) return;
-
-    response.status(201).json({
-      status: "success",
+  @Post("generate")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "Generate initial Project IR from idea description" })
+  @SwaggerApiResponse({ status: 201, description: "Project IR generated" })
+  async generateInitialIR(
+    @Param("id") ideaId: string,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const ir = await this.irService.generateInitialIR(ideaId, user.id);
+    return {
       message: "Intermediate Representation generated successfully",
-      data: { ir },
-    });
+      ir,
+    };
   }
-);
 
-// POST /ideas/:id/ir
-export const updateIR = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    if (!(await checkOwnership(ideaId, request, next))) return;
-
-    const { schemaData, changelog } = request.body;
-    if (!schemaData) {
-      return next(new AppError(400, "Missing schemaData in request body"));
-    }
-
-    const result = await IRService.updateIRDirectly(ideaId, schemaData, changelog || "Manual tree edits", next);
-    if (!result) return;
-
-    response.status(200).json({
-      status: "success",
+  @Post()
+  @ApiOperation({ summary: "Update Project IR directly via schema editor" })
+  @SwaggerApiResponse({ status: 200, description: "Project IR updated" })
+  async updateIR(
+    @Param("id") ideaId: string,
+    @Body() dto: UpdateIRDto,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const result = await this.irService.updateIRDirectly(
+      ideaId,
+      dto.schemaData,
+      dto.changelog || "Manual tree edits",
+    );
+    return {
       message: "IR updated successfully",
-      data: result,
-    });
+      ...result,
+    };
   }
-);
 
-// POST /ideas/:id/ir/patch
-export const patchIR = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    if (!(await checkOwnership(ideaId, request, next))) return;
-
-    const { requestText } = request.body;
-    if (!requestText) {
-      return next(new AppError(400, "Missing requestText in request body"));
-    }
-
-    const currentUser = request.user as IUser;
-    const ir = await IRService.patchIR(ideaId, requestText, currentUser.id, next);
-    if (!ir) return;
-
-    response.status(200).json({
-      status: "success",
+  @Post("patch")
+  @ApiOperation({ summary: "Patch/Modify Project IR using natural language prompt" })
+  @SwaggerApiResponse({ status: 200, description: "Project IR patched" })
+  async patchIR(
+    @Param("id") ideaId: string,
+    @Body() dto: PatchIRDto,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const ir = await this.irService.patchIR(ideaId, dto.requestText, user.id);
+    return {
       message: "IR patched successfully using natural language modifications",
-      data: { ir },
-    });
+      ir,
+    };
   }
-);
 
-// POST /ideas/:id/ir/compile
-export const compileIR = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const ideaId = request.params.id as string;
-    if (!(await checkOwnership(ideaId, request, next))) return;
-
-    const { selectedDiagrams } = request.body;
-    if (!selectedDiagrams || !Array.isArray(selectedDiagrams)) {
-      return next(new AppError(400, "Missing or invalid selectedDiagrams array in request body"));
-    }
-
-    const currentUser = request.user as IUser;
-    const compileResult = await IRService.compileIR(ideaId, selectedDiagrams, currentUser.id, next);
-    if (!compileResult) return;
-
-    response.status(200).json({
-      status: "success",
+  @Post("compile")
+  @ApiOperation({ summary: "Compile unified Project IR into OpenAPI spec, documents, and diagrams" })
+  @SwaggerApiResponse({ status: 200, description: "System compiled successfully from IR" })
+  async compileIR(
+    @Param("id") ideaId: string,
+    @Body() dto: CompileIRDto,
+    @CurrentUser() user: IUser,
+  ) {
+    await this.assertIdeaOwnership(ideaId, user.id);
+    const compileResult = await this.irService.compileIR(
+      ideaId,
+      dto.selectedDiagrams,
+      user.id,
+    );
+    return {
       message: "System compiled from Intermediate Representation successfully",
-      data: compileResult,
-    });
+      ...compileResult,
+    };
   }
-);
+}
