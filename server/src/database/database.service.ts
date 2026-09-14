@@ -14,8 +14,15 @@ export class DatabaseService
 {
   private readonly logger = new Logger(DatabaseService.name);
   private pool!: Pool;
+  private static instance: DatabaseService;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    DatabaseService.instance = this;
+  }
+
+  static getInstance(): DatabaseService {
+    return DatabaseService.instance;
+  }
 
   async onModuleInit(): Promise<void> {
     const connectionString =
