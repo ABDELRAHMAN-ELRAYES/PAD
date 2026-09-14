@@ -10,8 +10,9 @@ import { IdeaModule } from "./modules/idea/idea.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { DocumentModule } from "./modules/document/document.module";
 import { DiagramModule } from "./modules/diagram/diagram.module";
-import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 import { IRModule } from "./modules/ir/ir.module";
+import { WorkflowModule } from "./modules/workflow/workflow.module";
+import { CorrelationIdMiddleware } from "./common/middleware/correlation-id.middleware";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { IRModule } from "./modules/ir/ir.module";
     DocumentModule,
     DiagramModule,
     IRModule,
+    WorkflowModule,
   ],
 })
 export class AppModule implements NestModule {
