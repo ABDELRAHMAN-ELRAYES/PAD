@@ -8,11 +8,11 @@
  *   "this diagram", "the ERD", "the PRD" → loads full content for matched artifacts.
  */
 
-import IdeaRepository from "../idea/idea.repository";
-import DocumentRepository from "../document/document.repository";
-import DiagramRepository from "../diagram/diagram.repository";
-import { workflowRepository } from "../workflow/workflow.repository";
-import IterationRepository from "./iteration.repository";
+import { IdeaRepository } from "../idea/idea.repository";
+import { DocumentRepository } from "../document/document.repository";
+import { DiagramRepository } from "../diagram/diagram.repository";
+import { WorkflowRepository } from "../workflow/workflow.repository";
+import { IterationRepository } from "./iteration.repository";
 
 // Content limits per mode — higher than before so AI can actually reason about content
 const SUMMARY_CONTENT_LIMIT = 2000;
@@ -152,13 +152,14 @@ export default class IterationContextBuilder {
         const ideaRepo = IdeaRepository.getInstance();
         const docRepo = DocumentRepository.getInstance();
         const diagramRepo = DiagramRepository.getInstance();
+        const workflowRepo = WorkflowRepository.getInstance();
 
         // Fetch all data in parallel
         const [idea, documents, diagrams, workflow] = await Promise.all([
             ideaRepo.getIdeaById(ideaId),
             docRepo.getDocumentsByIdeaId(ideaId),
             diagramRepo.getDiagramsByIdeaId(ideaId),
-            workflowRepository.getWorkflowByIdeaId(ideaId),
+            workflowRepo.getWorkflowByIdeaId(ideaId),
         ]);
 
         // Resolve references — load full content for mentioned artifacts
