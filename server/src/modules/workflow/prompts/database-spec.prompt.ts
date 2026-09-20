@@ -31,7 +31,7 @@ The document MUST cover:
 1. **Overview** — database engine choice and rationale
 2. **Entity Definitions** — for EACH entity: table name, columns (name, type, constraints, description), primary key, indexes
 3. **Relationships** — foreign keys, cardinality, cascade rules
-4. **Schema Definition** — provide Prisma schema format for all models
+4. **Schema Definition** — provide standard SQL DDL (and ORM/Schema syntax if applicable) for all tables
 5. **Seeding Strategy** — initial data requirements and seed order
 6. **Migration Notes** — any multi-step migration concerns
 `;

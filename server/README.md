@@ -1,23 +1,29 @@
-# PAD Server - Node.js + Express + TypeScript
+# PAD Server — NestJS + TypeScript + PostgreSQL
 
-Backend server for **PAD (Product Architecture Designer)** - an AI-powered platform that transforms software ideas into comprehensive SDLC artifacts.
+Backend server for **PAD (Product Architecture Designer)** — an AI-powered platform that transforms software ideas into comprehensive SDLC artifacts, structured Intermediate Representation (IR), and AI IDE handoff packages.
 
-## Purpose
+---
 
-The PAD server provides the API backbone for:
+## Core Capabilities
 
-- **Idea Processing**: Intake, validate, and enhance software ideas with AI
-- **Document Generation**: Auto-generate PRD and BRD from confirmed ideas
-- **Diagram Generation**: Create ERD, Sequence, and Schema diagrams
-- **Feature Management**: Break down features into tasks with dependencies
-- **Workflow Generation**: Create implementation workflows for AI IDEs
-- **Iterative Updates**: Process chat-based feedback and sync changes across modules
+- **Auth & User Management**: Secure JWT authentication, user profile management, password resets, and role checks.
+- **Idea Intake & AI Discovery**: Structured idea intake and interactive AI discovery questions (without deep-research bottlenecks).
+- **Intermediate Representation (IR)**: Normalized factual system schema (entities, fields, relations, modules, business rules) acting as the single source of truth.
+- **Document Generation**: Auto-generates standard-compliant PRD and BRD from confirmed ideas and compiled IR.
+- **Diagram Generation & Multi-Tier Validation**: Generates ERD, Sequence, Flowchart, and Architecture diagrams with multi-tier validation fallback and version control.
+- **Workflow Generation & AI IDE Handoff**: Compiles DAG execution steps and downloadable ZIP handoff packages with master prompts for Cursor/Copilot/Windsurf.
+- **Iteration Engine**: Real-time Socket.io feedback loop supporting discussion chat, streaming LLM responses, and live schema patching with downstream asset recompilation.
+
+---
 
 ## Prerequisites
 
 - Node.js 18+
-- PostgreSQL database
-- pnpm or npm
+- PostgreSQL 16+
+- pnpm package manager (`npm install -g pnpm`)
+- Local or Remote LLM provider (Ollama / Gemini / Anthropic)
+
+---
 
 ## Setup Instructions
 
@@ -30,7 +36,7 @@ pnpm install
 
 ### 2. Configure Environment Variables
 
-Copy the `.env.example` file to `.env` and update with your actual values:
+Copy the `.env.example` file to `.env` and configure your credentials:
 
 ```bash
 cp .env.example .env
@@ -38,29 +44,32 @@ cp .env.example .env
 
 **Required Variables**:
 ```env
-DATABASE_URL="postgresql://your_username:your_password@localhost:5432/pad_db"
+DATABASE_URL="postgresql://username:password@localhost:5432/pad_db"
 NODE_ENV=development
 PORT=5000
-JWT_SECRET=your_jwt_secret
+JWT_SECRET=your_super_secret_jwt_key
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3.5:4b
 ```
 
-### 3. Generate Prisma Client
+### 3. Apply Database Migrations
+
+Apply the atomic, reversible SQL migrations via `DatabaseService`:
 
 ```bash
-pnpm prisma:generate
+# Run all pending migrations
+pnpm migrate:up
+
+# Check migration status
+pnpm migrate:status
+
+# Rollback last migration if needed
+pnpm migrate:down
 ```
 
-### 4. Apply Database Migrations
+### 4. Run the Server
 
-```bash
-pnpm prisma:push
-```
-
-### 5. Run the Server
-
-Development mode with hot reload:
+Development mode (with hot reload):
 ```bash
 pnpm dev
 ```
@@ -71,146 +80,70 @@ pnpm build
 pnpm start
 ```
 
-## Project Structure
+Once started, explore the interactive **Swagger OpenAPI documentation** at:
+`http://localhost:5000/api/docs`
+
+---
+
+## Project Architecture
 
 ```
 server/
-├── prisma/
-│   └── schema.prisma          # Prisma schema (database models)
+├── migrations/                 # Atomic SQL migrations (21 up/down files)
+├── scripts/
+│   └── migrate.ts             # Migration runner script
 ├── src/
-│   ├── config/
-│   │   └── config.ts          # Environment configuration
-│   ├── data-server-clients/
-│   │   └── prisma-client.ts   # Prisma client singleton
-│   ├── enum/
-│   │   └── UserRole.ts        # User roles and admin privileges
-│   ├── middlewares/
-│   │   ├── auth.middleware.ts     # JWT authentication
-│   │   ├── error-handler.ts       # Global error handler
-│   │   ├── rate-limit.middleware.ts # Rate limiting
-│   │   └── middlewares.ts         # CORS, body parser, etc.
+│   ├── app.module.ts          # Root NestJS application module
+│   ├── main.ts                # Application bootstrap, Swagger, pipes & filters
+│   ├── common/                # Shared filters, interceptors, middleware & guards
+│   ├── config/                # Environment configuration
+│   ├── database/              # DatabaseModule & DatabaseService (pg.Pool raw SQL)
 │   ├── modules/
-│   │   ├── auth/              # Authentication & authorization
-│   │   │   ├── auth.controller.ts
-│   │   │   ├── auth.service.ts
-│   │   │   ├── auth.repository.ts
-│   │   │   └── auth.route.ts
-│   │   ├── user/              # User management
-│   │   │   ├── user.controller.ts
-│   │   │   ├── user.service.ts
-│   │   │   ├── user.repository.ts
-│   │   │   └── user.route.ts
-│   │   ├── idea/              # Module 1: Idea intake & validation
-│   │   ├── document/          # Module 2: PRD & BRD generation
-│   │   ├── diagram/           # Module 3: Diagram generation
-│   │   ├── feature/           # Module 4: Feature breakdown
-│   │   ├── workflow/          # Module 5: Implementation workflow
-│   │   └── chat/              # Module 6: Iterative feedback
-│   ├── utils/
-│   │   ├── app-error.ts       # Custom error class
-│   │   ├── catch-async.ts     # Async error wrapper
-│   │   ├── hashing-handler.ts # Password hashing (bcrypt)
-│   │   └── email/             # Email utilities
-│   ├── app.ts                 # Express app setup
-│   └── server.ts              # Server entry point
-├── uploads/                   # Uploaded files
-├── .env                       # Environment variables
-├── .env.example               # Environment template
+│   │   ├── ai/                # AI LLM streaming & prompt orchestration
+│   │   ├── auth/              # JWT auth, guards & decorators
+│   │   ├── user/              # User profile management
+│   │   ├── file/              # File upload & document parsers (PDF/MD/Text)
+│   │   ├── guideline/         # Architecture & style guideline management
+│   │   ├── idea/              # Idea intake, drafts, and status progression
+│   │   ├── discovery/         # Discovery questions & session refinement
+│   │   ├── document/          # PRD / BRD generation & versioning
+│   │   ├── diagram/           # Mermaid diagram compiler & validation engine
+│   │   ├── ir/                # Intermediate Representation compiler & patcher
+│   │   ├── workflow/          # DAG workflow & AI IDE handoff compiler
+│   │   └── iteration/         # Chat sessions, intent classifier & live sync
+│   └── services/              # SocketService & shared utilities
 ├── package.json
 └── tsconfig.json
 ```
 
+---
+
 ## Available Scripts
 
 | Script | Description |
-|--------|-------------|
-| `pnpm dev` | Start development server with hot reload |
-| `pnpm build` | Build for production |
-| `pnpm start` | Start production server |
-| `pnpm prisma:generate` | Generate Prisma Client |
-| `pnpm prisma:push` | Push schema changes to database |
-| `pnpm prisma:studio` | Open Prisma Studio (database GUI) |
+|---|---|
+| `pnpm dev` | Start development server with tsx hot reload |
+| `pnpm build` | Compile TypeScript to JavaScript (`dist/`) |
+| `pnpm start` | Run compiled production server |
+| `pnpm migrate:up` | Apply pending SQL migrations |
+| `pnpm migrate:down` | Rollback the latest SQL migration |
+| `pnpm migrate:status` | Display applied and pending SQL migrations |
 
-## API Endpoints
+---
 
-### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/logout` - User logout
-- `GET /api/v1/auth/me` - Get current user
+## API Documentation
 
-### Users
-- `GET /api/v1/users` - List users (admin)
-- `GET /api/v1/users/:id` - Get user by ID
-- `PUT /api/v1/users/:id` - Update user
-- `DELETE /api/v1/users/:id` - Delete user
+Swagger OpenAPI is accessible at `/api/docs` when the server is running. Key module routes include:
 
-### Ideas (Module 1)
-- `POST /api/v1/ideas` - Submit new idea
-- `GET /api/v1/ideas` - List user's ideas
-- `PUT /api/v1/ideas/:id/confirm` - Confirm idea for processing
-
-### Documents (Module 2)
-- `POST /api/v1/documents/generate` - Generate PRD/BRD from idea
-- `GET /api/v1/documents` - List documents
-- `PUT /api/v1/documents/:id` - Edit document
-
-### Diagrams (Module 3)
-- `POST /api/v1/diagrams/generate` - Generate diagrams from documents
-- `GET /api/v1/diagrams` - List diagrams
-- `PUT /api/v1/diagrams/:id` - Edit diagram (Mermaid code)
-
-### Features & Tasks (Module 4)
-- `POST /api/v1/features/extract` - Extract features from PRD/BRD
-- `GET /api/v1/features` - List features
-- `POST /api/v1/features/:id/tasks` - Add task to feature
-- `PUT /api/v1/tasks/:id/status` - Update task status
-
-### Workflows (Module 5)
-- `POST /api/v1/workflows/generate` - Generate workflow from tasks
-- `GET /api/v1/workflows` - List workflows
-- `PUT /api/v1/workflows/:id` - Edit workflow steps
-
-## Architecture
-
-This server follows a clean, modular architecture:
-
-- **Repository Pattern**: Data access layer with Prisma
-- **Service Layer**: Business logic and AI integration
-- **Controller Layer**: Request handling and validation
-- **Singleton Pattern**: For repositories and database client
-- **Type Safety**: Full TypeScript coverage
-- **Error Handling**: Centralized error handling with custom AppError class
-
-## PAD Modules Integration
-
-| Module | Server Implementation |
-|--------|----------------------|
-| **Module 1** - Idea Intake | `modules/idea/` |
-| **Module 2** - Document Generation | `modules/document/` |
-| **Module 3** - Diagram Generation | `modules/diagram/` |
-| **Module 4** - Feature Breakdown | `modules/feature/` |
-| **Module 5** - Implementation Workflow | `modules/workflow/` |
-| **Module 6** - Iterative Feedback | `modules/chat/` |
-
-## Current Status
-
-**Implemented:**
-- Core infrastructure setup
-- Authentication module (JWT)
-- User module (CRUD operations)
-- Security middleware (helmet, rate limiting)
-- Email service (Nodemailer)
-- Error handling
-
-**In Progress:**
-- Module 1: Idea Intake & Pre-Validation
-- Module 2: Document Generation
-- Module 3: Diagram Generation
-- Module 4: Feature Breakdown
-- Module 5: Implementation Workflow
-- Module 6: Iterative Feedback
-
-## Support
-
-For issues or questions, please refer to the [main README](../README.md) and module documentation in `/documents/modules/`.
+- `POST /api/v1/auth/*` — Authentication & JWT tokens
+- `GET /api/v1/users/me` — Authenticated user profile
+- `POST /api/v1/files/upload` — Multipart document uploads
+- `GET /api/v1/guidelines` — Architectural guidelines
+- `POST /api/v1/ideas` — Software idea intake
+- `POST /api/v1/discovery/:ideaId/*` — Discovery questions & answers
+- `POST /api/v1/documents/generate/:ideaId` — PRD & BRD generation
+- `POST /api/v1/diagrams/generate/:ideaId` — Mermaid diagram generation
+- `POST /api/v1/ir/generate/:ideaId` — IR compilation & schema export
+- `POST /api/v1/workflow/generate/:ideaId` — Workflow DAG generation
+- `GET /api/v1/workflow/handoff/generate/:ideaId` — SSE AI IDE handoff compiler
+- `GET /api/v1/iterations/idea/:ideaId` — Iteration session chat & updates

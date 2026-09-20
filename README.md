@@ -3,20 +3,21 @@
 <div align="center">
 
 ![Node Version](https://img.shields.io/badge/Node-18+-339933?style=flat-square&logo=node.js&logoColor=white)
+![NestJS](https://img.shields.io/badge/NestJS-12+-E0234E?style=flat-square&logo=nestjs&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-19+-61DAFB?style=flat-square&logo=react&logoColor=black)
-![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5+-3178C6?style=flat-square&logo=typescript&logoColor=white)
 
-**[Documentation](#documentation--api-reference) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Modules](#project-structure--modules) · [Contributing](#contributing)**
+**[Documentation](#documentation--api-reference) · [Architecture](#architecture) · [How It Works](#how-it-works) · [Tech Stack](#tech-stack) · [Getting Started](#getting-started)**
 
 </div>
 
-> AI-powered system design platform that transforms raw software ideas into complete, production-ready SDLC artifacts.
+> AI-powered system design platform that transforms raw software ideas into complete, production-ready SDLC artifacts, structured Intermediate Representation (IR), and AI IDE handoff packages.
 
 ---
 
-PAD is a modern web application designed to accelerate software engineering planning. Starting from a simple client brief or business idea, PAD automatically generates system design documents, interactive UML diagrams, structured feature breakdowns, actionable tasks with dependency graphs, and IDE-compatible workflow instructions — all powered by local models via Ollama and live-editable inside a unified React workspace.
+PAD is a modern web application designed to accelerate software engineering planning. Starting from a simple client brief or business idea, PAD automatically generates system design documents (PRD/BRD), interactive UML diagrams (ERD, Sequence, Architecture), structured Intermediate Representation schemas, actionable DAG execution steps, and AI IDE handoff packages for Cursor, Copilot, and Windsurf — all live-editable inside a unified Next.js workspace with real-time Socket.io state synchronization.
 
 ---
 
@@ -35,57 +36,59 @@ PAD is a modern web application designed to accelerate software engineering plan
 
 ## Why PAD
 
-Traditional software pre-development planning (gathering requirements, drawing database schemas, and writing task lists) takes days. **PAD** reduces this to minutes while offering features that maintain standard-compliant rigor:
+Traditional software pre-development planning (gathering requirements, drawing database schemas, aligning architectural constraints, and writing task lists) takes days. **PAD** reduces this to minutes while maintaining standard-compliant rigor:
 
 - **AI-Powered Intake & Pre-Validation**: Proactively extracts missing details, suggestions, risks, and clarifying questions from your raw brief before building anything.
-- **Synchronized Artifact Set**: Requirements (PRD/BRD), Diagrams (ERD, Sequence, Flowcharts), Features, and Tasks are linked semantically.
-- **MermaidJS Live Editor**: Review and edit generated architecture diagrams with real-time browser preview.
-- **Version Control with Reversion**: Supports full version history for all requirements, diagrams, features, and tasks, enabling you to revert any artifact to any previous commit version.
-- **Interactive Chat-Based Updating**: Refine your system designs recursively via an AI chat. PAD compiles recommendations into a *Modification Plan* outlining specific changes across all modules, which can be approved or rolled back with one click.
+- **Intermediate Representation (IR)**: Compiles all project facts, database models, entities, relationships, and business rules into a normalized, single source of truth.
+- **Synchronized Artifact Set**: Requirements (PRD/BRD), Diagrams (ERD, Sequence, Flowcharts), and Workflow steps remain semantically consistent with the IR.
+- **MermaidJS Live Editor & Multi-Tier Fallback**: Review and edit generated architecture diagrams with real-time browser preview and multi-tier validation fallback.
+- **AI IDE Handoff Compiler**: Generates downloadable ZIP packages containing `.cursorrules`, `.windsurfrules`, architecture context, and database specifications for downstream coding assistants.
+- **Interactive Chat-Based Iteration**: Refine system designs recursively via an AI chat. PAD applies schema changes and autocompiles downstream documents and diagrams in real-time.
 
 ---
 
 ## Architecture
 
-PAD is built as a split client-server monolith with real-time Socket.io state synchronization and background worker queues.
+PAD is built as a split client-server monolith with real-time Socket.io state synchronization, SSE streaming, and raw parameterized SQL persistence.
 
 ```mermaid
 flowchart TD
     User([User Browser])
 
-    subgraph Client [Frontend Layer — Next.js]
+    subgraph Client [Frontend Layer — Next.js 16]
         UI[UI Workspace Components]
         TQ[TanStack Query Hooks]
         SIO_C[Socket.io Client]
     end
 
-    subgraph Server [Backend Layer — Express.js]
-        Router[HTTP Router / Controllers]
-        Auth[JWT Protection Middleware]
-        Ollama[Ollama Integration Service]
+    subgraph Server [Backend Layer — NestJS]
+        Controllers[NestJS Controllers & DTOs]
+        Auth[JWT Guards & Decorators]
+        AIService[AI LLM Streaming & Prompts]
         SIO_S[Socket.io Server]
-        Prisma[Prisma Client ORM]
+        DBService[Raw SQL DatabaseService]
     end
 
     subgraph External [AI Providers]
-        OllamaAPI[[Local Ollama Instance]]
+        LLMAPI[[Ollama / Anthropic / Gemini]]
     end
 
     subgraph Storage [Storage Layer]
-        DB[(PostgreSQL)]
+        DB[(PostgreSQL 16+)]
+        Migrations[21 SQL Migrations]
     end
 
     User <--->|"HTTPS / WSS"| Client
     UI <---> TQ
     UI <---> SIO_C
-    TQ --->|"REST API Requests"| Router
-    SIO_C <--->|"Real-time Change Plans"| SIO_S
-    Router ---> Auth
-    Router ---> Ollama
-    Router ---> SIO_S
-    Ollama <--->|"AI Analysis & Generation"| OllamaAPI
-    Router ---> Prisma
-    Prisma <---> DB
+    TQ --->|"REST / SSE Requests"| Controllers
+    SIO_C <--->|"Real-time State & Streaming"| SIO_S
+    Controllers ---> Auth
+    Controllers ---> AIService
+    Controllers ---> DBService
+    AIService <--->|"LLM Prompting & Streaming"| LLMAPI
+    DBService <---> DB
+    Migrations ---> DB
 
     style Client fill:#f9f9f9,stroke:#333
     style Server fill:#f5f5f5,stroke:#333
@@ -97,29 +100,32 @@ flowchart TD
 
 ## How It Works
 
-PAD models document planning into sequential, dependency-aware phases:
+PAD models system design into sequential, dependency-aware phases:
 
 ```mermaid
 flowchart TD
-    subgraph Phase1 [Phase 1: Idea Validation]
-        A[Raw Input Idea] -->|Pre-Validation| B(Clarifying Questions)
-        B -->|Refinement answers| C(Confirmed status)
+    subgraph Phase1 [Phase 1: Idea Intake & Discovery]
+        A[Raw Input Brief] -->|Intake & Pre-Validation| B(AI Discovery Questions)
+        B -->|Refinement Answers| C(Confirmed Idea Status)
     end
 
-    subgraph Phase2 [Phase 2: Core Artifacts]
-        C -->|Module 2: Docs| D[PRD & BRD]
-        C -->|Module 3: Diagrams| E[Mermaid ERD / Sequence]
+    subgraph Phase2 [Phase 2: Intermediate Representation]
+        C -->|Compiler| IR[Project Facts Schema / IR]
     end
 
-    subgraph Phase3 [Phase 3: Actionable Specs]
-        D & E -->|Module 4: Features| F[Feature extraction]
-        F -->|Module 4: Tasks| G[Suggested tasks & dependency graph]
-        G -->|Module 5: Workflow| H[AI IDE Instructions]
+    subgraph Phase3 [Phase 3: Core Artifacts]
+        IR -->|Module 2: Docs| D[PRD & BRD Specifications]
+        IR -->|Module 3: Diagrams| E[Mermaid ERD / Sequence / Architecture]
     end
 
-    subgraph Phase4 [Phase 4: Feedback Loop]
-        H -->|Module 6: Chat updates| I[Modification Plans]
-        I -->|Reconciliation| D
+    subgraph Phase4 [Phase 4: Actionable Specs & Handoff]
+        IR & D & E -->|Module 5: Workflow| F[DAG Step Generation]
+        F -->|AI IDE Compiler| G[Handoff ZIP & Master Prompt]
+    end
+
+    subgraph Phase5 [Phase 5: Real-Time Feedback Loop]
+        G -->|Module 6: Iteration Chat| H[Chat Updates & Schema Patching]
+        H -->|Auto-Recompile| IR
     end
 ```
 
@@ -129,14 +135,14 @@ flowchart TD
 
 | Layer | Technologies |
 |---|---|
-| **Frontend Framework** | Next.js 16 (App Router), React 19, Vite, Tailwind CSS, shadcn/ui |
+| **Frontend Framework** | Next.js 16 (App Router), React 19, Tailwind CSS, shadcn/ui |
 | **API Client & State** | TanStack Query v5 (React Query), Socket.io Client |
-| **Backend Runtime** | Node.js + Express.js |
-| **Language** | TypeScript |
-| **Database & ORM** | PostgreSQL + Prisma ORM |
-| **Generative AI** | Local LLM via Ollama (e.g., Qwen / Llama) |
-| **Authentication** | JSON Web Tokens (JWT) + HTTP Headers |
-| **Diagram Engine** | MermaidJS Live Rendering |
+| **Backend Runtime** | Node.js + NestJS 12 (TypeScript) |
+| **Database & Migrations** | PostgreSQL 16+, Raw SQL (`pg.Pool` via `DatabaseService`), 21 atomic migrations |
+| **Generative AI** | Multi-Provider (Ollama, Gemini, Claude) with SSE & Socket Streaming |
+| **Authentication** | Passport JWT, `@CurrentUser()`, role guards |
+| **API Documentation** | Swagger OpenAPI at `/api/docs` |
+| **Diagram Engine** | MermaidJS Live Rendering with multi-tier validation |
 
 ---
 
@@ -144,35 +150,35 @@ flowchart TD
 
 ```
 PAD/
-├── server/                    # Node.js Express backend
-│   ├── prisma/                # Prisma schema & migrations
-│   │   └── schema.prisma      # PostgreSQL models
+├── server/                    # NestJS backend server
+│   ├── migrations/            # 21 atomic SQL schema migrations
+│   ├── scripts/               # Migration runner (migrate.ts)
 │   ├── src/
-│   │   ├── modules/           # Module controllers, services, and routes
-│   │   │   ├── ai/            # Ollama client & prompt service
-│   │   │   ├── auth/          # User login, registration, and forget password
-│   │   │   ├── diagram/       # Mermaid generation & versions
-│   │   │   ├── document/      # PRD/BRD generation & versions
-│   │   │   ├── feature/       # Feature requirements & linkings
-│   │   │   ├── iteration/     # Chat sessions & Modification Plans
-│   │   │   ├── task/          # Feature tasks & dependency tree
-│   │   │   └── workflow/      # Cursor/Copilot script exports
-│   │   └── middlewares/       # Express middlewares (JWT guards, errors)
+│   │   ├── database/          # DatabaseService & raw SQL engine
+│   │   ├── common/            # Filters, interceptors, middleware & guards
+│   │   ├── modules/
+│   │   │   ├── ai/            # Multi-provider LLM service & prompts
+│   │   │   ├── auth/          # JWT authentication, login, registration
+│   │   │   ├── user/          # User profiles & role management
+│   │   │   ├── file/          # Document upload & text extractors (PDF/MD)
+│   │   │   ├── guideline/     # Architectural guidelines
+│   │   │   ├── idea/          # Idea intake & state machine
+│   │   │   ├── discovery/     # Discovery sessions & questions
+│   │   │   ├── document/      # PRD & BRD generation & versioning
+│   │   │   ├── diagram/       # Mermaid diagrams & multi-tier validation
+│   │   │   ├── ir/            # Project IR compiler & patcher
+│   │   │   ├── workflow/      # Workflow DAG & AI IDE handoff compiler
+│   │   │   └── iteration/     # Chat sessions, streaming & schema patching
+│   │   ├── app.module.ts      # Root NestJS module
+│   │   └── main.ts            # NestJS bootstrap & Swagger configuration
 │   └── README.md              # Server development readme
-└── web/                       # Next.js frontend
+└── web/                       # Next.js frontend application
     ├── src/
-    │   ├── app/               # App Router pages
+    │   ├── app/               # Next.js App Router pages
     │   ├── components/        # React components (dialogs, sidebars, charts)
-    │   │   └── providers/     # QueryProvider, ThemeProvider, StreamingProvider
-    │   ├── features/          # Module components and hooks
-    │   │   ├── chat/          # Unified chat panel & modification plans
-    │   │   ├── diagrams/      # Diagram editor & versions
-    │   │   ├── documents/     # PRD/BRD text fields & versions
-    │   │   ├── features/      # Feature requirements listing
-    │   │   ├── ideas/         # Idea workspace sidebar & pre-validation
-    │   │   └── workflow/      # Workflow IDE checklist export
-    │   ├── api/               # apiClient, errors, and logging interceptors
-    │   └── README.md          # Frontend development readme
+    │   ├── features/          # Feature components, hooks & queries
+    │   └── api/               # API client, error handling, interceptors
+    └── README.md              # Frontend development readme
 ```
 
 ---
@@ -184,32 +190,32 @@ PAD/
 - [Node.js](https://nodejs.org/) v18+
 - [PostgreSQL](https://www.postgresql.org/) v16+
 - [pnpm](https://pnpm.io/) package manager (`npm install -g pnpm`)
-- Local Ollama instance (installed and running)
+- Local Ollama instance or cloud AI API keys
 
 ---
 
 ### Step-by-Step Installation
 
-#### 1. Setup the Database & Server Backend
+#### 1. Setup the Database & Backend Server
 ```bash
 cd server
 pnpm install
 
 # Create environment file
 cp .env.example .env
-# Edit .env and supply your DATABASE_URL, OLLAMA_URL, and OLLAMA_MODEL
+# Edit .env and supply your DATABASE_URL, JWT_SECRET, and AI provider credentials
 ```
 
-Run database migrations:
+Apply database migrations:
 ```bash
-pnpm prisma db push
+pnpm migrate:up
 ```
 
-Start the server:
+Start the NestJS server:
 ```bash
 pnpm dev
 ```
-The server will run on `http://localhost:8080`.
+The server will run on `http://localhost:5000` with Swagger docs at `http://localhost:5000/api/docs`.
 
 ---
 
@@ -220,7 +226,7 @@ pnpm install
 
 # Create environment file
 cp .env.example .env.local
-# Edit .env.local and confirm NEXT_PUBLIC_API_URL is pointing to the server
+# Edit .env.local and confirm NEXT_PUBLIC_API_URL points to the server
 ```
 
 Start Next.js dev server:
@@ -238,138 +244,24 @@ Open `http://localhost:3000` in your web browser.
 | Variable | Description | Default |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://...` |
-| `PORT` | Backend port | `8080` |
+| `PORT` | Backend port | `5000` |
 | `JWT_SECRET` | Secret key for signing authorization tokens | — |
-| `OLLAMA_URL` | **Required.** Ollama Server URL | `http://localhost:11434` |
-| `OLLAMA_MODEL` | **Required.** Main LLM Model name | `qwen3.5:4b` |
+| `OLLAMA_URL` | Ollama Server URL (if using local AI) | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Main LLM Model name | `qwen3.5:4b` |
 
 ---
 
 ## Documentation & API Reference
 
-All requests must pass authentication via the `Authorization: Bearer <JWT_Token>` header, except for registration/login endpoints.
-
----
-
-### 1. Authentication (`/api/v1/auth`)
-
-#### Register a New Account
-- **Endpoint**: `POST /api/v1/auth/register`
-- **Body**:
-  ```json
-  {
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john.doe@example.com",
-    "password": "secure_password"
-  }
-  ```
-
-#### Authenticate & Login
-- **Endpoint**: `POST /api/v1/auth/login`
-- **Body**:
-  ```json
-  {
-    "email": "john.doe@example.com",
-    "password": "secure_password"
-  }
-  ```
-- **Response**: Returns JWT token and user profile details.
-
----
-
-### 2. Idea Pre-Validation (`/api/v1/ideas`)
-
-#### Submit a Software Brief
-- **Endpoint**: `POST /api/v1/ideas`
-- **Body**: `{"rawText": "A SaaS app for tracking gym workouts with friends"}`
-- **Response**: Returns an `idea` object containing `status: "draft"`.
-
-#### Run AI Pre-Validation (Streaming)
-- **Endpoint**: `POST /api/v1/ideas/:id/analyze`
-- **Response**: Streams chunks of analysis including missing details, suggestions, and clarifying questions.
-
-#### Submit Clarification Answers
-- **Endpoint**: `POST /api/v1/ideas/:id/refine`
-- **Body**:
-  ```json
-  {
-    "answers": [
-      { "question": "What platforms are supported?", "answer": "iOS and Android" }
-    ]
-  }
-  ```
-
-#### Confirm Workspace
-- **Endpoint**: `POST /api/v1/ideas/:id/confirm`
-- **Response**: Sets `status` to `"confirmed"`, permitting requirements document generation.
-
----
-
-### 3. Requirements Documents (`/api/v1/documents`)
-
-#### Generate PRD & BRD
-- **Endpoint**: `POST /api/v1/documents/generate/:ideaId`
-- **Response**: Auto-generates the complete requirement texts and sets status to `"published"`.
-
-#### Update Document Content
-- **Endpoint**: `PUT /api/v1/documents/:id`
-- **Body**: `{"title": "Updated Title", "content": "Markdown...", "changelog": "Commit details"}`
-- **Response**: Increments document version and returns the latest document record.
-
-#### Revert to a Version
-- **Endpoint**: `POST /api/v1/documents/:id/revert/:version`
-- **Response**: Restores the document's body to the requested version number.
-
----
-
-### 4. System Architecture Diagrams (`/api/v1/diagrams`)
-
-#### Generate Mermaid Diagrams
-- **Endpoint**: `POST /api/v1/diagrams/generate/:ideaId`
-- **Response**: Returns array of diagrams (ERD, Sequence, Flowcharts).
-
-#### Update Diagram Mermaid Code
-- **Endpoint**: `PUT /api/v1/diagrams/:id`
-- **Body**: `{"mermaidCode": "erDiagram...", "changelog": "Edit layout"}`
-
----
-
-### 5. Features & Tasks (`/api/v1/features`, `/api/v1/tasks`)
-
-#### Extract Features from PRD/BRD
-- **Endpoint**: `POST /api/v1/features/extract/:ideaId`
-
-#### Suggest Feature Tasks
-- **Endpoint**: `POST /api/v1/tasks/suggest/:featureId`
-- **Response**: Returns recommended tasks with effort estimates and dependency indicators.
-
-#### Manage Task Dependencies
-- **Endpoint**: `POST /api/v1/tasks/:id/dependencies/:dependsOnId`
-
----
-
-### 6. Chat Iterations & AME (`/api/v1/iterations`)
-
-#### Post Iteration Message
-- **Endpoint**: `POST /api/v1/iterations/idea/:ideaId/message`
-- **Body**: `{"content": "Add a user profile picture feature"}`
-- **Response**: Generates a **Modification Plan** listing required edits.
-
-#### Confirm & Apply Modification Plan
-- **Endpoint**: `POST /api/v1/iterations/idea/:ideaId/plan/:planId/confirm`
-- **Response**: Automatically edits documents, diagrams, features, or tasks outlined in the plan.
-
-#### Rollback Modification Plan
-- **Endpoint**: `POST /api/v1/iterations/idea/:ideaId/plan/:planId/rollback`
-- **Response**: Restores all changed artifacts back to their version states prior to confirmation.
+Interactive Swagger OpenAPI documentation is available at:
+**`http://localhost:5000/api/docs`**
 
 ---
 
 ## Contributing
 
 1. Fork the repository and create your feature branch: `git checkout -b feature/amazing-feature`
-2. Commit your changes following conventions: `git commit -m 'feat: Add amazing feature'`
+2. Commit your changes following conventions: `git commit -m 'feat: add amazing feature'`
 3. Push to the branch: `git push origin feature/amazing-feature`
 4. Open a Pull Request.
 
