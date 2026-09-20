@@ -2,25 +2,21 @@
   "name": "pad-server",
   "version": "1.0.0",
   "description": "PAD: From Planning to AI IDE",
-  "main": "dist/server.js",
+  "main": "dist/main.js",
   "scripts": {
     "start": "NODE_ENV=production node --env-file=.env ./dist/main.js",
     "dev": "tsx watch --env-file=.env src/main.ts",
     "build": "tsc",
     "migrate:up": "tsx scripts/migrate.ts up",
     "migrate:down": "tsx scripts/migrate.ts down",
-    "migrate:status": "tsx scripts/migrate.ts status",
-    "prisma:generate": "prisma generate",
-    "prisma:pull": "prisma db pull",
-    "prisma:push": "prisma db push",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "migrate:status": "tsx scripts/migrate.ts status"
   },
   "keywords": [
-    "freelancing",
-    "platform",
-    "express",
-    "typescript"
+    "planning",
+    "sdlc",
+    "nestjs",
+    "typescript",
+    "postgresql"
   ],
   "author": "",
   "license": "ISC",
@@ -36,7 +32,6 @@
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/swagger": "^12.0.1",
     "@nestjs/throttler": "^6.5.0",
-    "@prisma/client": "^5.22.0",
     "@types/archiver": "^8.0.0",
     "@types/cookie-parser": "^1.4.10",
     "archiver": "^8.0.0",
@@ -81,7 +76,6 @@
     "@types/pg": "^8.23.1",
     "@types/turndown": "^5.0.5",
     "nodemon": "^3.1.9",
-    "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2"
